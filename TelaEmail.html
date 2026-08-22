@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+h2 { font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+.passo { display: none; }
+.ativo { display: block; }
+input[type="number"], input[type="text"], textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+textarea { height: 320px; resize: none; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.4; }
+button { background-color: #1a73e8; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+button:hover { background-color: #1557b0; }
+button.cancelar { background-color: #dc3545; margin-right: 10px; }
+button.cancelar:hover { background-color: #c82333; }
+#mensagem-erro { color: red; font-size: 13px; margin-top: 10px; font-weight: bold; }
+.loader { display: none; font-size: 13px; color: #666; font-style: italic; }
+
+/* Estilo para a caixa de seleção múltipla */
+.caixa-graficas { border: 1px solid #ccc; border-radius: 4px; padding: 10px; max-height: 150px; overflow-y: auto; margin: 10px 0; background-color: #fff; }
+.item-grafica { margin-bottom: 8px; display: flex; align-items: center; }
+.item-grafica input { margin: 0 10px 0 0; width: auto; cursor: pointer; }
+.item-grafica label { cursor: pointer; font-weight: normal; margin: 0; }
+
+/* Estilos novos */
+.caixa-versao { background: #f8f9fa; border: 1px solid #e0e0e0; padding: 10px; border-radius: 4px; margin: 10px 0; }
+.caixa-anexo { background: #e8f0fe; border: 1px solid #cce0ff; padding: 12px; border-radius: 4px; margin: 10px 0; font-size: 13px; display: flex;
+justify-content: space-between; align-items: center;}
+.caixa-dinamica-emails { background: #fff8e1; border: 1px solid #ffe082; padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div id="passo1" class="passo ativo">
+  <h2>1. Selecionar Chamado e Gráficas</h2>
+
+  <label>Digite o ID do Chamado (Ex: 2548):</label>
+  <input type="number" id="inputChamado" placeholder="Apenas os números">
+
+  <div class="caixa-versao">
+    <label style="font-weight: bold; font-size: 13px;">Tipo de Formalização:</label><br>
+    <div style="margin-top: 8px; font-size: 13px;">
+      <label style="margin-right: 15px; cursor: pointer;"><input type="radio" name="tipoEmail" value="reentrada" checked> Reentradas</label>
+      <label style="cursor: pointer;"><input type="radio" name="tipoEmail" value="inclusivo"> Inclusivos (Ampliados)</label>
+    </div>
+  </div>
+
+  <div class="caixa-versao">
+    <label style="font-weight: bold; font-size: 13px;">Qual versão da planilha (PPG) anexar?</label><br>
+    <div style="margin-top: 8px; font-size: 13px;">
+      <label style="margin-right: 15px; cursor: pointer;"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoVersao()"> Usar a última versão</label>
+      <label style="cursor: pointer;"><input type="radio" name="opcaoVersao" value="manual" onchange="alternarCampoVersao()"> Escolher versão</label>
+    </div>
+    <div id="blocoVersoesManuais" style="display:none; margin-top: 10px;">
+      <input type="number" id="inputNumVersao" placeholder="Ex: 1 (para a 1ª versão gerada)" style="margin:0; width: 100%;">
+    </div>
+  </div>
+
+  <label>Selecione as Gráficas de Destino (pode marcar várias):</label>
+  <div id="containerGraficas" class="caixa-graficas">
+    A carregar gráficas...
+  </div>
+
+  <button onclick="avancarParaRevisao()" style="margin-top: 10px;">Avançar para Revisão</button>
+  <div id="loader1" class="loader">A procurar dados e arquivo do chamado...</div>
+  <div id="mensagem-erro"></div>
+</div>
+
+<div id="passo2" class="passo">
+  <h2>2. Revisar e Enviar</h2>
+
+  <div class="caixa-anexo">
+    <div><strong>📎 Anexo:</strong> <span id="nomeAnexo"></span></div>
+    <a id="linkPreview" href="#" target="_blank" style="color:#1a73e8; font-weight:bold; text-decoration:none;">👁️ Pré-visualizar</a>
+  </div>
+
+  <label>Assunto do E-mail:</label>
+  <input type="text" id="assuntoEmail">
+
+  <div id="containerDestinatarios"></div>
+
+  <label>Corpo do E-mail (Pode editar antes de enviar):</label>
+  <textarea id="corpoEmail"></textarea>
+
+  <div style="margin-top: 10px;">
+    <button class="cancelar" onclick="voltar()">Voltar</button>
+    <button onclick="enviarEmail()">Enviar E-mail com Anexo</button>
+  </div>
+  <div id="loader2" class="loader">A enviar e-mail... Por favor, aguarde.</div>
+</div>
+
+<div id="passo3" class="passo">
+  <h2 style="color: green;">   ✔ E-mail Enviado!   </h2>
+  <p>O ficheiro Excel foi anexado e o e-mail foi disparado para as gráficas com sucesso.</p>
+  <button onclick="enviarNovoEmail()">Enviar Novo E-mail</button>
+</div>
+
+<script>
+var dadosGlobais = {};
+var listaGraficas = {};
+
+window.onload = function() {
+  google.script.run.withSuccessHandler(preencherGraficas).obterDadosGraficas();
+};
+
+function alternarCampoVersao() {
+  var opcao = document.querySelector('input[name="opcaoVersao"]:checked').value;
+  document.getElementById('blocoVersoesManuais').style.display = (opcao === 'manual') ? 'block' : 'none';
+}
+
+function preencherGraficas(graficas) {
+  listaGraficas = graficas;
+  var container = document.getElementById("containerGraficas");
+  container.innerHTML = '';
+  for (var nome in graficas) {
+    container.innerHTML += '<div class="item-grafica"><input type="checkbox" id="graf_' + nome + '" value="' + nome + '" class="chk-grafica"> <label for="graf_' + nome + '">' + nome + '</label></div>';
+  }
+}
+
+function avancarParaRevisao() {
+  var idChamado = document.getElementById("inputChamado").value;
+  var tipoEmail = document.querySelector('input[name="tipoEmail"]:checked').value; // Captura qual e-mail foi escolhido
+  var opcaoVersao = document.querySelector('input[name="opcaoVersao"]:checked').value;
+  var numVersao = document.getElementById("inputNumVersao").value;
+  var checkboxes = document.querySelectorAll('.chk-grafica:checked');
+  var graficasSelecionadas = [];
+
+  for (var i = 0; i < checkboxes.length; i++) {
+    graficasSelecionadas.push(checkboxes[i].value);
+  }
+
+  var msgErro = document.getElementById("mensagem-erro");
+
+  if (idChamado === "") {
+    msgErro.innerText = "Por favor, preencha o ID do Chamado.";
+    return;
+  }
+  if (opcaoVersao === 'manual' && numVersao === "") {
+    msgErro.innerText = "Por favor, informe o número da versão desejada.";
+    return;
+  }
+  if (graficasSelecionadas.length === 0) {
+    msgErro.innerText = "Por favor, selecione pelo menos uma Gráfica.";
+    return;
+  }
+
+  msgErro.innerText = "";
+  document.getElementById("loader1").style.display = "block";
+
+  google.script.run.withSuccessHandler(function(resposta) {
+    document.getElementById("loader1").style.display = "none";
+
+    if (resposta.erro) {
+      msgErro.innerText = resposta.erro;
+    } else {
+      dadosGlobais.idChamado = idChamado;
+      dadosGlobais.idArquivo = resposta.idExcel;
+
+      // Configura o preview e o NOME PADRONIZADO do anexo
+      document.getElementById("nomeAnexo").innerText = "Chamado " + idChamado + ".xlsx";
+      document.getElementById("linkPreview").href = resposta.urlExcel;
+
+      // Assunto padrão
+      document.getElementById("assuntoEmail").value = "Solicitação de prazo: Chamado " + idChamado + " - " + resposta.valorF;
+
+      // Cria caixas de input dinâmicas para cada gráfica selecionada
+      var containerDest = document.getElementById("containerDestinatarios");
+      containerDest.innerHTML = ""; 
+
+      for (var i = 0; i < graficasSelecionadas.length; i++) {
+        var graf = graficasSelecionadas[i];
+        if (listaGraficas[graf] && listaGraficas[graf].length > 0) {
+          var emailsStr = listaGraficas[graf].join(", ");
+          var htmlCaixa = '<div class="caixa-dinamica-emails">' +
+                          '<label>Destinatários - <strong>' + graf + '</strong>:</label>' +
+                          '<input type="text" class="input-destinatario" value="' + emailsStr + '">' +
+                          '</div>';
+          containerDest.innerHTML += htmlCaixa;
+        }
+      }
+
+      // LÓGICA DE TEXTO DE E-MAIL DINÂMICO
+      var textoPadrao = "";
+
+      if (tipoEmail === "reentrada") {
+          textoPadrao = "Bom dia,\n\n" +
+          "Por gentileza, podem analisar a produção em anexo e nos retornar se conseguem atender as datas desejadas de entrega no CD/acabadora e se não, qual a melhor data de atendimento?\n\n" +
+          "Peço retorno das seguintes datas prévias para que a data de coleta desejada ocorra:\n" +
+          "1. Data de envio de arquivo\n" +
+          "2. Data de envio dos bonecos\n" +
+          "3. Data de aprove dos bonecos\n" +
+          "4. Data planejada de entrada em máquina\n" +
+          "5. Data da coleta desejada: " + resposta.dataColeta + "\n\n" +
+          "OBS: O aceite desta solicitação não pode impactar em prazos já acordados de outras produções em andamento, including etapas de pré impressão.\n\n" +
+          "Aguardamos um breve retorno.\n\n" +
+          "Obrigada desde já.\n\n" +
+          "Att;";
+      } else if (tipoEmail === "inclusivo") {
+          textoPadrao = "Boa tarde,\n" +
+          "Espero encontrá-lo bem!\n\n" +
+          "Segue consulta da necessidade de produção de ampliado, se é viável o atendimento no prazo a seguir, com a respectiva PPG em anexo.\n\n" +
+          "A formalização da produção ocorrerá após o retorno dos prazos pela gráfica.\n" +
+          "Considerar o prazo para envio dos arquivos até 03 dias após a formalização da produção (exceto SAS que os links estão na aba de especificações).\n\n" +
+          "1. Data da coleta desejada: " + resposta.dataColeta + "\n\n" +
+          "Fico no aguardo.\n" +
+          "Obrigado,\n\n" +
+          "João Alberti";
+      }
+
+      document.getElementById("corpoEmail").value = textoPadrao;
+
+      document.getElementById("passo1").classList.remove("ativo");
+      document.getElementById("passo2").classList.add("ativo");
+    }
+  }).obterDadosChamado(idChamado, opcaoVersao, numVersao);
+}
+
+function voltar() {
+  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
+  alternarCampoVersao();
+
+  document.getElementById("passo2").classList.remove("ativo");
+  document.getElementById("passo1").classList.add("ativo");
+}
+
+function enviarEmail() {
+  dadosGlobais.corpo = document.getElementById("corpoEmail").value;
+  dadosGlobais.assunto = document.getElementById("assuntoEmail").value;
+
+  var inputsDest = document.querySelectorAll('.input-destinatario');
+  var arrayDestinos = [];
+
+  for (var i = 0; i < inputsDest.length; i++) {
+    var val = inputsDest[i].value.trim();
+    if (val !== "") {
+      arrayDestinos.push(val);
+    }
+  }
+
+  if (arrayDestinos.length === 0) {
+    alert("Por favor, preencha pelo menos um destinatário válido.");
+    return;
+  }
+
+  dadosGlobais.arrayDestinos = arrayDestinos;
+
+  document.getElementById("loader2").style.display = "block";
+
+  google.script.run.withSuccessHandler(function(resultado) {
+    document.getElementById("loader2").style.display = "none";
+    if(resultado.indexOf("sucesso") !== -1 || resultado.indexOf("Sucesso") !== -1) {
+      document.getElementById("passo2").classList.remove("ativo");
+      document.getElementById("passo3").classList.add("ativo");
+    } else {
+      alert(resultado);
+    }
+  }).dispararEmailFinal(dadosGlobais);
+}
+
+function enviarNovoEmail() {
+  document.getElementById("inputChamado").value = "";
+  document.getElementById("inputNumVersao").value = "";
+
+  var checkboxes = document.querySelectorAll('.chk-grafica');
+  for (var i = 0; i < checkboxes.length; i++) {
+    checkboxes[i].checked = false;
+  }
+
+  // Reseta para tipo de e-mail e versão padrão
+  document.querySelector('input[name="tipoEmail"][value="reentrada"]').checked = true;
+  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
+  alternarCampoVersao();
+
+  dadosGlobais = {};
+  document.getElementById("mensagem-erro").innerText = "";
+
+  document.getElementById("passo3").classList.remove("ativo");
+  document.getElementById("passo1").classList.add("ativo");
+}
+</script>
+</body>
+</html>

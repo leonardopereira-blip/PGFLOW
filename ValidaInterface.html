@@ -1,0 +1,532 @@
+<div class="vc">
+  <div class="vc-brand">
+    <svg width="26" height="26" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <path d="M30 26 C55 22 78 30 84 50 C70 40 50 40 38 46 Z" fill="#da2e12"/>
+      <path d="M62 40 L80 47 L70 78 L58 70 Z" fill="#da2e12"/>
+    </svg>
+    <span style="font-weight: 700; font-family: Helvetica, Arial, sans-serif; font-size: 13px; color: #0038A8;">ARCO </span>
+    <span class="vc-brand-tt">PG Flow</span>
+  </div>
+  <div class="vc-layout-container">
+    <div class="vc-main-panel" id="painelEsquerdo">
+      <div id="telaFase1">
+        <div class="vc-card">
+          <label class="vc-lbl" for="selectGraficas">1. Gráfica destino</label>
+          <select id="selectGraficas" disabled onchange="verificarLiberacaoBotao()">
+            <option value="">Carregando lista de gráficas...</option>
+          </select>
+          <label class="vc-lbl" for="txtChamados">2. IDs dos chamados (separados por vírgula)</label>
+          <input type="text" id="txtChamados" placeholder="Ex: 2465, 2466" oninput="verificarLiberacaoBotao()">
+          <label class="vc-lbl">3. Qual versão da PPG?</label>
+          <div class="vc-radio-group">
+            <label class="vc-radio"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoManual()"> Usar a última versão</label>
+            <label class="vc-radio"><input type="radio" name="opcaoVersao" value="selecionar" onchange="alternarCampoManual()"> Selecionar manualmente</label>
+          </div>
+          <div id="blocoVersoesManuais" style="display:none">
+            <label class="vc-lbl" for="txtVersoes">Versões (Ex: 1, 2)</label>
+            <input type="text" id="txtVersoes" placeholder="Ex: 1">
+          </div>
+          <button id="btnAvancar" class="vc-btn-primary" onclick="abrirResumoAntesDeAvancar()" disabled>Iniciar validação</button>
+        </div>
+      </div>
+      <div id="telaFase2" style="display:none">
+        <div class="vc-card">
+          <div class="vc-lbl">Chamados válidos</div>
+          <div id="painelChips" class="vc-chips"></div>
+          <div id="painelInvalidos" class="vc-invalid"></div>
+          <button id="btnConcluir" class="vc-btn-coral" onclick="executarFase2()">⚙️ Gerar Calculadora</button>
+          <div id="ctaHint" class="vc-cta-hint"></div>
+        </div>
+        <div class="vc-section">
+          <div class="vc-section-head"><span class="vc-dot" style="background:#F04E37"></span><h3>Acabamentos</h3>
+            <span class="vc-count">clique para ajustar</span></div>
+          <div id="containerAcabamentos"></div>
+        </div>
+        <div class="vc-section">
+          <div class="vc-section-head"><span class="vc-dot" style="background:#049FEC"></span><h3>Fornecimento</h3>
+            <span class="vc-count">grava nas colunas livres da CALC Geral</span></div>
+          <div class="vc-acc open" id="accServico">
+            <div class="vc-acc-head" onclick="toggleAcc('accServico')">
+              <span class="vc-tag" style="background:#eef1f7">🏭</span>
+              <span class="vc-acc-title">Serviço Gráfico</span>
+              <span class="vc-chev">⌄</span>
+            </div>
+            <div class="vc-acc-body">
+              <div class="vc-field">
+                <label class="vc-lbl">Tecnologia contratada</label>
+                <div class="vc-hint">A 1ª option é sugerida pela tiragem</div>
+                <select id="selTecnologia" onchange="escolherTec()"></select>
+              </div>
+              <div class="vc-field">
+                <label class="vc-lbl">Fornecedor</label>
+                <select id="selFornecedor"></select>
+              </div>
+            </div>
+          </div>
+          <div id="containerTecGroups"></div>
+        </div>
+        <div id="mensagem" class="vc-msg"></div>
+      </div>
+      <div id="telaFase3" style="display:none; padding-top: 20px;">
+        <div class="vc-card" style="max-width: 550px; margin: 0 auto; padding: 40px 30px;">
+          <h2 style="color: #284081; font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 25px; text-align: center;">Processamento da Calculadora</h2>
+         
+          <div style="background: #fcfcfd; padding: 25px; border-radius: 12px; border: 1px solid #e6e8ef;">
+            <div id="step1" class="tracker-row pending">
+              <span class="icon">⏳</span> <span class="lbl">1. Gerando base de dados (De-Para)...</span> <span class="time"></span>
+            </div>
+            <div id="step2" class="tracker-row pending">
+              <span class="icon">⏳</span> <span class="lbl">2. Dados em trânsito para o office...</span> <span class="time"></span>
+            </div>
+            <div id="step3" class="tracker-row pending">
+              <span class="icon">⏳</span> <span class="lbl">3. Dados processados, e calculadora gerada!</span> <span class="time"></span>
+            </div>
+          </div>
+         
+          <div id="stepTotal" style="display:none; margin-top: 20px; font-weight: 700; color: #1f9d6b; text-align: center; font-size: 15px;"></div>
+         
+          <div id="finishArea" style="display:none; text-align:center; margin-top:25px;">
+             <button id="btnNovaCalc" class="vc-btn-primary" onclick="resetarParaNovaCalculadora()">Gerar nova calculadora</button>
+          </div>
+          <div id="erroFase3" style="display:none; margin-top: 20px; font-size: 13px; line-height: 1.5; color: #b5341f; text-align: center;"></div>
+        </div>
+      </div>
+      <div id="mensagemFase1" class="vc-msg"></div>
+    </div>
+    <div class="vc-summary-panel" id="painelResumo">
+      <h3 style="margin-top:0; margin-bottom: 15px; color:#284081; font-size: 15px;">Resumo do Chamado</h3>
+     
+      <div id="conteudoResumoLoader" style="color: #54607d; font-size: 13px;">
+        <span class="vc-loader" style="border-color:#f3f3f3; border-top-color:#F04E37;"></span> Processando dados da PPG...
+      </div>
+     
+      <div id="conteudoResumoData" class="vc-summary-box"></div>
+     
+      <div class="vc-buttons-resumo" id="botoesResumo" style="display:none;">
+        <button class="btn-cancelar" onclick="cancelarResumo()">Voltar</button>
+        <button class="btn-continuar" onclick="continuarPosResumo()">Avançar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+ 
+  .vc{font-family:'Poppins',Arial,sans-serif;color:#1f2a44;font-size:14px;padding:6px 4px 24px;}
+  .vc *{box-sizing:border-box;}
+  .vc-brand{display:flex;align-items:center;gap:9px;padding:8px 4px 14px;}
+  .vc-brand-tt{font-weight:600;font-size:13px;color:#284081;letter-spacing:.2px;}
+  .vc-card{background:#fff;border:1px solid #e6e8ef;border-radius:12px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,29,56,.05);}
+  .vc-lbl{display:block;font-size:12px;font-weight:600;color:#54607d;margin:12px 0 5px;}
+  .vc-lbl:first-child{margin-top:0;}
+  .vc select,.vc input[type=text],.vc input[type=number]{width:100%;font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid #d3d9e6;border-radius:8px;background:#fff;color:#1f2a44;}
+  .vc select:focus,.vc input:focus{outline:none;border-color:#049FEC;box-shadow:0 0 0 3px rgba(4,159,236,.15);}
+  .vc-radio-group{background:#f7f9fd;border:1px solid #e6e8ef;border-radius:8px;padding:9px 11px;}
+  .vc-radio{display:block;font-weight:400;font-size:13px;cursor:pointer;margin:3px 0;}
+  .vc-radio input{width:auto;margin-right:7px;}
+  .vc-btn-primary,.vc-btn-coral{width:100%;border:none;border-radius:10px;padding:13px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;color:#fff;margin-top:14px;transition:filter .15s,transform .05s;}
+  .vc-btn-primary{background:#284081;}
+  .vc-btn-coral{background:#F04E37;}
+  .vc-btn-primary:hover,.vc-btn-coral:hover{filter:brightness(.95);}
+  .vc-btn-primary:active,.vc-btn-coral:active{transform:scale(.99);}
+  .vc-btn-primary:disabled{background:#c3c9d6;cursor:not-allowed;}
+  .vc-cta-hint{text-align:center;font-size:11px;color:#6b7280;margin-top:7px;}
+  .vc-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .vc-chip{background:#eaf0fb;color:#284081;border:1px solid #d6e2f7;border-radius:20px;padding:4px 12px;font-size:13px;font-weight:600;}
+  .vc-invalid{margin-top:8px;font-size:12px;color:#b5341f;}
+  .vc-section{margin-top:20px;}
+  .vc-section-head{display:flex;align-items:center;gap:9px;margin:0 2px 9px;}
+  .vc-section-head .vc-dot{width:9px;height:9px;border-radius:50%;}
+  .vc-section-head h3{font-size:14px;font-weight:600;margin:0;color:#284081;}
+  .vc-section-head .vc-count{font-size:11px;color:#6b7280;margin-left:auto;}
+  .vc-acc{background:#fff;border:1px solid #e6e8ef;border-radius:12px;margin-bottom:9px;overflow:hidden;box-shadow:0 1px 2px rgba(16,29,56,.05);}
+  .vc-acc-head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;}
+  .vc-acc-head:hover{background:#fafbff;}
+  .vc-tag{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .vc-acc-title{font-weight:600;font-size:14px;}
+  .vc-acc-meta{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .vc-badge{font-size:12px;font-weight:600;padding:3px 11px;border-radius:20px;background:#eef1f7;color:#4b5675;}
+  .vc-badge.yes{background:#e7f6ef;color:#1f9d6b;}
+  .vc-chev{color:#9aa3b8;transition:transform .2s;font-size:18px;line-height:1;}
+  .vc-acc.open .vc-chev{transform:rotate(180deg);}
+  .vc-acc-body{display:none;padding:2px 14px 14px;border-top:1px solid #e6e8ef;}
+  .vc-acc.open .vc-acc-body{display:block;}
+  .vc-field{margin-top:11px;}
+  .vc-hint{font-size:11px;color:#888;font-style:italic;margin-bottom:5px;}
+  .vc-tech{border:1px solid #e6e8ef;border-radius:12px;margin-bottom:9px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(16,29,56,.05);}
+  .vc-tech.active{border-color:#049FEC;box-shadow:0 0 0 2px rgba(4,159,236,.18);}
+  .vc-tech-head{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;user-select:none;}
+  .vc-tech-head:hover{background:#fafbff;}
+  .vc-tech-head .nm{font-weight:600;font-size:14px;}
+  .vc-pill{font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px;}
+  .vc-pill-on{background:#e7f3fe;color:#0b6fb0;}
+  .vc-pill-off{background:#f0f1f5;color:#7a8398;}
+  .vc-tech-head .vc-chev{margin-left:auto;}
+  .vc-tech-body{display:none;padding:4px 14px 12px;border-top:1px solid #e6e8ef;}
+  .vc-tech.open .vc-tech-body{display:block;}
+  .vc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;}
+  .vc-more{font-size:12px;color:#049FEC;cursor:pointer;font-weight:600;margin:4px 2px 0;display:inline-block;}
+  .vc-msg{margin-top:14px;font-size:13px;line-height:1.5;}
+  .vc-loader{border:2px solid #f3f3f3;border-top:2px solid #049FEC;border-radius:50%;width:14px;height:14px;animation:vcspin 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
+  @keyframes vcspin{to{transform:rotate(360deg)}}
+  .tracker-row { display: flex; align-items: center; font-size: 14px; margin: 16px 0; color: #284081; font-weight: 500; transition: all 0.3s ease; }
+  .tracker-row.pending { opacity: 0.4; color: #54607d; }
+  .tracker-row.active { opacity: 1; color: #284081; font-weight: 600; }
+  .tracker-row.done { opacity: 1; color: #284081; }
+  .tracker-row .icon { width: 24px; font-size: 16px; text-align: center; margin-right: 12px; font-weight: bold; }
+  .tracker-row.done .icon { color: #1f9d6b; }
+  .tracker-row .time { margin-left: auto; font-size: 13px; font-weight: 600; }
+  .tracker-row.done .time { color: #1f9d6b; }
+  .tracker-row .lbl { flex: 1; }
+  .vc-spinner-small { border: 2px solid #e6e8ef; border-top: 2px solid #049FEC; border-radius: 50%; width: 16px; height: 16px; animation: vcspin 1s linear infinite; display: inline-block; vertical-align: middle; }
+  .vc-layout-container { display: flex; flex-direction: row; gap: 20px; width: 100%; transition: all 0.4s ease-in-out; align-items: flex-start; }
+  .vc-main-panel { flex: 1; transition: all 0.4s ease-in-out; min-width: 0; }
+  .vc-summary-panel { width: 0; opacity: 0; overflow: hidden; background: #fdfdfd; border: 1px solid transparent; border-radius: 12px; padding: 0; box-shadow: none; transition: all 0.4s ease-in-out; display: flex; flex-direction: column; }
+  .vc-summary-panel.active { width: 75%; min-width: 500px; opacity: 1; padding: 18px; border-color: #e6e8ef; box-shadow: 0 1px 2px rgba(16,29,56,.05); }
+  .vc-resumos-container { display: flex; flex-direction: row; gap: 15px; overflow-x: auto; padding-bottom: 8px; width: 100%; }
+  .vc-resumo-card { flex: 1 1 320px; min-width: 280px; background: #fff; border: 1px solid #e6e8ef; border-radius: 8px; padding: 14px; box-shadow: 0 1px 2px rgba(16,29,56,.02); }
+  .vc-resumo-card h4 { margin-top: 0; margin-bottom: 12px; color: #284081; font-size: 14px; border-bottom: 1px dashed #e6e8ef; padding-bottom: 8px; }
+  .vc-summary-box { font-size: 13px; color: #54607d; line-height: 1.6; }
+  .vc-summary-box strong { color: #284081; font-weight: 600; }
+  .vc-summary-group { margin-bottom: 12px; border-bottom: 1px dashed #e6e8ef; padding-bottom: 10px;}
+  .vc-summary-group:last-child { border-bottom: none; margin-bottom: 0; }
+  .vc-summary-tags { display: inline-block; background: #eaf0fb; color: #284081; padding: 3px 8px; border-radius: 4px; margin-right: 5px; margin-top: 5px; font-size: 11px; font-weight: 600; }
+  .vc-buttons-resumo { margin-top: 20px; display: flex; gap: 10px; width: 100%; }
+  .btn-cancelar { background: #f0f1f5; color: #54607d; border: none; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: filter .15s; }
+  .btn-cancelar:hover { filter: brightness(0.95); }
+  .btn-continuar { background: #F04E37; color: #fff; border: none; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: filter .15s; }
+  .btn-continuar:hover { filter: brightness(0.95); }
+</style>
+<script>
+  var FORNECEDORES = ["GRÁFICA", "ATHOS", "FELK", "HR"];
+  var FORNECIMENTOS = ["ARCO", "ARCO TRIANG", "GRÁFICA"];
+  var TECNOLOGIAS  = ["DIGITAL", "PLANA", "ROTATIVA"];
+  var ELEMENTOS = [
+    {key:"capa",            nome:"Capa"},
+    {key:"forro",           nome:"Forro / Guardas"},
+    {key:"miolo_principal", nome:"Miolo Principal"},
+    {key:"miolo_professor", nome:"Miolo Professor"},
+    {key:"encartes",        nome:"Encartes"},
+    {key:"adesivos",        nome:"Adesivos"},
+    {key:"ajuste_papel",    nome:"Ajuste de Papel"}
+  ];
+  var ICONES_ACAB = {RELEVO:"🔲","UV LOCALIZADO":"✨","HOT STAMPING":"🥇",ORELHA:"📑","CORTE / VINCO":"✂️",SERRILHA:"〰️",SHRINK:"📦",MALETA:"🧳"};
+  var cacheChamadosValidos = [];
+  setTimeout(function(){ google.script.run.withSuccessHandler(preencherPastasGraficasApp).obterPastasGraficas(); }, 100);
+  function preencherPastasGraficasApp(dados){
+    var s = document.getElementById('selectGraficas'); s.innerHTML='';
+    if(!dados || dados.length===0){ s.innerHTML='<option value="">Crie a aba "Graficas_Lista" no log</option>'; return; }
+    s.innerHTML='<option value="">Selecione uma gráfica...</option>';
+    dados.forEach(function(p){ var o=document.createElement('option'); o.value=p.id; o.text=p.nome; s.appendChild(o); });
+    s.disabled=false; verificarLiberacaoBotao();
+  }
+ 
+  function verificarLiberacaoBotao(){
+    var g=document.getElementById('selectGraficas').value;
+    var c=document.getElementById('txtChamados').value.trim();
+    document.getElementById('btnAvancar').disabled = !(g!=="" && c!=="");
+  }
+ 
+  function alternarCampoManual(){
+    document.getElementById('blocoVersoesManuais').style.display =
+      document.getElementById('vSelecionar')?document.getElementById('vSelecionar').checked?'block':'none':
+      (document.querySelector('input[name=opcaoVersao]:checked').value==='selecionar'?'block':'none');
+  }
+  function abrirResumoAntesDeAvancar() {
+    var chamados = document.getElementById('txtChamados').value;
+    if (!chamados) return;
+    document.getElementById('btnAvancar').disabled = true;
+    document.getElementById('btnAvancar').innerHTML = '<span class="vc-loader"></span> Carregando Resumo...';
+    document.getElementById('txtChamados').disabled = true;
+    document.getElementById('selectGraficas').disabled = true;
+    document.getElementById('painelResumo').classList.add('active');
+    document.getElementById('conteudoResumoLoader').style.display = 'block';
+    document.getElementById('conteudoResumoData').style.display = 'none';
+    document.getElementById('botoesResumo').style.display = 'none';
+    google.script.run.withSuccessHandler(function(resumosArr) {
+      document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+     
+      if (!resumosArr || resumosArr.length === 0) {
+        document.getElementById('conteudoResumoLoader').innerHTML = '<span style="color:#b5341f">Nenhum dado encontrado para esses chamados. Verifique a PPG.</span>';
+        document.getElementById('botoesResumo').style.display = 'flex';
+        return;
+      }
+      document.getElementById('conteudoResumoLoader').style.display = 'none';
+      document.getElementById('conteudoResumoData').style.display = 'block';
+     
+      function formatarTags(texto) {
+        if(!texto || texto === "") return '<span class="vc-summary-tags">Nenhum</span>';
+        return texto.split(", ").map(function(k) { return '<span class="vc-summary-tags">' + k.trim() + '</span>'; }).join('');
+      }
+      var html = '<div class="vc-resumos-container">';
+     
+      resumosArr.forEach(function(resumo) {
+        html += '<div class="vc-resumo-card">';
+        html += '  <h4>Chamado ' + resumo.chamado + '</h4>';
+        html += '  <div class="vc-summary-box">';
+        html += '    <div class="vc-summary-group"><strong>Qtd. SKU\'s Únicos:</strong> ' + resumo.totalSkus + '</div>';
+        html += '    <div class="vc-summary-group"><strong>Tiragem Válida:</strong> ' + resumo.tiragemTotal.toLocaleString('pt-BR') + '</div>';
+        html += '    <div class="vc-summary-group"><strong>Marcas:</strong> <br> ' + formatarTags(resumo.marcas) + '</div>';
+        html += '    <div class="vc-summary-group"><strong>Séries:</strong> <br> ' + formatarTags(resumo.series) + '</div>';
+        html += '    <div class="vc-summary-group"><strong>Papel da Capa:</strong> <br> ' + formatarTags(resumo.papeisCapa) + '</div>';
+        html += '    <div class="vc-summary-group"><strong>Papel do Miolo:</strong> <br> ' + formatarTags(resumo.papeisMiolo) + '</div>';
+        html += '    <div class="vc-summary-group"><strong>CD Destino:</strong> <br> ' + formatarTags(resumo.cdsDestino) + '</div>';
+        html += '  </div>';
+        html += '</div>';
+      });
+     
+      html += '</div>';
+      document.getElementById('conteudoResumoData').innerHTML = html;
+      document.getElementById('botoesResumo').style.display = 'flex';
+     
+    }).withFailureHandler(function(err) {
+      document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+      document.getElementById('conteudoResumoLoader').innerHTML = '<span style="color:#b5341f">Erro ao processar dados na PPG.</span>';
+      document.getElementById('botoesResumo').style.display = 'flex';
+    }).buscarResumoChamados(chamados);
+  }
+  function cancelarResumo() {
+    document.getElementById('painelResumo').classList.remove('active');
+    document.getElementById('txtChamados').disabled = false;
+    document.getElementById('selectGraficas').disabled = false;
+    document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+    verificarLiberacaoBotao();
+   
+    setTimeout(function() {
+       document.getElementById('conteudoResumoLoader').innerHTML = '<span class="vc-loader" style="border-color:#f3f3f3; border-top-color:#F04E37;"></span> Processando dados da PPG...';
+    }, 400);
+  }
+  function continuarPosResumo() {
+    document.getElementById('painelResumo').classList.remove('active');
+    executarFase1();
+  }
+  function executarFase1(){
+    var g=document.getElementById('selectGraficas').value;
+    var c=document.getElementById('txtChamados').value;
+    document.getElementById('btnAvancar').disabled=true;
+    setMsg('mensagemFase1','<span class="vc-loader"></span> Validando chamados...', '#333');
+    google.script.run.withSuccessHandler(processarResultadoFase1App).withFailureHandler(mostrarErroCustos).validarFase1Multiplos(g,c);
+  }
+  function processarResultadoFase1App(res){
+    if(res.erro){ setMsg('mensagemFase1', res.erro, '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
+    cacheChamadosValidos = res.validos;
+    setMsg('mensagemFase1','', '#333');
+    document.getElementById('telaFase1').style.display='none';
+    document.getElementById('telaFase2').style.display='block';
+    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+v+'</span>';}).join('');
+    document.getElementById('painelInvalidos').innerHTML =
+      (res.invalidos && res.invalidos.length) ? '<b>Ignorados:</b> '+res.invalidos.join(', ')+' (não encontrados)' : '';
+    document.getElementById('ctaHint').textContent = res.validos.length+' chamado(s) pronto(s)';
+    renderAcabamentos(res.colunasManuais || []);
+    renderFornecimento();
+  }
+  function renderAcabamentos(cols){
+    var grupos = {};
+    cols.forEach(function(c){
+      var base = (c.titulo||'Campo').toUpperCase().replace(/\s*\([^)]*\)\s*/,'').trim();
+      if(!grupos[base]) grupos[base]=[];
+      grupos[base].push(c);
+    });
+    var host=document.getElementById('containerAcabamentos'); host.innerHTML='';
+    Object.keys(grupos).forEach(function(base, gi){
+      var id='ac'+gi;
+      var body = grupos[base].map(function(col){
+        var temOpc = col.opcoes && col.opcoes.length>0;
+        if(temOpc){
+          return '<div class="vc-field"><label class="vc-lbl">'+col.titulo+'</label>'+
+            '<select class="inp-manual" data-index="'+col.index+'" onchange="atualBadge(\''+id+'\')">'+
+            col.opcoes.map(function(o){return '<option>'+o+'</option>';}).join('')+'</select></div>';
+        }
+        return '<div class="vc-field"><label class="vc-lbl">'+col.titulo+'</label>'+
+          '<div class="vc-hint">'+(col.instrucao||'Numérico · padrão 0')+'</div>'+
+          '<input type="number" class="inp-manual" data-index="'+col.index+'" value="0" onchange="atualBadge(\''+id+'\')"></div>';
+      }).join('');
+      var icon = ICONES_ACAB[base] || '⚙️';
+      host.insertAdjacentHTML('beforeend',
+        '<div class="vc-acc" id="'+id+'"><div class="vc-acc-head" onclick="toggleAcc(\''+id+'\')">'+
+        '<span class="vc-tag" style="background:#fdecea">'+icon+'</span>'+
+        '<span class="vc-acc-title">'+base+'</span>'+
+        '<span class="vc-acc-meta"><span class="vc-badge" id="b_'+id+'">—</span><span class="vc-chev">⌄</span></span>'+
+        '</div><div class="vc-acc-body">'+body+'</div></div>');
+      atualBadge(id);
+    });
+  }
+ 
+  function atualBadge(id){
+    var card=document.getElementById(id); if(!card) return;
+    var inps=card.querySelectorAll('.inp-manual');
+    var partes=[]; var temSim=false;
+    inps.forEach(function(i){ partes.push(i.value); if(i.value==='Sim') temSim=true; });
+    var b=document.getElementById('b_'+id);
+    b.textContent=partes.join(' · '); b.className='vc-badge'+(temSim?' yes':'');
+  }
+  function renderFornecimento(){
+    var t=document.getElementById('selTecnologia');
+    t.innerHTML=TECNOLOGIAS.map(function(x){return '<option value="'+x+'">'+x+'</option>';}).join('');
+    var f=document.getElementById('selFornecedor');
+    f.innerHTML=FORNECEDORES.map(function(x){return '<option>'+x+'</option>';}).join('');
+    renderTecGroups();
+  }
+ 
+  function renderTecGroups(){
+    var escolheria=document.getElementById('selTecnologia').value;
+    var ordem = escolheria==='AUTO' ? TECNOLOGIAS.slice() : [escolheria].concat(TECNOLOGIAS.filter(function(x){return x!==escolheria;}));
+    var host=document.getElementById('containerTecGroups');
+    host.innerHTML=ordem.map(function(tec,idx){
+      var ativo = (escolheria!=='AUTO' && idx===0);
+      var campos = ELEMENTOS.map(function(e) {
+        var optionsHtml = '<option value=""></option>';
+        FORNECIMENTOS.forEach(function(o) {
+          var isSelected = (o === "GRÁFICA") ? 'selected' : '';
+          optionsHtml += '<option value="' + o + '" ' + isSelected + '>' + o + '</option>';
+        });
+        return '<div class="vc-field"><label class="vc-lbl">' + e.nome + '</label>' +
+          '<select class="inp-forn" data-tec="' + tec + '" data-el="' + e.key + '">' +
+          optionsHtml + '</select></div>';
+      }).join('');
+      return '<div class="vc-tech '+(ativo?'active open':'')+'" id="tg_'+tec+'">'+
+        '<div class="vc-tech-head" onclick="toggleTech(\'tg_'+tec+'\')">'+
+        '<span class="nm">'+tec+'</span>'+
+        '<span class="vc-pill '+(ativo?'vc-pill-on':'vc-pill-off')+'">'+(ativo?'selecionada':'opcional')+'</span>'+
+        '<span class="vc-chev">⌄</span></div>'+
+        '<div class="vc-tech-body"><div class="vc-grid2">'+campos+'</div></div></div>';
+    }).join('');
+    if(escolheria!=='AUTO'){
+      var outras=TECNOLOGIAS.filter(function(x){return x!==escolheria;}).join(' & ');
+      host.insertAdjacentHTML('beforeend','<div class="vc-more" onclick="abrirOutras()">▾ mostrar também '+outras+'</div>');
+    }
+  }
+ 
+  function toggleAcc(id){ document.getElementById(id).classList.toggle('open'); }
+  function toggleTech(id){ document.getElementById(id).classList.toggle('open'); }
+  function abrirOutras(){ document.querySelectorAll('.vc-tech:not(.active)').forEach(function(g){g.classList.add('open');}); }
+  function escolherTec(){ renderTecGroups(); }
+  var _timers = { tTotal: 0, tStep: 0, interval: null, step: 1 };
+  var _jobs = [];
+  var _hashLote = "";
+  function fmtTime(s) {
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60);
+    var sec = s % 60;
+    return m + 'm ' + (sec > 0 ? sec + 's' : '');
+  }
+  function iniciarTracker() {
+    document.getElementById('telaFase2').style.display = 'none';
+    document.getElementById('telaFase3').style.display = 'block';
+   
+    document.getElementById('erroFase3').style.display = 'none';
+    document.getElementById('finishArea').style.display = 'none';
+    document.getElementById('stepTotal').style.display = 'none';
+    ['step1', 'step2', 'step3'].forEach(function(id) {
+      var el = document.getElementById(id);
+      el.className = 'tracker-row pending';
+      el.querySelector('.icon').innerHTML = '⏳';
+      el.querySelector('.time').innerHTML = '';
+    });
+    _timers.tTotal = Date.now();
+    _timers.tStep = Date.now();
+    _timers.step = 1;
+    var currStepEl = document.getElementById('step1');
+    currStepEl.className = 'tracker-row active';
+    currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
+    if(_timers.interval) clearInterval(_timers.interval);
+    _timers.interval = setInterval(tickTracker, 1000);
+  }
+  function tickTracker() {
+    var sStep = Math.floor((Date.now() - _timers.tStep)/1000);
+    var currStepEl = document.getElementById('step' + _timers.step);
+    if(currStepEl) currStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
+  }
+  function avancarStep(newStep) {
+    var sStep = Math.floor((Date.now() - _timers.tStep)/1000);
+    var oldStepEl = document.getElementById('step' + _timers.step);
+   
+    if(oldStepEl) {
+      oldStepEl.className = 'tracker-row done';
+      oldStepEl.querySelector('.icon').innerHTML = '✓';
+      oldStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
+    }
+    _timers.step = newStep;
+    _timers.tStep = Date.now();
+    if(newStep <= 3) {
+      var currStepEl = document.getElementById('step' + newStep);
+      currStepEl.className = 'tracker-row active';
+      currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
+    } else {
+      if(_timers.interval) clearInterval(_timers.interval);
+      var sTotal = Math.floor((Date.now() - _timers.tTotal)/1000);
+      var totEl = document.getElementById('stepTotal');
+      totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
+      totEl.style.display = 'block';
+      document.getElementById('finishArea').style.display = 'block';
+    }
+  }
+  function pollStatus() {
+    if(_timers.step > 3) return;
+   
+    google.script.run.withSuccessHandler(function(res) {
+      if (res.erro || (res.queueStatus && res.queueStatus.indexOf("ERRO") !== -1)) {
+        return mostrarErroCustos(res.erro || res.queueStatus);
+      }
+     
+      if (res.queueStatus === "DONE") {
+        if (_timers.step <= 2) avancarStep(3);
+        setTimeout(function() { avancarStep(4); }, 300);
+        return;
+      }
+      if (_timers.step === 2 && res.emailNaCaixa) {
+        avancarStep(3);
+      }
+      else if (_timers.step === 3 && !res.emailNaCaixa) {
+        avancarStep(4);
+        return;
+      }
+     
+      setTimeout(pollStatus, 1500);
+    }).withFailureHandler(function(err) {
+      setTimeout(pollStatus, 1500);
+    }).checarStatusProcessamento(_jobs, _hashLote);
+  }
+  function executarFase2(){
+    iniciarTracker();
+    var respostas=[];
+    document.querySelectorAll('.inp-manual').forEach(function(i){ respostas.push({index:i.getAttribute('data-index'), valor:i.value}); });
+    var elementos={DIGITAL:{},PLANA:{},ROTATIVA:{}};
+    document.querySelectorAll('.inp-forn').forEach(function(s){ elementos[s.getAttribute('data-tec')][s.getAttribute('data-el')] = s.value; });
+    var fornecimentoUI={ tecnologia: document.getElementById('selTecnologia').value, fornecedor: document.getElementById('selFornecedor').value, elementos: elementos };
+    var idPastaOuNome=document.getElementById('selectGraficas').value;
+    var opVersao=document.querySelector('input[name=opcaoVersao]:checked').value;
+    var vManuais=(document.getElementById('txtVersoes')||{}).value||'';
+    google.script.run.withSuccessHandler(function(res) {
+        if (res.erro) return mostrarErroCustos(res.erro);
+        _jobs = res.jobs || [];
+        _hashLote = res.hashLote;
+        avancarStep(2);
+        pollStatus();
+    }).withFailureHandler(mostrarErroCustos)
+      .finalizarProcessamentoLoteDepara(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
+  }
+  function resetarParaNovaCalculadora(){
+    if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
+    cacheChamadosValidos=[];
+    document.getElementById('telaFase3').style.display='none';
+   
+    document.getElementById('txtChamados').disabled=false;
+    document.getElementById('selectGraficas').disabled=false;
+    document.getElementById('txtChamados').value='';
+   
+    document.getElementById('telaFase1').style.display='block';
+    setMsg('mensagemFase1','', '#333');
+    verificarLiberacaoBotao();
+  }
+  function mostrarErroCustos(e){
+    if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
+    var err = document.getElementById('erroFase3');
+    err.style.display = 'block';
+    err.innerHTML = '<b style="color:#b5341f">Erro Crítico:</b> '+(e&&e.message?e.message:e);
+    document.getElementById('finishArea').style.display = 'block';
+    document.getElementById('stepTotal').style.display = 'none';
+  }
+ 
+  function setMsg(id,t,c){ var d=document.getElementById(id); if(d){ d.style.color=c; d.innerHTML=t; } }
+</script>

@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html>
+ <head>
+ <base target="_top">
+ <meta charset="utf-8">
+ <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+ 
+<style>
+ /* Variáveis de Cores da Arco Educação */
+ :root {
+ --arco-azul-escuro: #0C2340;
+ --arco-azul-claro: #418EDE;
+ --arco-laranja: #FA4616;
+ --arco-cinza-fundo: #F3F4F6;
+ --arco-branco: #FFFFFF;
+ }
+ body {
+ font-family: 'Poppins', sans-serif;
+ margin: 0;
+ padding: 0;
+ background-color: var(--arco-cinza-fundo);
+ color: var(--arco-azul-escuro);
+ }
+ 
+.navbar {
+ background-color: var(--arco-azul-escuro);
+ color: var(--arco-branco);
+ padding: 15px 25px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ box-shadow: 0 4px 10px rgba(12, 35, 64, 0.15);
+ }
+ 
+.navbar h1 {
+ margin: 0;
+ font-size: 20px;
+ font-weight: 700;
+ }
+ 
+.nav-buttons {
+ display: flex;
+ gap: 10px;
+ }
+ 
+.nav-btn {
+ background-color: transparent;
+ border: 1px solid rgba(255,255,255,0.5);
+ color: var(--arco-branco);
+ padding: 8px 16px;
+ border-radius: 6px;
+ cursor: pointer;
+ font-family: 'Poppins', sans-serif;
+ font-weight: 600;
+ font-size: 13px;
+ transition: all 0.3s ease;
+ }
+ 
+.nav-btn:hover {
+ background-color: rgba(255, 255, 255, 0.1);
+ border-color: var(--arco-branco);
+ }
+ 
+.nav-btn.active {
+ background-color: var(--arco-laranja);
+ color: var(--arco-branco);
+ border-color: var(--arco-laranja);
+ }
+ 
+/* Container expandido para usar a largura total da tela, alinhado à navbar */
+ .container {
+ padding: 25px;
+ max-width: 100%;
+ box-sizing: border-box;
+ margin: 0 auto;
+ }
+ 
+.view-panel {
+ display: none;
+ background: var(--arco-branco);
+ padding: 25px;
+ border-radius: 12px;
+ box-shadow: 0 8px 24px rgba(12, 35, 64, 0.06);
+ }
+ 
+.view-panel.active {
+ display: block;
+ }
+ 
+.home-card {
+ text-align: center;
+ padding: 40px 20px;
+ }
+ 
+.home-card h2 {
+ margin-top: 0;
+ color: var(--arco-azul-escuro);
+ font-size: 24px;
+ font-weight: 700;
+ }
+ 
+.home-card p {
+ color: var(--arco-azul-claro);
+ font-size: 14px;
+ font-weight: 600;
+ }
+ 
+.home-grid {
+ display: flex;
+ gap: 20px;
+ justify-content: center;
+ margin-top: 40px;
+ flex-wrap: wrap;
+ }
+ 
+.big-btn {
+ background-color: var(--arco-branco);
+ border: 2px solid var(--arco-azul-escuro);
+ color: var(--arco-azul-escuro);
+ padding: 25px;
+ border-radius: 12px;
+ font-family: 'Poppins', sans-serif;
+ font-size: 16px;
+ font-weight: 700;
+ cursor: pointer;
+ width: 220px;
+ transition: all 0.3s ease;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ gap: 12px;
+ }
+ 
+.big-btn:hover {
+ background-color: var(--arco-azul-escuro);
+ color: var(--arco-branco);
+ transform: translateY(-4px);
+ box-shadow: 0 10px 20px rgba(12, 35, 64, 0.2);
+ }
+ 
+/* Estilos Originais de VC */
+ .vc-brand { display: flex; align-items: center; gap: 9px; padding: 8px 4px 14px; }
+ .vc-brand-tt { font-weight: 600; font-size: 13px; color: #284081; letter-spacing: .2px; }
+ .vc-card { background: #fff; border: 1px solid #e6e8ef; border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(16,29,56,.05); }
+ .vc-lbl { display: block; font-size: 12px; font-weight: 600; color: #54607d; margin: 12px 0 5px; }
+ .vc-hint { font-size: 11px; color: #888; font-style: italic; margin-bottom: 5px; text-transform: uppercase;}
+ .vc-radio-group { background: #f7f9fd; border: 1px solid #e6e8ef; border-radius: 8px; padding: 9px 11px; }
+ .vc-radio { display: block; font-weight: 400; font-size: 13px; cursor: pointer; margin: 3px 0; }
+ .vc-radio input { width: auto; margin-right: 7px; }
+ .vc-btn-primary { width: 100%; border: none; border-radius: 10px; padding: 13px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; background: #284081; margin-top: 14px; transition: filter .15s, transform .05s; }
+ .vc-btn-primary:hover { filter: brightness(.95); }
+ .vc-btn-primary:disabled { background: #c3c9d6; cursor: not-allowed; }
+ .vc-msg { margin-top: 14px; font-size: 13px; line-height: 1.5; }
+ .vc-loader { border: 2px solid #f3f3f3; border-top: 2px solid #049FEC; border-radius: 50%; width: 14px; height: 14px; animation: vcspin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+ @keyframes vcspin { to { transform: rotate(360deg) } }
+ select, input[type=text] { width: 100%; font-family: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid #d3d9e6; border-radius: 8px; background: #fff; color: #1f2a44; box-sizing: border-box;}
+ select:focus, input[type=text]:focus { outline: none; border-color: #049FEC; box-shadow: 0 0 0 3px rgba(4,159,236,.15); }
+ .scroll-box { max-height: 140px; overflow-y: auto; border: 1px solid #d3d9e6; border-radius: 6px; padding: 8px; background: #fafbff; }
+ .chk-item-lbl { display: block; font-size: 13px; margin: 4px 0; cursor: pointer; }
+ .chk-item-lbl input { margin-right: 6px; }
+ .tech-section-title { font-size: 13px; font-weight: 700; color: #FA4616; border-bottom: 1px solid #e6e8ef; padding-bottom: 4px; margin-top: 20px; margin-bottom: 10px; text-transform: uppercase;}
+ 
+/* Tracker */
+ .tracker-row { display: flex; align-items: center; font-size: 14px; margin: 16px 0; color: #284081; font-weight: 500; transition: all 0.3s ease; }
+ .tracker-row.pending { opacity: 0.4; color: #54607d; }
+ .tracker-row.active { opacity: 1; color: #284081; font-weight: 600; }
+ .tracker-row.done { opacity: 1; color: #284081; }
+ .tracker-row .icon { width: 24px; font-size: 16px; text-align: center; margin-right: 12px; font-weight: bold; }
+ .tracker-row.done .icon { color: #1f9d6b; }
+ .tracker-row .time { margin-left: auto; font-size: 13px; font-weight: 600; }
+ .tracker-row.done .time { color: #1f9d6b; }
+ .vc-spinner-small { border: 2px solid #e6e8ef; border-top: 2px solid #049FEC; border-radius: 50%; width: 16px; height: 16px; animation: vcspin 1s linear infinite; display: inline-block; vertical-align: middle; }
+
+ /* ================= NOVO LAYOUT DO DASHBOARD (SPLIT) ================= */
+ .view-panel.vc-wide { padding: 15px; }
+ .principal-wrapper { display: flex; height: calc(100vh - 120px); gap: 20px; align-items: stretch; overflow: hidden; }
+ 
+/* Menu Lateral */
+ .principal-sidebar { width: 380px; flex-shrink: 0; transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow-y: auto; padding-right: 5px; }
+ .principal-sidebar.collapsed { margin-left: -400px; }
+ 
+/* Painel Principal (Dashboard) */
+ .principal-dashboard { flex-grow: 1; background: #fff; border-radius: 12px; border: 1px solid #e6e8ef; padding: 25px; overflow-y: auto; box-shadow: 0 1px 2px rgba(16,29,56,.05); display: flex; flex-direction: column; transition: all 0.4s ease; }
+ 
+.toggle-btn { background: #284081; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; font-family: 'Poppins', sans-serif; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+ .toggle-btn:hover { background: #1c2d5e; }
+ 
+/* Cards KPIs do Dashboard */
+ .dash-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; margin-top: 15px; }
+ .dash-card { padding: 18px; border-radius: 10px; color: #fff; display: flex; flex-direction: column; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+ .dash-card.atrasado { background: linear-gradient(135deg, #FA4616, #d93d14); }
+ .dash-card.emdia { background: linear-gradient(135deg, #418EDE, #2d6baf); }
+ .dash-card.finalizado { background: linear-gradient(135deg, #1f9d6b, #177a52); }
+ .dash-card .val { font-size: 28px; font-weight: 700; line-height: 1; margin: 5px 0; }
+ .dash-card .lbl { font-size: 13px; font-weight: 500; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
+ 
+/* Tabela e Acordeon do Dashboard */
+ .dash-section { margin-top: 15px; border: 1px solid #e6e8ef; border-radius: 8px; overflow: hidden; background: #fff; }
+ .dash-section-head { background: #f7f9fd; padding: 14px 18px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; color: #284081; transition: background 0.2s; }
+ .dash-section-head:hover { background: #eef1f7; }
+ .dash-section-body { display: none; padding: 0; }
+ .dash-section.open .dash-section-body { display: block; animation: fadeIn 0.3s; }
+ 
+.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+ .dash-table th, .dash-table td { padding: 12px 18px; text-align: left; border-bottom: 1px solid #e6e8ef; }
+ .dash-table th { font-weight: 600; color: #54607d; background: #fafbff; position: sticky; top: 0; }
+ .dash-table tr:hover td { background: #fdfdfd; }
+
+ /* ESTILOS DO MODAL CUSTOMIZADO */
+ .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(12, 35, 64, 0.6); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+ .modal-box { background: #fff; width: 450px; max-width: 90%; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); font-family: 'Poppins', sans-serif; }
+ .modal-title { margin: 0 0 10px 0; color: #0C2340; font-size: 18px; font-weight: 700; }
+ .modal-desc { font-size: 13px; color: #54607d; margin-top: 0; margin-bottom: 20px; }
+ .modal-list { max-height: 250px; overflow-y: auto; margin-bottom: 20px; border: 1px solid #e6e8ef; border-radius: 8px; padding: 12px; background: #fafbff; }
+ .modal-check-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; color: #284081; cursor: pointer; transition: 0.2s; }
+ .modal-check-item:hover { color: #049FEC; }
+ .modal-check-item input { cursor: pointer; transform: scale(1.1); margin: 0;}
+ .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+ .btn-modal-cancel { background: #f0f1f5; color: #54607d; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Poppins', sans-serif; transition: 0.2s; }
+ .btn-modal-confirm { background: #FA4616; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Poppins', sans-serif; transition: 0.2s; }
+ .btn-modal-confirm:hover { filter: brightness(0.9); transform: translateY(-2px); }
+ .btn-modal-cancel:hover { background: #e6e8ef; }
+ .select-all-wrap { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #d3d9e6; }
+ 
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+ </style>
+ </head>
+ <body>
+ 
+<div class="navbar">
+ <h1>PG FLOW</h1>
+ <div class="nav-buttons">
+ <button id="btn-home" class="nav-btn active" onclick="switchView('home')">Início</button>
+ <button id="btn-email" class="nav-btn" onclick="switchView('email')">✉️ Enviar E-mail</button>
+ <button id="btn-custos" class="nav-btn" onclick="switchView('custos')">⚙️ Validar Custos</button>
+ <button id="btn-custos-principal" class="nav-btn" onclick="switchView('custos-principal')">📊 Validação Principal</button>
+ 
+<!-- NOVO BOTÃO AQUI -->
+ <button id="btn-consolidar" class="nav-btn" style="background-color: #FA4616; border-color: #FA4616; color: white;" onclick="abrirModalConsolidacao()">▶️ Rodar Consolidação</button>
+ </div>
+ </div>
+ 
+<div class="container">
+ 
+<!-- TELA HOME ORIGINAL -->
+ <div id="view-home" class="view-panel active">
+ <div class="home-card">
+ <h2>Painel de Controle Central</h2>
+ <p>Escolha uma das ações abaixo para prosseguir com a automação de produção gráfica:</p>
+ <div class="home-grid">
+ <button class="big-btn" onclick="switchView('email')">
+ <span style="font-size: 28px;">✉️</span> Enviar E-mail para Gráfica
+ </button>
+ <button class="big-btn" onclick="switchView('custos')">
+ <span style="font-size: 28px;">⚙️</span> Validar Custos (De-Para)
+ </button>
+ <button class="big-btn" onclick="switchView('custos-principal')">
+ <span style="font-size: 28px;">📊</span> Validação de Custos Principal
+ </button>
+ </div>
+ </div>
+ </div>
+ 
+<!-- TELAS INJETADAS PELO GAS -->
+ <div id="view-email" class="view-panel">
+ <?!= include('TelaEmail'); ?>
+ </div>
+ <div id="view-custos" class="view-panel">
+ <?!= include('ValidaInterface'); ?>
+ </div>
+ 
+<!-- ========================================================================= -->
+ <!-- NOVA TELA: VALIDAÇÃO DE CUSTOS PRINCIPAL (COM DASHBOARD) -->
+ <!-- ========================================================================= -->
+ <div id="view-custos-principal" class="view-panel vc-wide">
+ 
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <button class="toggle-btn" onclick="toggleSidebar()">
+ <span style="font-size: 16px;">☰</span> Mostrar / Esconder Menu de Validação
+ </button>
+ 
+<div class="vc-brand" style="padding: 0;">
+ <svg width="26" height="26" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+ <path d="M30 26 C55 22 78 30 84 50 C70 40 50 40 38 46 Z" fill="#da2e12"/>
+ <path d="M62 40 L80 47 L70 78 L58 70 Z" fill="#da2e12"/>
+ </svg>
+ <span style="font-weight: 700; font-family: Helvetica, Arial, sans-serif; font-size: 13px; color: #0038A8;">ARCO </span>
+ <span class="vc-brand-tt">PG Flow - Workspace</span>
+ </div>
+ </div>
+
+ <div class="principal-wrapper">
+ 
+<!-- LEFT SIDEBAR (Menu Retrátil) -->
+ <div id="principal-sidebar" class="principal-sidebar">
+ 
+<!-- FASE 1: FILTROS MULTINÍVEL -->
+ <div class="vc-card" id="cardFiltros">
+ <h3 style="margin-top:0; color:#284081; font-size: 15px;">Filtros de Extração em Cascata</h3>
+ <div id="loaderFiltros" style="font-size:13px; color:#666; margin-bottom: 10px;">
+ <span class="vc-loader"></span> Obtendo base de dados...
+ </div>
+ <div id="conteudoFiltros" style="display:none; grid-template-columns: 1fr 1fr; gap: 15px;">
+ <div class="vc-field" style="margin-top:0;">
+ <label class="vc-lbl">1. Gráfica(s)</label>
+ <div class="scroll-box" id="boxGraficas"></div>
+ </div>
+ <div class="vc-field" style="margin-top:0;">
+ <label class="vc-lbl">2. Marca(s)</label>
+ <div class="scroll-box" id="boxMarcas">
+ <span style="font-size:11px; color:#888;">Selecione Gráfica(s)...</span>
+ </div>
+ </div>
+ <div class="vc-field" style="margin-top:0;">
+ <label class="vc-lbl">3. Série(s)</label>
+ <div class="scroll-box" id="boxSeries">
+ <span style="font-size:11px; color:#888;">Aguardando Marca(s)...</span>
+ </div>
+ </div>
+ <div class="vc-field" style="margin-top:0;">
+ <label class="vc-lbl">4. SKU(s)</label>
+ <input type="text" id="txtBuscaSku" placeholder="Pesquisar SKU..." onkeyup="filtrarListaSkuUI()" style="margin-bottom: 6px; font-size: 12px; padding: 6px;">
+ <div class="scroll-box" id="boxSkus" style="max-height: 100px;">
+ <span style="font-size:11px; color:#888;">Aguardando filtros...</span>
+ </div>
+ </div>
+ </div>
+ </div>
+ 
+<!-- FASE 2: CONFIGURAÇÃO DE FORNECIMENTO -->
+ <div class="vc-card" id="cardCalculadora" style="opacity: 0.5; pointer-events: none;">
+ <h3 style="margin-top:0; color:#284081; font-size: 15px;">Parâmetros da Calculadora</h3>
+ <label class="vc-lbl">Tecnologias Encontradas (Modificáveis)</label>
+ <div class="vc-radio-group" style="display: flex; gap: 15px;" id="boxTechs">
+ <label class="vc-radio"><input type="checkbox" class="chk-tech" value="DIGITAL" onchange="renderCalculadoraCampos()"> Digital</label>
+ <label class="vc-radio"><input type="checkbox" class="chk-tech" value="PLANA" onchange="renderCalculadoraCampos()"> Plana</label>
+ <label class="vc-radio"><input type="checkbox" class="chk-tech" value="ROTATIVA" onchange="renderCalculadoraCampos()"> Rotativa</label>
+ </div>
+ <div id="containerCalcCampos" style="margin-top: 15px;"></div>
+ </div>
+ 
+<button id="btnValidarPrincipal" class="vc-btn-primary" onclick="iniciarExtracaoPrincipal()" disabled>Executar Validação</button>
+ <div id="msgFasePrincipal" class="vc-msg"></div>
+
+ <!-- FASE 3: TRACKER -->
+ <div id="trackerPrincipal" style="display:none; padding-top: 10px;">
+ <div class="vc-card" style="padding: 20px;">
+ <h2 style="color: #284081; font-size: 16px; font-weight: 700; margin-top: 0; margin-bottom: 15px; text-align: center;">Processamento</h2>
+ <div style="background: #fcfcfd; padding: 15px; border-radius: 12px; border: 1px solid #e6e8ef;">
+ <div id="stepPrin1" class="tracker-row pending" style="margin: 10px 0;">
+ <span class="icon">⏳</span> <span class="lbl">1. Construção do depara</span> <span class="time"></span>
+ </div>
+ <div id="stepPrin2" class="tracker-row pending" style="margin: 10px 0;">
+ <span class="icon">⏳</span> <span class="lbl">2. Transportando dados</span> <span class="time"></span>
+ </div>
+ <div id="stepPrin3" class="tracker-row pending" style="margin: 10px 0;">
+ <span class="icon">⏳</span> <span class="lbl">3. Gerando Calculadora</span> <span class="time"></span>
+ </div>
+ </div>
+ <div id="stepTotalPrin" style="display:none; margin-top: 15px; font-weight: 700; color: #1f9d6b; text-align: center; font-size: 14px;"></div>
+ <div id="finishAreaPrin" style="display:none; text-align:center; margin-top:15px;">
+ <button class="vc-btn-primary" onclick="resetarParaNovaCalculadoraPrin()">Gerar nova calculadora</button>
+ </div>
+ <div id="erroTrackerPrin" style="display:none; margin-top: 15px; font-size: 13px; color: #b5341f; text-align: center;"></div>
+ </div>
+ </div>
+ </div>
+ 
+<!-- RIGHT DASHBOARD (Visão Planilha) -->
+ <div id="principal-dashboard" class="principal-dashboard">
+ <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e6e8ef; padding-bottom: 10px; margin-bottom: 10px;">
+ <h3 style="margin:0; color:#284081; font-size: 18px;">Visão Geral do PCP</h3>
+ <button class="nav-btn" style="background:#f0f1f5; color:#54607d; border:none;" onclick="carregarDadosDashboard()">🔄 Atualizar</button>
+ </div>
+ 
+<div id="loaderDashboard" style="font-size:13px; color:#666; padding: 40px; text-align: center;">
+ <span class="vc-loader"></span> Conectando com a planilha base...
+ </div>
+ 
+<div id="conteudoDashboard" style="display:none; flex-grow: 1; overflow-y: auto;">
+ <div class="dash-cards" id="dash-cards-container">
+ <!-- Injetado via JS -->
+ </div>
+ <div id="dash-accordions">
+ <!-- Injetado via JS -->
+ </div>
+ </div>
+ </div>
+ 
+</div>
+ </div>
+ </div>
+ 
+ <!-- OVERLAY DO MODAL DE CONSOLIDAÇÃO -->
+ <div id="modalConsolidacao" class="modal-overlay">
+ <div class="modal-box">
+ <h3 class="modal-title">Atualização de Gráficas</h3>
+ <p class="modal-desc">Selecione as gráficas da aba 'Apoio' que deseja processar nesta rodada:</p>
+ 
+ <div class="modal-list" id="modalGraficasList">
+ <div style="text-align: center; font-size: 12px; color: #888; padding: 10px;">
+ <span class="vc-loader"></span> Carregando base de dados...
+ </div>
+ </div>
+ 
+ <div class="modal-actions">
+ <button class="btn-modal-cancel" onclick="fecharModalConsolidacao()">Cancelar</button>
+ <button class="btn-modal-confirm" onclick="confirmarConsolidacao()">Executar Automação</button>
+ </div>
+ </div>
+ </div>
+
+<script>
+ function switchView(viewId) {
+ document.querySelectorAll('.view-panel').forEach(function(p) { p.classList.remove('active'); });
+ document.querySelectorAll('.nav-btn:not(#btn-consolidar)').forEach(function(b) { b.classList.remove('active'); });
+ document.getElementById('view-' + viewId).classList.add('active');
+ document.getElementById('btn-' + viewId).classList.add('active');
+ 
+if(viewId === 'custos-principal') {
+ initTelaPrincipal();
+ }
+ }
+ 
+function toggleSidebar() {
+ document.getElementById('principal-sidebar').classList.toggle('collapsed');
+ }
+ 
+function toggleDash(id) {
+ document.getElementById(id).classList.toggle('open');
+ }
+
+ // =========================================================================
+ // DADOS DA CALCULADORA - TUDO DENTRO DA TECNOLOGIA (RESTAURADO COMPLETO)
+ // =========================================================================
+ const DADOS_CALC_REAL = {
+ "DIGITAL": [
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "DIGITAL" },
+ { grupo: "DIGITAL - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "DIGITAL - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "DIGITAL - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "DIGITAL - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "DIGITAL - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "DIGITAL - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ ],
+ "PLANA": [
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "PLANA" },
+ { grupo: "PLANA - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "PLANA - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "PLANA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "PLANA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "PLANA - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "PLANA - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "PLANA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ ],
+ "ROTATIVA": [
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "ROTATIVA" },
+ { grupo: "ROTATIVA - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "ROTATIVA - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "ROTATIVA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "ROTATIVA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "ROTATIVA - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
+ { grupo: "ROTATIVA - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
+ { grupo: "ROTATIVA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ ]
+ };
+ 
+let ALL_DATA = [];
+ let DASHBOARD_LOADED = false;
+ 
+function initTelaPrincipal() {
+ if (ALL_DATA.length === 0) {
+ google.script.run.withSuccessHandler(function(dados) {
+ if (dados.erro) {
+ document.getElementById('msgFasePrincipal').innerHTML = '<span style="color:#b5341f;">Erro planilha base: ' + dados.erro + '</span>';
+ return;
+ }
+ ALL_DATA = dados;
+ document.getElementById('loaderFiltros').style.display = 'none';
+ document.getElementById('conteudoFiltros').style.display = 'grid';
+ updateFilters(0);
+ }).obterDadosApoioValidaPrin();
+ }
+ if (!DASHBOARD_LOADED) {
+ carregarDadosDashboard();
+ }
+ }
+
+ function carregarDadosDashboard() {
+ document.getElementById('conteudoDashboard').style.display = 'none';
+ document.getElementById('loaderDashboard').style.display = 'block';
+ google.script.run.withSuccessHandler(renderDashboard).obterDadosDashboardPCP();
+ }
+
+ function renderDashboard(res) {
+ document.getElementById('loaderDashboard').style.display = 'none';
+ if (res.erro) {
+ document.getElementById('conteudoDashboard').innerHTML = '<span style="color:#b5341f; padding: 20px; display:block;">Erro ao carregar painel: ' + res.erro + '</span>';
+ document.getElementById('conteudoDashboard').style.display = 'block';
+ return;
+ }
+
+ DASHBOARD_LOADED = true;
+ const calcTotalTiragem = (arr) => arr.reduce((acc, curr) => acc + curr.tiragem, 0);
+ 
+const qAtraso = res.atrasados.length;
+ const vAtraso = calcTotalTiragem(res.atrasados);
+ 
+const qEmDia = res.emDia.length;
+ const vEmDia = calcTotalTiragem(res.emDia);
+ 
+const qFim = res.finalizados.length;
+ const vFim = calcTotalTiragem(res.finalizados);
+
+ let htmlCards = `
+ <div class="dash-card atrasado">
+ <span class="lbl">⚠️ ATRASADOS</span>
+ <span class="val">${qAtraso}</span>
+ <span class="lbl" style="font-size: 11px; opacity: 1;">Tiragem Vol: ${vAtraso.toLocaleString('pt-BR')}</span>
+ </div>
+ <div class="dash-card emdia">
+ <span class="lbl">✅ EM DIA</span>
+ <span class="val">${qEmDia}</span>
+ <span class="lbl" style="font-size: 11px; opacity: 1;">Tiragem Vol: ${vEmDia.toLocaleString('pt-BR')}</span>
+ </div>
+ <div class="dash-card finalizado">
+ <span class="lbl">🏁 FINALIZADOS</span>
+ <span class="val">${qFim}</span>
+ <span class="lbl" style="font-size: 11px; opacity: 1;">Tiragem Vol: ${vFim.toLocaleString('pt-BR')}</span>
+ </div>
+ `;
+
+ const buildTable = (arr, corAtraso) => {
+ if(arr.length === 0) return '<div style="padding: 15px; font-size: 13px; color:#888; text-align:center;">Nenhum registro para esta categoria.</div>';
+ let t = '<div style="max-height: 300px; overflow-y: auto;"><table class="dash-table"><thead><tr><th>SKU / ID</th><th>Gráfica</th><th>Tiragem</th><th>Atraso</th><th>Status Original</th></tr></thead><tbody>';
+ arr.forEach(i => {
+ let corDias = i.diasAtraso > 0 ? '#FA4616' : 'inherit';
+ t += `<tr>
+ <td style="font-weight:600;">${i.idItem}</td>
+ <td>${i.grafica}</td>
+ <td>${i.tiragem.toLocaleString('pt-BR')}</td>
+ <td style="color:${corDias}; font-weight:600;">${i.diasAtraso} dias</td>
+ <td>${i.status}</td>
+ </tr>`;
+ });
+ t += '</tbody></table></div>';
+ return t;
+ };
+
+ let htmlAcc = `
+ <div class="dash-section ${qAtraso > 0 ? 'open' : ''}" id="sec-atrasados">
+ <div class="dash-section-head" onclick="toggleDash('sec-atrasados')">
+ <span>Registros Atrasados</span>
+ <span>▾</span>
+ </div>
+ <div class="dash-section-body">
+ ${buildTable(res.atrasados, true)}
+ </div>
+ </div>
+ <div class="dash-section" id="sec-emdia">
+ <div class="dash-section-head" onclick="toggleDash('sec-emdia')">
+ <span>Registros Em Dia</span>
+ <span>▾</span>
+ </div>
+ <div class="dash-section-body">
+ ${buildTable(res.emDia, false)}
+ </div>
+ </div>
+ <div class="dash-section" id="sec-finalizados">
+ <div class="dash-section-head" onclick="toggleDash('sec-finalizados')">
+ <span>Registros Finalizados</span>
+ <span>▾</span>
+ </div>
+ <div class="dash-section-body">
+ ${buildTable(res.finalizados, false)}
+ </div>
+ </div>
+ `;
+
+ document.getElementById('dash-cards-container').innerHTML = htmlCards;
+ document.getElementById('dash-accordions').innerHTML = htmlAcc;
+ document.getElementById('conteudoDashboard').style.display = 'block';
+ }
+
+ function getCheckedValues(className) {
+ return Array.from(document.querySelectorAll('.' + className + ':checked')).map(cb => cb.value);
+ }
+ function renderCheckboxes(containerId, className, items, onChangeLevel, checkedItems = []) {
+ const container = document.getElementById(containerId);
+ if(items.length === 0) {
+ container.innerHTML = '<span style="font-size:11px; color:#888;">Nenhuma opção disponível.</span>';
+ return;
+ }
+ let isSku = className === 'chk-sku';
+ container.innerHTML = items.map(val => {
+ let isChecked = checkedItems.includes(val) ? 'checked' : '';
+ let lblClass = isSku ? 'chk-item-lbl chk-sku-item' : 'chk-item-lbl';
+ return `<label class="${lblClass}">
+ <input type="checkbox" class="${className}" value="${val}" onchange="updateFilters(${onChangeLevel})" ${isChecked}> ${val}
+ </label>`;
+ }).join('');
+ }
+ function updateFilters(levelTriggered) {
+ let selG = getCheckedValues('chk-grafica');
+ let selM = getCheckedValues('chk-marca');
+ let selS = getCheckedValues('chk-serie');
+ let selK = getCheckedValues('chk-sku');
+ if (levelTriggered === 4 && selK.length > 0) {
+ let rowsK = ALL_DATA.filter(d => selK.includes(d.sku));
+ selG = [...new Set(rowsK.map(d=>d.grafica))].filter(Boolean);
+ selM = [...new Set(rowsK.map(d=>d.marca))].filter(Boolean);
+ selS = [...new Set(rowsK.map(d=>d.serie))].filter(Boolean);
+ }
+ let availG = [...new Set(ALL_DATA.map(d=>d.grafica))].filter(Boolean).sort();
+ if (levelTriggered <= 0 || levelTriggered === 4) {
+ renderCheckboxes('boxGraficas', 'chk-grafica', availG, 1, selG);
+ }
+ 
+let filteredByG = selG.length > 0 ? ALL_DATA.filter(d => selG.includes(d.grafica)) : ALL_DATA;
+ 
+let availM = [...new Set(filteredByG.map(d=>d.marca))].filter(Boolean).sort();
+ if (levelTriggered <= 1 || levelTriggered === 4) {
+ renderCheckboxes('boxMarcas', 'chk-marca', availM, 2, selM);
+ }
+ let filteredByGM = selM.length > 0 ? filteredByG.filter(d => selM.includes(d.marca)) : filteredByG;
+ let availS = [...new Set(filteredByGM.map(d=>d.serie))].filter(Boolean).sort();
+ if (levelTriggered <= 2 || levelTriggered === 4) {
+ renderCheckboxes('boxSeries', 'chk-serie', availS, 3, selS);
+ }
+ let filteredByGMS = selS.length > 0 ? filteredByGM.filter(d => selS.includes(d.serie)) : filteredByGM;
+ let availK = [...new Set(filteredByGMS.map(d=>d.sku))].filter(Boolean).sort();
+ if (levelTriggered <= 3) {
+ renderCheckboxes('boxSkus', 'chk-sku', availK, 4, selK);
+ }
+ 
+selG = getCheckedValues('chk-grafica');
+ selM = getCheckedValues('chk-marca');
+ selS = getCheckedValues('chk-serie');
+ selK = getCheckedValues('chk-sku');
+ if (selG.length > 0 && selM.length > 0) {
+ document.getElementById('cardCalculadora').style.opacity = '1';
+ document.getElementById('cardCalculadora').style.pointerEvents = 'auto';
+ document.getElementById('btnValidarPrincipal').disabled = false;
+ } else {
+ document.getElementById('cardCalculadora').style.opacity = '0.5';
+ document.getElementById('cardCalculadora').style.pointerEvents = 'none';
+ document.getElementById('btnValidarPrincipal').disabled = true;
+ }
+ let baseForTech = selK.length > 0 ? ALL_DATA.filter(d => selK.includes(d.sku)) : filteredByGMS;
+ let suggestedTechs = [...new Set(baseForTech.map(d=>d.tecnologia))].filter(Boolean).map(t => t.toUpperCase());
+ 
+document.querySelectorAll('.chk-tech').forEach(chk => {
+ chk.checked = suggestedTechs.includes(chk.value);
+ });
+ renderCalculadoraCampos();
+ }
+ function filtrarListaSkuUI() {
+ const busca = document.getElementById('txtBuscaSku').value.toLowerCase();
+ document.querySelectorAll('.chk-sku-item').forEach(lbl => {
+ lbl.style.display = lbl.textContent.toLowerCase().includes(busca) ? 'block' : 'none';
+ });
+ }
+ function renderCalculadoraCampos() {
+ const container = document.getElementById('containerCalcCampos');
+ const checkedTechs = getCheckedValues('chk-tech');
+ 
+let html = '';
+ if(checkedTechs.length === 0) {
+ container.innerHTML = '<div style="font-size: 13px; color:#888;">Selecione ao menos uma tecnologia acima para abrir as opções.</div>';
+ return;
+ }
+ checkedTechs.forEach(tec => {
+ const dadosTec = DADOS_CALC_REAL[tec];
+ if(dadosTec) {
+ html += `<div class="tech-section-title">Parâmetros: ${tec}</div>`;
+ html += '<div style="display:grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 15px;">';
+ dadosTec.forEach(campo => {
+ let htmlOpcoes = campo.opcoes.map(o => `<option value="${o}" ${(campo.padrao === o) ? 'selected' : ''}>${o}</option>`).join('');
+ html += `
+ <div class="vc-field" style="margin-top:0;">
+ <div class="vc-hint" style="margin-bottom: 2px;">${campo.grupo}</div>
+ <label class="vc-lbl" style="margin-top: 0;">${campo.header}</label>
+ <select class="inp-calc-forn" data-header="${campo.grupo}|${campo.header}">
+ ${htmlOpcoes}
+ </select>
+ </div>`;
+ });
+ html += '</div>';
+ }
+ });
+ container.innerHTML = html;
+ }
+
+ // =========================================================================
+ // FUNCIONALIDADE DO NOVO MODAL DE CONSOLIDAÇÃO
+ // =========================================================================
+ 
+ let LISTA_GRAFICAS_MODAL = [];
+
+ function carregarListaModal() {
+ google.script.run.withSuccessHandler(function(lista) {
+ LISTA_GRAFICAS_MODAL = lista;
+ 
+ let html = `<div class="select-all-wrap">
+ <label class="modal-check-item" style="font-weight: 700; color: #0C2340;">
+ <input type="checkbox" id="chk-todas-graf" checked onchange="alternarTodasModal(this)"> 
+ Selecionar TODAS
+ </label>
+ </div>`;
+ 
+ lista.forEach(g => {
+ html += `<label class="modal-check-item">
+ <input type="checkbox" class="chk-modal-grafica" value="${g}" checked onchange="verificarCheckboxUnicoModal()">
+ ${g}
+ </label>`;
+ });
+ 
+ document.getElementById('modalGraficasList').innerHTML = html;
+ }).getListaGraficasConsolidacao(); 
+ }
+
+ function abrirModalConsolidacao() {
+ document.getElementById('modalConsolidacao').style.display = 'flex';
+ if (LISTA_GRAFICAS_MODAL.length === 0) {
+ carregarListaModal();
+ }
+ }
+
+ function fecharModalConsolidacao() {
+ document.getElementById('modalConsolidacao').style.display = 'none';
+ }
+
+ function alternarTodasModal(el) {
+ let chks = document.querySelectorAll('.chk-modal-grafica');
+ chks.forEach(c => c.checked = el.checked);
+ }
+
+ function verificarCheckboxUnicoModal() {
+ let chks = document.querySelectorAll('.chk-modal-grafica');
+ let chksSelecionados = document.querySelectorAll('.chk-modal-grafica:checked').length;
+ document.getElementById('chk-todas-graf').checked = (chksSelecionados === chks.length);
+ }
+
+ function confirmarConsolidacao() {
+ let selecionados = document.querySelectorAll('.chk-modal-grafica:checked');
+ let ehTodas = document.getElementById('chk-todas-graf').checked;
+ 
+ if (selecionados.length === 0) {
+ alert("Por favor, selecione ao menos uma gráfica na lista.");
+ return;
+ }
+
+ let stringResposta = "";
+ if (!ehTodas) {
+ let nomes = Array.from(selecionados).map(c => c.value);
+ stringResposta = nomes.join(",");
+ }
+
+ fecharModalConsolidacao();
+
+ let btn = document.getElementById('btn-consolidar');
+ let textoOriginal = btn.innerHTML;
+ btn.innerHTML = '⏳ Consolidando...';
+ btn.disabled = true;
+ 
+ google.script.run
+ .withSuccessHandler(function(msg) {
+ alert("✅ " + msg); 
+ btn.innerHTML = textoOriginal;
+ btn.disabled = false;
+ })
+ .withFailureHandler(function(err) {
+ alert("❌ Ocorreu um erro: " + err.message);
+ btn.innerHTML = textoOriginal;
+ btn.disabled = false;
+ })
+ .consolidarArquivos(stringResposta); 
+ }
+
+ // =========================================================================
+ // FUNÇÕES DO TRACKER DA FASE PRINCIPAL COM CORREÇÃO DE HTTP 0
+ // =========================================================================
+
+ let _timersPrin = { tTotal: 0, tStep: 0, interval: null, step: 1 };
+ let _hashLotePrin = "";
+
+ function fmtTime(s) {
+ if (s < 60) return s + 's';
+ let m = Math.floor(s / 60);
+ let sec = s % 60;
+ return m + 'm ' + (sec > 0 ? sec + 's' : '');
+ }
+
+ function iniciarExtracaoPrincipal() {
+ document.getElementById('cardFiltros').style.display = 'none';
+ document.getElementById('cardCalculadora').style.display = 'none';
+ document.getElementById('btnValidarPrincipal').style.display = 'none';
+ document.getElementById('msgFasePrincipal').style.display = 'none';
+ document.getElementById('trackerPrincipal').style.display = 'block';
+ 
+ document.getElementById('erroTrackerPrin').style.display = 'none';
+ document.getElementById('finishAreaPrin').style.display = 'none';
+ document.getElementById('stepTotalPrin').style.display = 'none';
+
+ ['stepPrin1', 'stepPrin2', 'stepPrin3'].forEach(function(id) {
+ let el = document.getElementById(id);
+ el.className = 'tracker-row pending';
+ el.querySelector('.icon').innerHTML = '⏳';
+ el.querySelector('.time').innerHTML = '';
+ });
+
+ _timersPrin.tTotal = Date.now();
+ _timersPrin.tStep = Date.now();
+ _timersPrin.step = 1;
+ let currStepEl = document.getElementById('stepPrin1');
+ currStepEl.className = 'tracker-row active';
+ currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
+
+ if(_timersPrin.interval) clearInterval(_timersPrin.interval);
+ _timersPrin.interval = setInterval(tickTrackerPrin, 1000);
+
+ let camposCalc = {};
+ document.querySelectorAll('.inp-calc-forn').forEach(sel => {
+ let headerMap = sel.getAttribute('data-header');
+ camposCalc[headerMap] = sel.value;
+ });
+ 
+ let skusSelecionados = getCheckedValues('chk-sku');
+ if (skusSelecionados.length === 0) {
+ document.querySelectorAll('.chk-sku').forEach(chk => skusSelecionados.push(chk.value));
+ }
+
+ let graficasSelecionadas = getCheckedValues('chk-grafica');
+ 
+ // GERA O HASH NO FRONTEND PARA NÃO PERDER A REFERÊNCIA SE A CONEXÃO CAIR
+ _hashLotePrin = new Date().getTime().toString();
+ 
+ const payload = { 
+ skus: skusSelecionados, 
+ camposCalc: camposCalc, 
+ graficas: graficasSelecionadas,
+ hashLote: _hashLotePrin 
+ };
+
+ google.script.run.withSuccessHandler(function(res) {
+ if (res.erro) {
+ mostrarErroPrin(res.erro);
+ } else {
+ avancarStepPrin(2); 
+ pollStatusPrin();
+ }
+ }).withFailureHandler(function(err) {
+ let msgErro = String(err.message || err);
+ 
+ // SE O NAVEGADOR DER TIMEOUT/HTTP 0, IGNORAMOS E VAMOS PROCURAR O EMAIL MESMO ASSIM!
+ if (msgErro.indexOf("HTTP 0") !== -1 || msgErro.indexOf("NetworkError") !== -1 || msgErro.indexOf("conexão") !== -1) {
+ console.warn("Conexão com o servidor expirou, mas o backend continua rodando. Iniciando busca pelo email...");
+ avancarStepPrin(2); 
+ pollStatusPrin();
+ } else {
+ mostrarErroPrin(msgErro);
+ }
+ }).processarValidaPrincipal(payload);
+ }
+
+ function tickTrackerPrin() {
+ let sStep = Math.floor((Date.now() - _timersPrin.tStep)/1000);
+ let currStepEl = document.getElementById('stepPrin' + _timersPrin.step);
+ if(currStepEl) currStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
+ }
+
+ function avancarStepPrin(newStep) {
+ let sStep = Math.floor((Date.now() - _timersPrin.tStep)/1000);
+ let oldStepEl = document.getElementById('stepPrin' + _timersPrin.step);
+
+ if(oldStepEl) {
+ oldStepEl.className = 'tracker-row done';
+ oldStepEl.querySelector('.icon').innerHTML = '✓';
+ oldStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
+ }
+ _timersPrin.step = newStep;
+ _timersPrin.tStep = Date.now();
+ 
+ if(newStep <= 3) {
+ let currStepEl = document.getElementById('stepPrin' + newStep);
+ currStepEl.className = 'tracker-row active';
+ currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
+ } else {
+ if(_timersPrin.interval) clearInterval(_timersPrin.interval);
+ let sTotal = Math.floor((Date.now() - _timersPrin.tTotal)/1000);
+ let totEl = document.getElementById('stepTotalPrin');
+ totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
+ totEl.style.display = 'block';
+ document.getElementById('finishAreaPrin').style.display = 'block';
+ }
+ }
+
+ function pollStatusPrin() {
+ if(_timersPrin.step > 3) return;
+
+ google.script.run.withSuccessHandler(function(res) {
+ if (res.erro) return mostrarErroPrin(res.erro);
+
+ if (_timersPrin.step === 2 && res.emailNaCaixa) {
+ avancarStepPrin(3); 
+ }
+ else if (_timersPrin.step === 3 && !res.emailNaCaixa) {
+ avancarStepPrin(4); 
+ return;
+ }
+
+ setTimeout(pollStatusPrin, 1500);
+ }).withFailureHandler(function(err) {
+ setTimeout(pollStatusPrin, 1500);
+ }).checarStatusEmailPrincipal(_hashLotePrin);
+ }
+
+ function mostrarErroPrin(e) {
+ if(_timersPrin.interval) { clearInterval(_timersPrin.interval); _timersPrin.interval = null; }
+ let err = document.getElementById('erroTrackerPrin');
+ err.style.display = 'block';
+ err.innerHTML = '<b style="color:#b5341f">Erro Crítico:</b> ' + (e && e.message ? e.message : e);
+ document.getElementById('finishAreaPrin').style.display = 'block';
+ }
+
+ function resetarParaNovaCalculadoraPrin() {
+ if(_timersPrin.interval) { clearInterval(_timersPrin.interval); _timersPrin.interval = null; }
+ 
+ document.getElementById('trackerPrincipal').style.display = 'none';
+ document.getElementById('cardFiltros').style.display = 'block';
+ document.getElementById('cardCalculadora').style.display = 'block';
+ document.getElementById('btnValidarPrincipal').style.display = 'block';
+ document.getElementById('msgFasePrincipal').style.display = 'block';
+ }
+ </script>
+ </body>
+</html>

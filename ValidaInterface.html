@@ -85,6 +85,8 @@
          
           <div id="stepTotal" style="display:none; margin-top: 20px; font-weight: 700; color: #1f9d6b; text-align: center; font-size: 15px;"></div>
          
+          <div id="resumoGerado" style="display:none; margin-top:18px;"></div>
+
           <div id="finishArea" style="display:none; text-align:center; margin-top:25px;">
              <button id="btnNovaCalc" class="vc-btn-primary" onclick="resetarParaNovaCalculadora()">Gerar nova calculadora</button>
           </div>
@@ -377,7 +379,14 @@
       var campos = ELEMENTOS.map(function(e) {
         var optionsHtml = '<option value=""></option>';
         FORNECIMENTOS.forEach(function(o) {
-          var isSelected = (o === "GRÁFICA") ? 'selected' : '';
+          
+          // NOVA REGRA: Apenas Capa, Forro e Miolo Principal iniciam com GRÁFICA. O resto fica vazio.
+          var defaultForn = "";
+          if (e.key === 'capa' || e.key === 'forro' || e.key === 'miolo_principal') {
+            defaultForn = 'GRÁFICA';
+          }
+          
+          var isSelected = (o === defaultForn && defaultForn !== "") ? 'selected' : '';
           optionsHtml += '<option value="' + o + '" ' + isSelected + '>' + o + '</option>';
         });
         return '<div class="vc-field"><label class="vc-lbl">' + e.nome + '</label>' +
@@ -404,6 +413,50 @@
   var _timers = { tTotal: 0, tStep: 0, interval: null, step: 1 };
   var _jobs = [];
   var _hashLote = "";
+  // Resumo do que foi gerado (gráfica / chamado / marca / série), devolvido pelo backend.
+  var _resumo = [];
+
+  function escHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"]/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function renderResumo(lista, elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (!lista || !lista.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+    var temChamado = lista.some(function(r) { return r.chamado; });
+    var html = '<div style="font-weight:700; font-size:13px; color:#1f2d3d; margin-bottom:8px;">O que foi gerado</div>' +
+      '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:12px;">' +
+      '<thead><tr style="background:#f1f4f8; text-align:left;">' +
+      '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">Gráfica</th>' +
+      (temChamado ? '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">Chamado</th>' : '') +
+      '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">Marca</th>' +
+      '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">Série</th>' +
+      '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">SKUs</th>' +
+      '<th style="padding:6px 8px; border-bottom:1px solid #dde3ea;">Tiragem</th>' +
+      '</tr></thead><tbody>';
+
+    lista.forEach(function(r) {
+      html += '<tr>' +
+        '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.grafica) + '</td>' +
+        (temChamado ? '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.chamado) + '</td>' : '') +
+        '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.marcas) + '</td>' +
+        '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.series) + '</td>' +
+        '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.skus) + '</td>' +
+        '<td style="padding:6px 8px; border-bottom:1px solid #eef1f5;">' + escHtml(r.tiragem) + '</td>' +
+        '</tr>';
+      if (r.arquivo) {
+        html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:0 8px 8px; border-bottom:1px solid #eef1f5; color:#6b7684; font-size:11px;">' +
+          escHtml(r.arquivo) + '</td></tr>';
+      }
+    });
+
+    el.innerHTML = html + '</tbody></table></div>';
+    el.style.display = 'block';
+  }
   function fmtTime(s) {
     if (s < 60) return s + 's';
     var m = Math.floor(s / 60);
@@ -417,6 +470,8 @@
     document.getElementById('erroFase3').style.display = 'none';
     document.getElementById('finishArea').style.display = 'none';
     document.getElementById('stepTotal').style.display = 'none';
+    document.getElementById('resumoGerado').style.display = 'none';
+    document.getElementById('resumoGerado').innerHTML = '';
     ['step1', 'step2', 'step3'].forEach(function(id) {
       var el = document.getElementById(id);
       el.className = 'tracker-row pending';
@@ -458,12 +513,22 @@
       var totEl = document.getElementById('stepTotal');
       totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
       totEl.style.display = 'block';
+      renderResumo(_resumo, 'resumoGerado');
       document.getElementById('finishArea').style.display = 'block';
     }
   }
+  // Limite de espera do polling (min). Evita ficar girando para sempre se o
+  // backend tiver morrido de verdade depois de a conexão cair.
+  var LIMITE_POLL_MS = 15 * 60 * 1000;
+
   function pollStatus() {
     if(_timers.step > 3) return;
-   
+
+    if (Date.now() - _timers.tTotal > LIMITE_POLL_MS) {
+      return mostrarErroCustos("Tempo limite atingido. O e-mail do lote " + _hashLote +
+        " não apareceu na caixa. Confira a pasta da gráfica no Drive: o De-Para pode ter sido gerado mesmo assim.");
+    }
+
     google.script.run.withSuccessHandler(function(res) {
       if (res.erro || (res.queueStatus && res.queueStatus.indexOf("ERRO") !== -1)) {
         return mostrarErroCustos(res.erro || res.queueStatus);
@@ -497,14 +562,32 @@
     var idPastaOuNome=document.getElementById('selectGraficas').value;
     var opVersao=document.querySelector('input[name=opcaoVersao]:checked').value;
     var vManuais=(document.getElementById('txtVersoes')||{}).value||'';
+
+    // GERA O HASH NO FRONTEND PARA NÃO PERDER A REFERÊNCIA SE A CONEXÃO CAIR
+    _hashLote = new Date().getTime().toString();
+    _jobs = [];
+    _resumo = [];
+
     google.script.run.withSuccessHandler(function(res) {
         if (res.erro) return mostrarErroCustos(res.erro);
         _jobs = res.jobs || [];
-        _hashLote = res.hashLote;
+        _hashLote = res.hashLote || _hashLote;
+        _resumo = res.resumo || [];
         avancarStep(2);
         pollStatus();
-    }).withFailureHandler(mostrarErroCustos)
-      .finalizarProcessamentoLoteDepara(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
+    }).withFailureHandler(function(err) {
+        var msgErro = String((err && err.message) || err);
+
+        // SE O NAVEGADOR DER TIMEOUT/HTTP 0, IGNORAMOS E VAMOS PROCURAR O EMAIL MESMO ASSIM!
+        if (msgErro.indexOf("HTTP 0") !== -1 || msgErro.indexOf("NetworkError") !== -1 || msgErro.indexOf("conexão") !== -1) {
+          console.warn("Conexão com o servidor expirou, mas o backend continua rodando. Iniciando busca pelo email...");
+          avancarStep(2);
+          pollStatus();
+        } else {
+          mostrarErroCustos(msgErro);
+        }
+    })
+      .finalizarProcessamentoLoteDepara(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI, _hashLote);
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }

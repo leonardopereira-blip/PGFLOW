@@ -176,8 +176,8 @@
  .principal-wrapper { display: flex; height: calc(100vh - 120px); gap: 20px; align-items: stretch; overflow: hidden; }
  
 /* Menu Lateral */
- .principal-sidebar { width: 380px; flex-shrink: 0; transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow-y: auto; padding-right: 5px; }
- .principal-sidebar.collapsed { margin-left: -400px; }
+ .principal-sidebar { width: 420px; flex-shrink: 0; transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow-y: auto; padding-right: 5px; }
+ .principal-sidebar.collapsed { margin-left: -440px; }
  
 /* Painel Principal (Dashboard) */
  .principal-dashboard { flex-grow: 1; background: #fff; border-radius: 12px; border: 1px solid #e6e8ef; padding: 25px; overflow-y: auto; box-shadow: 0 1px 2px rgba(16,29,56,.05); display: flex; flex-direction: column; transition: all 0.4s ease; }
@@ -223,7 +223,17 @@
  .select-all-wrap { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #d3d9e6; }
  
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
- </style>
+
+ /* Novos Estilos do Menu de Filtros (Accordion) */
+ .filtro-acc-head { background: #f7f9fd; padding: 12px 14px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; color: #284081; border: 1px solid #e6e8ef; border-radius: 8px; margin-top: 8px; transition: background 0.2s; font-size: 13px; }
+ .filtro-acc-head:hover { background: #eef1f7; }
+ .filtro-acc-body { display: none; padding: 12px; border: 1px solid #e6e8ef; border-top: none; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; margin-top: -4px; margin-bottom: 8px; background: #fff;}
+ .filtro-acc.open .filtro-acc-body { display: block; animation: fadeIn 0.3s; }
+ .filtro-acc.open .filtro-acc-head { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom-color: transparent;}
+ .btn-limpar { background: #f0f1f5; color: #54607d; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Poppins', sans-serif; transition: 0.2s;}
+ .btn-limpar:hover { background: #e6e8ef; color: #FA4616; }
+ .filtro-acc.open .filtro-acc-head .chevron-filtro { transform: rotate(-180deg); }
+</style>
  </head>
  <body>
  
@@ -252,7 +262,7 @@
  <span style="font-size: 28px;">✉️</span> Enviar E-mail para Gráfica
  </button>
  <button class="big-btn" onclick="switchView('custos')">
- <span style="font-size: 28px;">⚙️</span> Validar Custos (De-Para)
+ <span style="font-size: 28px;">⚙️</span> Validação de Custos Reentradas
  </button>
  <button class="big-btn" onclick="switchView('custos-principal')">
  <span style="font-size: 28px;">📊</span> Validação de Custos Principal
@@ -296,32 +306,43 @@
  
 <!-- FASE 1: FILTROS MULTINÍVEL -->
  <div class="vc-card" id="cardFiltros">
- <h3 style="margin-top:0; color:#284081; font-size: 15px;">Filtros de Extração em Cascata</h3>
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <h3 style="margin:0; color:#284081; font-size: 15px;">Filtros em Cascata</h3>
+ <button class="btn-limpar" onclick="limparFiltrosUI()">Limpar Tudo</button>
+ </div>
  <div id="loaderFiltros" style="font-size:13px; color:#666; margin-bottom: 10px;">
  <span class="vc-loader"></span> Obtendo base de dados...
  </div>
- <div id="conteudoFiltros" style="display:none; grid-template-columns: 1fr 1fr; gap: 15px;">
- <div class="vc-field" style="margin-top:0;">
- <label class="vc-lbl">1. Gráfica(s)</label>
- <div class="scroll-box" id="boxGraficas"></div>
+ <div id="conteudoFiltros" style="display:none; flex-direction: column; gap: 2px;">
+ <div class="filtro-acc open" id="acc-graficas">
+ <div class="filtro-acc-head" onclick="toggleFiltroMenu('acc-graficas')"><span>1. Gráfica(s)</span> <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span></div>
+ <div class="filtro-acc-body">
+ <div class="scroll-box" id="boxGraficas" style="max-height: 160px;"></div>
  </div>
- <div class="vc-field" style="margin-top:0;">
- <label class="vc-lbl">2. Marca(s)</label>
- <div class="scroll-box" id="boxMarcas">
+ </div>
+ <div class="filtro-acc" id="acc-marcas">
+ <div class="filtro-acc-head" onclick="toggleFiltroMenu('acc-marcas')"><span>2. Marca(s)</span> <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span></div>
+ <div class="filtro-acc-body">
+ <div class="scroll-box" id="boxMarcas" style="max-height: 160px;">
  <span style="font-size:11px; color:#888;">Selecione Gráfica(s)...</span>
  </div>
  </div>
- <div class="vc-field" style="margin-top:0;">
- <label class="vc-lbl">3. Série(s)</label>
- <div class="scroll-box" id="boxSeries">
+ </div>
+ <div class="filtro-acc" id="acc-series">
+ <div class="filtro-acc-head" onclick="toggleFiltroMenu('acc-series')"><span>3. Série(s)</span> <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span></div>
+ <div class="filtro-acc-body">
+ <div class="scroll-box" id="boxSeries" style="max-height: 160px;">
  <span style="font-size:11px; color:#888;">Aguardando Marca(s)...</span>
  </div>
  </div>
- <div class="vc-field" style="margin-top:0;">
- <label class="vc-lbl">4. SKU(s)</label>
+ </div>
+ <div class="filtro-acc" id="acc-skus">
+ <div class="filtro-acc-head" onclick="toggleFiltroMenu('acc-skus')"><span>4. SKU(s)</span> <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span></div>
+ <div class="filtro-acc-body">
  <input type="text" id="txtBuscaSku" placeholder="Pesquisar SKU..." onkeyup="filtrarListaSkuUI()" style="margin-bottom: 6px; font-size: 12px; padding: 6px;">
- <div class="scroll-box" id="boxSkus" style="max-height: 100px;">
+ <div class="scroll-box" id="boxSkus" style="max-height: 160px;">
  <span style="font-size:11px; color:#888;">Aguardando filtros...</span>
+ </div>
  </div>
  </div>
  </div>
@@ -358,6 +379,7 @@
  </div>
  </div>
  <div id="stepTotalPrin" style="display:none; margin-top: 15px; font-weight: 700; color: #1f9d6b; text-align: center; font-size: 14px;"></div>
+ <div id="resumoGeradoPrin" style="display:none; margin-top:15px;"></div>
  <div id="finishAreaPrin" style="display:none; text-align:center; margin-top:15px;">
  <button class="vc-btn-primary" onclick="resetarParaNovaCalculadoraPrin()">Gerar nova calculadora</button>
  </div>
@@ -411,6 +433,23 @@
  </div>
 
 <script>
+
+function toggleFiltroMenu(id) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.classList.toggle('open');
+    }
+}
+
+// Garantindo que a função do botão "Limpar Tudo" também esteja ativa
+function limparFiltrosUI() {
+    document.querySelectorAll('.chk-grafica, .chk-marca, .chk-serie, .chk-sku').forEach(function(chk) { chk.checked = false; });
+    var searchBox = document.getElementById('txtBuscaSku');
+    if(searchBox) searchBox.value = '';
+    if(typeof filtrarListaSkuUI === 'function') filtrarListaSkuUI();
+    if(typeof updateFilters === 'function') updateFilters(0);
+}
+
  function switchView(viewId) {
  document.querySelectorAll('.view-panel').forEach(function(p) { p.classList.remove('active'); });
  document.querySelectorAll('.nav-btn:not(#btn-consolidar)').forEach(function(b) { b.classList.remove('active'); });
@@ -433,39 +472,43 @@ function toggleDash(id) {
  // =========================================================================
  // DADOS DA CALCULADORA - TUDO DENTRO DA TECNOLOGIA (RESTAURADO COMPLETO)
  // =========================================================================
+ const OPCOES_SERVICO_GRAFICO = ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"];
+ const OPCOES_FORNECIMENTO = ["ARCO", "GRÁFICA", "ARCO TRIANG"];
+ const OPCOES_FORNECIMENTO_COM_BRANCO = ["", "ARCO", "GRÁFICA", "ARCO TRIANG"];
+
  const DADOS_CALC_REAL = {
  "DIGITAL": [
- { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "DIGITAL" },
- { grupo: "DIGITAL - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "DIGITAL - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "DIGITAL - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "DIGITAL - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "DIGITAL - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "DIGITAL - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "DIGITAL - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "DIGITAL" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "DIGITAL" },
+ { grupo: "DIGITAL - CAPA", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - FORRO / GUARDAS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - ENCARTES", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - ADESIVOS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "DIGITAL - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO_COM_BRANCO, padrao: "" }
  ],
  "PLANA": [
- { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "PLANA" },
- { grupo: "PLANA - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "PLANA - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "PLANA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "PLANA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "PLANA - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "PLANA - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "PLANA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "PLANA" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "PLANA" },
+ { grupo: "PLANA - CAPA", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "PLANA - FORRO / GUARDAS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "PLANA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "PLANA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "PLANA - ENCARTES", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "PLANA - ADESIVOS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "PLANA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO_COM_BRANCO, padrao: "" }
  ],
  "ROTATIVA": [
- { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: ["DIGITAL", "PLANA", "ROTATIVA", "ACABADORA 1", "ACABADORA 2", "ACABADORA 3"], padrao: "ROTATIVA" },
- { grupo: "ROTATIVA - CAPA", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "ROTATIVA - FORRO / GUARDAS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "ROTATIVA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "ROTATIVA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "ROTATIVA - ENCARTES", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" },
- { grupo: "ROTATIVA - ADESIVOS", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "GRÁFICA" },
- { grupo: "ROTATIVA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: ["ARCO", "GRÁFICA", "ARCO TRIANG"], padrao: "ARCO" }
+ { grupo: "SERVIÇO GRÁFICO - ACABAMENTO", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "ROTATIVA" },
+ { grupo: "SERVIÇO GRÁFICO - MANUSEIO & FORMAÇÃO DE KITS", header: "Fornecedor", opcoes: OPCOES_SERVICO_GRAFICO, padrao: "ROTATIVA" },
+ { grupo: "ROTATIVA - CAPA", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "ROTATIVA - FORRO / GUARDAS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "ROTATIVA - MIOLO PRINCIPAL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "ROTATIVA - MIOLO DO PROFESSOR", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "ROTATIVA - ENCARTES", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "ARCO" },
+ { grupo: "ROTATIVA - ADESIVOS", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO, padrao: "GRÁFICA" },
+ { grupo: "ROTATIVA - AJUSTE DE PAPEL", header: "Fornecimento", opcoes: OPCOES_FORNECIMENTO_COM_BRANCO, padrao: "" }
  ]
  };
  
@@ -555,7 +598,7 @@ const qFim = res.finalizados.length;
  <div class="dash-section ${qAtraso > 0 ? 'open' : ''}" id="sec-atrasados">
  <div class="dash-section-head" onclick="toggleDash('sec-atrasados')">
  <span>Registros Atrasados</span>
- <span>▾</span>
+ <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span>
  </div>
  <div class="dash-section-body">
  ${buildTable(res.atrasados, true)}
@@ -564,7 +607,7 @@ const qFim = res.finalizados.length;
  <div class="dash-section" id="sec-emdia">
  <div class="dash-section-head" onclick="toggleDash('sec-emdia')">
  <span>Registros Em Dia</span>
- <span>▾</span>
+ <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span>
  </div>
  <div class="dash-section-body">
  ${buildTable(res.emDia, false)}
@@ -573,7 +616,7 @@ const qFim = res.finalizados.length;
  <div class="dash-section" id="sec-finalizados">
  <div class="dash-section-head" onclick="toggleDash('sec-finalizados')">
  <span>Registros Finalizados</span>
- <span>▾</span>
+ <span class="chevron-filtro" style="display:inline-block; transition: transform 0.3s ease;">▾</span>
  </div>
  <div class="dash-section-body">
  ${buildTable(res.finalizados, false)}
@@ -657,11 +700,22 @@ document.querySelectorAll('.chk-tech').forEach(chk => {
  chk.checked = suggestedTechs.includes(chk.value);
  });
  renderCalculadoraCampos();
+ if (levelTriggered === 1 && selG.length > 0) document.getElementById('acc-marcas').classList.add('open');
+ if (levelTriggered === 2 && selM.length > 0) document.getElementById('acc-series').classList.add('open');
+ if (levelTriggered === 3 && selS.length > 0) document.getElementById('acc-skus').classList.add('open');
  }
  function filtrarListaSkuUI() {
- const busca = document.getElementById('txtBuscaSku').value.toLowerCase();
+ const buscaInput = document.getElementById('txtBuscaSku').value.toLowerCase();
+ const termos = buscaInput.split(',').map(t => t.trim()).filter(t => t !== '');
+ 
  document.querySelectorAll('.chk-sku-item').forEach(lbl => {
- lbl.style.display = lbl.textContent.toLowerCase().includes(busca) ? 'block' : 'none';
+ const textoItem = lbl.textContent.toLowerCase();
+ if (termos.length === 0) {
+ lbl.style.display = 'block';
+ } else {
+ const found = termos.some(termo => textoItem.includes(termo));
+ lbl.style.display = found ? 'block' : 'none';
+ }
  });
  }
  function renderCalculadoraCampos() {
@@ -787,6 +841,8 @@ let html = '';
 
  let _timersPrin = { tTotal: 0, tStep: 0, interval: null, step: 1 };
  let _hashLotePrin = "";
+ // Resumo do que foi gerado (gráfica / marca / série), devolvido pelo backend.
+ let _resumoPrin = [];
 
  function fmtTime(s) {
  if (s < 60) return s + 's';
@@ -805,6 +861,8 @@ let html = '';
  document.getElementById('erroTrackerPrin').style.display = 'none';
  document.getElementById('finishAreaPrin').style.display = 'none';
  document.getElementById('stepTotalPrin').style.display = 'none';
+ document.getElementById('resumoGeradoPrin').style.display = 'none';
+ document.getElementById('resumoGeradoPrin').innerHTML = '';
 
  ['stepPrin1', 'stepPrin2', 'stepPrin3'].forEach(function(id) {
  let el = document.getElementById(id);
@@ -838,7 +896,8 @@ let html = '';
  
  // GERA O HASH NO FRONTEND PARA NÃO PERDER A REFERÊNCIA SE A CONEXÃO CAIR
  _hashLotePrin = new Date().getTime().toString();
- 
+ _resumoPrin = [];
+
  const payload = { 
  skus: skusSelecionados, 
  camposCalc: camposCalc, 
@@ -850,7 +909,8 @@ let html = '';
  if (res.erro) {
  mostrarErroPrin(res.erro);
  } else {
- avancarStepPrin(2); 
+ _resumoPrin = res.resumo || [];
+ avancarStepPrin(2);
  pollStatusPrin();
  }
  }).withFailureHandler(function(err) {
@@ -895,6 +955,7 @@ let html = '';
  let totEl = document.getElementById('stepTotalPrin');
  totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
  totEl.style.display = 'block';
+ renderResumo(_resumoPrin, 'resumoGeradoPrin');
  document.getElementById('finishAreaPrin').style.display = 'block';
  }
  }

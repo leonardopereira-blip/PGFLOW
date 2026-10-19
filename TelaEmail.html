@@ -1,553 +1,667 @@
-<!DOCTYPE html>
-<html>
-<head>
-<base target="_top">
 <style>
-body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-h2 { font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-.passo { display: none; }
-.ativo { display: block; }
-input[type="number"], input[type="text"], textarea { width: 100%; padding: 8px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-textarea { height: 320px; resize: none; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.4; }
-button { background-color: #1a73e8; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-button:hover { background-color: #1557b0; }
-button.cancelar { background-color: #dc3545; margin-right: 10px; }
-button.cancelar:hover { background-color: #c82333; }
-#mensagem-erro { color: red; font-size: 13px; margin-top: 10px; font-weight: bold; }
-.loader { display: none; font-size: 13px; color: #666; font-style: italic; }
-
-/* Estilo para a caixa de seleção múltipla */
-.caixa-graficas { border: 1px solid #ccc; border-radius: 4px; padding: 10px; max-height: 150px; overflow-y: auto; margin: 10px 0; background-color: #fff; }
-.item-grafica { margin-bottom: 8px; display: flex; align-items: center; }
-.item-grafica input { margin: 0 10px 0 0; width: auto; cursor: pointer; }
-.item-grafica label { cursor: pointer; font-weight: normal; margin: 0; }
-
-/* Estilos novos */
-.caixa-versao { background: #f8f9fa; border: 1px solid #e0e0e0; padding: 10px; border-radius: 4px; margin: 10px 0; }
-.caixa-anexo { background: #e8f0fe; border: 1px solid #cce0ff; padding: 12px; border-radius: 4px; margin: 10px 0; font-size: 13px; display: flex;
-justify-content: space-between; align-items: center;}
-.caixa-dinamica-emails { background: #fff8e1; border: 1px solid #ffe082; padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+/* Escopo isolado: esta tela nao altera os estilos das demais abas do PGFLOW. */
+#pf-email {font-family:'Poppins',Arial,sans-serif;color:#18273e;max-width:980px;margin:0 auto;padding:12px 6px 24px;box-sizing:border-box}
+#pf-email *,#pf-email *:before,#pf-email *:after {box-sizing:border-box}
+#pf-email button,#pf-email input,#pf-email textarea {font-family:inherit}
+#pf-email .pf-hero {background:linear-gradient(120deg,#f3f6fc 0%,#ffffff 100%);border:1px solid #e2e8f2;border-radius:14px;padding:20px 23px;margin-bottom:14px}
+#pf-email .pf-hero-top {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px;flex-wrap:wrap}
+#pf-email .pf-eyebrow {font-weight:600;letter-spacing:.06em;font-size:11px;color:#73849a;text-transform:uppercase}
+#pf-email h2 {font-size:22px;line-height:1.3;letter-spacing:-.025em;margin:0 0 6px;font-weight:700;color:#152744;border:0}
+#pf-email h3 {font-size:16px;margin:0 0 14px;font-weight:700;color:#203653}
+#pf-email p {font-size:13px;line-height:1.55;margin:0;color:#5b6a7e}
+#pf-email .pf-stepper {display:flex;gap:8px;margin:0 0 14px}
+#pf-email .pf-stepper span {flex:1;padding:9px 12px;background:#f0f3f8;border:1px solid #e5eaf2;border-radius:9px;color:#8090a4;font-size:12px;font-weight:600;text-align:center}
+#pf-email .pf-stepper .pf-current {background:#eaf1ff;color:#2755a5;border-color:#c8dafa}
+#pf-email .pf-panel {background:#fff;border:1px solid #e4e9f1;border-radius:14px;padding:22px 24px;box-shadow:0 5px 25px rgba(35,58,96,.035)}
+#pf-email .passo {display:none}
+#pf-email .passo.ativo {display:block}
+#pf-email .pf-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#pf-email .pf-field {margin-bottom:18px;min-width:0}
+#pf-email .pf-label {font-size:12px;font-weight:700;color:#34465e;display:block;margin-bottom:7px}
+#pf-email input[type=text],#pf-email input[type=number],#pf-email input[type=email],#pf-email textarea {display:block;width:100%;border:1px solid #cfd8e6;border-radius:8px;padding:11px 12px;font-size:13px;color:#1d2e46;background:#fff;min-height:42px;outline:none;margin:0}
+#pf-email textarea {line-height:1.55;resize:vertical;min-height:260px}
+#pf-email input:focus,#pf-email textarea:focus {border-color:#5584d7;box-shadow:0 0 0 3px rgba(74,128,218,.12)}
+#pf-email input[type=checkbox],#pf-email input[type=radio] {accent-color:#2458ae;width:15px;height:15px;vertical-align:middle;flex-shrink:0}
+#pf-email .pf-choices {display:flex;flex-wrap:wrap;gap:9px}
+#pf-email .pf-choice {display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 12px;border:1px solid #dce3ee;border-radius:8px;background:#fbfcff;font-size:13px;cursor:pointer;color:#32445c}
+#pf-email .pf-choice:has(input:checked){background:#ecf3ff;border-color:#80a4df;color:#1f4a91}
+#pf-email .pf-help {margin-top:5px;font-size:11px;color:#78879a}
+#pf-email .pf-divider {height:1px;background:#edf0f5;margin:4px 0 19px}
+#pf-email .pf-section-title {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+#pf-email .pf-list {border:1px solid #e0e6ef;border-radius:9px;max-height:240px;overflow:auto;background:#fcfdff;padding:8px}
+#pf-email .pf-choice-row {display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:7px;cursor:pointer;font-size:13px}
+#pf-email .pf-choice-row:hover {background:#f0f5fe}
+#pf-email .pf-choice-row strong {font-weight:600}
+#pf-email .pf-count {margin-left:auto;font-size:11px;color:#8190a5;white-space:nowrap}
+#pf-email .pf-empty {padding:18px;color:#738298;font-size:13px}
+#pf-email button {border:1px solid transparent;border-radius:8px;padding:10px 16px;font-size:12px;font-weight:700;cursor:pointer;min-height:39px;transition:background .15s,opacity .15s}
+#pf-email button:disabled {opacity:.5;cursor:not-allowed}
+#pf-email .pf-primary {background:#2359b2;color:white}
+#pf-email .pf-primary:hover:not(:disabled){background:#19478f}
+#pf-email .pf-secondary {background:#fff;color:#34506f;border-color:#d6dfec}
+#pf-email .pf-secondary:hover:not(:disabled){background:#f5f8fd}
+#pf-email .pf-subtle {background:#edf2f9;color:#34506f}
+#pf-email .pf-danger {background:#fff5f5;color:#b43b42;border-color:#f2ced0}
+#pf-email .pf-danger:hover:not(:disabled) {background:#ffe9e9}
+#pf-email .pf-link {background:transparent;color:#2759aa;padding:6px 8px;border-color:transparent}
+#pf-email .pf-link:hover:not(:disabled) {background:#edf3fe}
+#pf-email .pf-footer {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:19px;padding-top:17px;border-top:1px solid #eef0f5;flex-wrap:wrap}
+#pf-email .pf-actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#pf-email .pf-alert {margin-top:12px;color:#a42e31;background:#fff4f3;border:1px solid #ffddda;border-radius:8px;padding:10px 12px;font-size:12px}
+#pf-email .pf-note {background:#f4f7fb;border:1px solid #e0e7f1;border-radius:9px;padding:12px 14px;margin-top:12px;font-size:12px;color:#496078}
+#pf-email .pf-progress {padding:10px 0;color:#63758f;font-size:12px}
+#pf-email .pf-anexo {display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f4f8ff;border:1px solid #dce8fa;border-radius:9px;padding:13px 14px;margin-bottom:18px;font-size:13px;flex-wrap:wrap}
+#pf-email .pf-anexo small {display:block;color:#7d8a9a;margin-top:4px;font-size:11px}
+#pf-email .pf-anexo a {font-weight:600;color:#2359b2;font-size:12px}
+#pf-email .pf-rec-card {border:1px solid #e5ebf3;border-radius:9px;margin-bottom:9px;overflow:hidden}
+#pf-email .pf-rec-head {background:#f7f9fc;display:flex;align-items:center;justify-content:space-between;padding:10px 13px;font-size:12px;font-weight:700}
+#pf-email .pf-rec-email {display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:12px;border-top:1px solid #f0f3f7;word-break:break-all;cursor:pointer}
+#pf-email .pf-rec-email:hover {background:#fafbfe}
+#pf-email .pf-dialog-backdrop {position:fixed;z-index:99999;inset:0;background:rgba(13,26,49,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+#pf-email .pf-dialog-backdrop[hidden] {display:none}
+#pf-email .pf-dialog {background:white;color:#263b58;width:min(700px,100%);max-height:min(92vh,850px);display:flex;flex-direction:column;border-radius:14px;box-shadow:0 25px 70px rgba(13,27,52,.3)}
+#pf-email .pf-dialog-head {padding:18px 21px 12px;border-bottom:1px solid #e8edf3;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#pf-email .pf-dialog-head h3{margin-bottom:4px}
+#pf-email .pf-dialog-body {padding:16px 21px;overflow-y:auto;flex:1}
+#pf-email .pf-dialog-foot {padding:14px 21px;border-top:1px solid #e8edf3;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+#pf-email .pf-manage-graphic {border:1px solid #e0e7f1;border-radius:9px;padding:12px 14px;margin:0 0 11px}
+#pf-email .pf-manage-head {display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+#pf-email .pf-manage-head strong {font-size:13px}
+#pf-email .pf-manage-line {display:flex;align-items:center;gap:7px;margin:6px 0}
+#pf-email .pf-manage-line input {min-width:0;flex:1}
+#pf-email .pf-manage-line button {flex-shrink:0}
+#pf-email .pf-addgraphic {display:grid;grid-template-columns:1fr auto;gap:8px;margin:12px 0 16px}
+#pf-email .pf-success {text-align:center;padding:45px 16px 33px}
+#pf-email .pf-success-icon {margin:0 auto 15px;width:52px;height:52px;display:grid;place-items:center;background:#e4f6eb;color:#23734a;font-size:25px;border-radius:50%;font-weight:bold}
+@media(max-width:640px){#pf-email .pf-panel{padding:16px}#pf-email .pf-hero{padding:17px}#pf-email .pf-grid{grid-template-columns:1fr}#pf-email .pf-footer{align-items:stretch}#pf-email .pf-actions{width:100%}#pf-email .pf-actions button{flex:1}#pf-email .pf-stepper span{font-size:10px;padding:8px 5px}#pf-email .pf-dialog-body{padding:12px}#pf-email .pf-addgraphic{grid-template-columns:1fr}#pf-email .pf-manage-line button{padding:8px}}
 </style>
-</head>
-<body>
 
-<div id="passo1" class="passo ativo">
-  <h2>1. Selecionar Chamado e Gráficas</h2>
+<div id="pf-email" class="pf-email">
+  <header class="pf-hero">
+    <div class="pf-hero-top">
+      <button type="button" class="pf-secondary" onclick="pfAbrirCadastro()">Gerenciar e-mails</button>
+      <span class="pf-eyebrow">PGFLOW · Produção gráfica</span>
+    </div>
+    <h2>Formalização para gráfica</h2>
+    <p>Consulte o chamado, confira o anexo e revise os destinatários antes do envio.</p>
+  </header>
+  <div class="pf-stepper" aria-label="Etapas do envio">
+    <span id="pf-ind1" class="pf-current">1 · Selecionar</span>
+    <span id="pf-ind2">2 · Revisar</span>
+    <span id="pf-ind3">3 · Concluído</span>
+  </div>
 
-  <label>Digite o ID do Chamado (Ex: 2548):</label>
-  <input type="number" id="inputChamado" placeholder="Apenas os números">
+  <section id="passo1" class="passo ativo pf-panel" aria-label="Selecionar chamado">
+    <h3>Dados da solicitação</h3>
+    <div class="pf-grid">
+      <div class="pf-field">
+        <label class="pf-label" for="inputChamado">Número do chamado</label>
+        <input id="inputChamado" type="text" inputmode="numeric" maxlength="12" placeholder="Ex.: 3100" autocomplete="off">
+      </div>
+      <div class="pf-field">
+        <span class="pf-label">Tipo de formalização</span>
+        <div class="pf-choices">
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfAtualizarInfoTipo()"> Reentradas</label>
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfAtualizarInfoTipo()"> Inclusivos (ampliados)</label>
+        </div>
+        <p id="pf-dica-tipo" class="pf-help" style="display:none">Inclusivos: o anexo continua vindo do fluxo antigo até a rota específica do SPG ser validada.</p>
+      </div>
+    </div>
+    <div class="pf-field">
+      <span class="pf-label">Versão da PPG</span>
+      <div class="pf-choices">
+        <label class="pf-choice"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoVersao()"> Última versão</label>
+        <label class="pf-choice"><input type="radio" name="opcaoVersao" value="manual" onchange="alternarCampoVersao()"> Escolher versão</label>
+      </div>
+      <div id="blocoVersoesManuais" class="pf-field" style="display:none;max-width:260px;margin-top:12px">
+        <label class="pf-label" for="inputNumVersao">Número da versão</label>
+        <input id="inputNumVersao" type="number" min="1" step="1" placeholder="Ex.: 1">
+      </div>
+    </div>
+    <div class="pf-divider"></div>
+    <div class="pf-section-title">
+      <label class="pf-label" style="margin:0">Gráficas destinatárias</label>
+      <button type="button" class="pf-link" onclick="pfAbrirCadastro()">Editar cadastro</button>
+    </div>
+    <div id="containerGraficas" class="pf-list"><div class="pf-empty">Carregando gráficas…</div></div>
+    <div id="loader1" class="pf-progress" style="display:none">Consultando o chamado e validando a PPG…</div>
+    <div id="mensagem-erro" class="pf-alert" role="alert" style="display:none"></div>
+    <div id="pgflowOrigemSPG" class="pf-note" style="display:none" aria-live="polite"></div>
+    <footer class="pf-footer">
+      <button type="button" class="pf-secondary" onclick="pfResetar()">Cancelar e limpar</button>
+      <div class="pf-actions"><button id="pf-avancar" type="button" class="pf-primary" onclick="avancarParaRevisao()">Avançar para revisão</button></div>
+    </footer>
+  </section>
 
-  <div class="caixa-versao">
-    <label style="font-weight: bold; font-size: 13px;">Tipo de Formalização:</label><br>
-    <div style="margin-top: 8px; font-size: 13px;">
-      <label style="margin-right: 15px; cursor: pointer;"><input type="radio" name="tipoEmail" value="reentrada" checked> Reentradas</label>
-      <label style="cursor: pointer;"><input type="radio" name="tipoEmail" value="inclusivo"> Inclusivos (Ampliados)</label>
+  <section id="passo2" class="passo pf-panel" aria-label="Revisar envio">
+    <h3>Revisar e enviar</h3>
+    <div class="pf-anexo"><div><strong id="nomeAnexo">Chamado.xlsx</strong><small id="pf-origem-anexo"></small></div>
+      <a id="linkPreview" href="#" target="_blank" rel="noopener" style="display:none">Visualizar anexo</a></div>
+    <div class="pf-field">
+      <label class="pf-label" for="assuntoEmail">Assunto</label>
+      <input id="assuntoEmail" type="text" maxlength="400">
+    </div>
+    <div class="pf-section-title">
+      <label class="pf-label" style="margin:0">Destinatários deste envio</label>
+      <button type="button" class="pf-link" onclick="pfAbrirCadastro()">Editar cadastro</button>
+    </div>
+    <div id="containerDestinatarios" class="pf-field"></div>
+    <div class="pf-field">
+      <label class="pf-label" for="corpoEmail">Mensagem</label>
+      <textarea id="corpoEmail"></textarea>
+    </div>
+    <div id="loader2" class="pf-progress" style="display:none">Enviando e-mail… Não feche a tela até receber a confirmação.</div>
+    <footer class="pf-footer">
+      <button type="button" class="pf-secondary" onclick="pfResetar()">Cancelar e limpar</button>
+      <div class="pf-actions">
+        <button type="button" class="pf-secondary" onclick="voltar()">Voltar</button>
+        <button id="pf-enviar" type="button" class="pf-primary" onclick="enviarEmail()">Enviar e-mail com anexo</button>
+      </div>
+    </footer>
+  </section>
+
+  <section id="passo3" class="passo pf-panel" aria-label="Envio concluído">
+    <div class="pf-success">
+      <div class="pf-success-icon" aria-hidden="true">✓</div>
+      <h2>E-mail enviado</h2>
+      <p>O envio foi concluído. Para iniciar outro chamado, os dados e seleções anteriores serão apagados.</p>
+      <div style="margin-top:19px"><button type="button" class="pf-primary" onclick="enviarNovoEmail()">Iniciar novo envio</button></div>
+      <div style="margin-top:9px"><button type="button" class="pf-link" onclick="pfResetar()">Cancelar e voltar ao início</button></div>
+    </div>
+  </section>
+
+  <div id="pf-modal" class="pf-dialog-backdrop" hidden>
+    <div class="pf-dialog" role="dialog" aria-modal="true" aria-labelledby="pf-modal-title">
+      <div class="pf-dialog-head">
+        <div><h3 id="pf-modal-title">Gerenciar destinatários</h3><p>Edite, inclua ou exclua e-mails das gráficas. As mudanças valem para os dois fluxos.</p></div>
+        <button type="button" class="pf-secondary" onclick="pfFecharCadastro()" aria-label="Fechar cadastro">Fechar</button>
+      </div>
+      <div class="pf-dialog-body">
+        <label class="pf-label" for="pf-busca">Buscar gráfica</label>
+        <input id="pf-busca" type="text" placeholder="Filtrar lista…" oninput="pfRenderCadastro()">
+        <div id="pf-lista-cadastro" style="margin-top:12px"></div>
+        <div class="pf-divider" style="margin-top:18px"></div>
+        <label class="pf-label" for="pf-nova-grafica">Nova gráfica</label>
+        <div class="pf-addgraphic">
+          <input id="pf-nova-grafica" type="text" maxlength="100" placeholder="Nome da gráfica">
+          <button type="button" class="pf-secondary" onclick="pfAdicionarGrafica()">Adicionar gráfica</button>
+        </div>
+        <div id="pf-erro-cadastro" class="pf-alert" role="alert" style="display:none"></div>
+      </div>
+      <div class="pf-dialog-foot">
+        <button type="button" class="pf-secondary" onclick="pfFecharCadastro()">Cancelar alterações</button>
+        <button type="button" id="pf-salvar-cadastro" class="pf-primary" onclick="pfSalvarCadastro()">Salvar cadastro</button>
+      </div>
     </div>
   </div>
-
-  <div class="caixa-versao">
-    <label style="font-weight: bold; font-size: 13px;">Qual versão da planilha (PPG) anexar?</label><br>
-    <div style="margin-top: 8px; font-size: 13px;">
-      <label style="margin-right: 15px; cursor: pointer;"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoVersao()"> Usar a última versão</label>
-      <label style="cursor: pointer;"><input type="radio" name="opcaoVersao" value="manual" onchange="alternarCampoVersao()"> Escolher versão</label>
-    </div>
-    <div id="blocoVersoesManuais" style="display:none; margin-top: 10px;">
-      <input type="number" id="inputNumVersao" placeholder="Ex: 1 (para a 1ª versão gerada)" style="margin:0; width: 100%;">
-    </div>
-  </div>
-
-  <label>Selecione as Gráficas de Destino (pode marcar várias):</label>
-  <div id="containerGraficas" class="caixa-graficas">
-    A carregar gráficas...
-  </div>
-
-  <button type="button" onclick="pgflowAdicionarGrafica()" style="background:#606a80; margin-bottom:8px;">Adicionar destinatário</button>
-
-  <button onclick="avancarParaRevisao()" style="margin-top: 10px;">Avançar para Revisão</button>
-  <div id="loader1" class="loader">A procurar dados e arquivo do chamado...</div>
-  <div id="mensagem-erro"></div>
-</div>
-
-<div id="passo2" class="passo">
-  <h2>2. Revisar e Enviar</h2>
-
-  <div class="caixa-anexo">
-    <div><strong>📎 Anexo:</strong> <span id="nomeAnexo"></span></div>
-    <a id="linkPreview" href="#" target="_blank" style="color:#1a73e8; font-weight:bold; text-decoration:none;">👁️ Pré-visualizar</a>
-  </div>
-
-  <label>Assunto do E-mail:</label>
-  <input type="text" id="assuntoEmail">
-
-  <div id="containerDestinatarios"></div>
-
-  <label>Corpo do E-mail (Pode editar antes de enviar):</label>
-  <textarea id="corpoEmail"></textarea>
-
-  <div style="margin-top: 10px;">
-    <button class="cancelar" onclick="voltar()">Voltar</button>
-    <button onclick="enviarEmail()">Enviar E-mail com Anexo</button>
-  </div>
-  <div id="loader2" class="loader">A enviar e-mail... Por favor, aguarde.</div>
-</div>
-
-<div id="passo3" class="passo">
-  <h2 style="color: green;">   ✔ E-mail Enviado!   </h2>
-  <p>O ficheiro Excel foi anexado e o e-mail foi disparado para as gráficas com sucesso.</p>
-  <button onclick="enviarNovoEmail()">Enviar Novo E-mail</button>
 </div>
 
 <script>
-var dadosGlobais = {};
+/* Estado unico compartilhado entre SPG e fluxo antigo. */
 var listaGraficas = {};
+var dadosGlobais = {};
+var pfVersaoCadastro = '';
+var pfRascunhoCadastro = null;
+var pfTokenBusca = 0;
+var pfEnviando = false;
+var pfCarregando = false;
+var pfSalvandoCadastro = false;
+var pfTipoAtual = 'reentrada';
+var pfGruposSelecionados = [];
+var pfUltimaOrigem = '';
 
-window.onload = function() {
-  google.script.run.withSuccessHandler(preencherGraficas).obterDadosGraficas();
-};
-
-function alternarCampoVersao() {
-  var opcao = document.querySelector('input[name="opcaoVersao"]:checked').value;
-  document.getElementById('blocoVersoesManuais').style.display = (opcao === 'manual') ? 'block' : 'none';
+function pfEl(id) { return document.getElementById(id); }
+function pfErro(mensagem) {
+  var el = pfEl('mensagem-erro');
+  el.textContent = mensagem || '';
+  el.style.display = mensagem ? 'block' : 'none';
 }
-
-function preencherGraficas(graficas) {
-  listaGraficas = graficas;
-  var container = document.getElementById("containerGraficas");
-  container.innerHTML = '';
-  for (var nome in graficas) {
-    container.innerHTML += '<div class="item-grafica"><input type="checkbox" id="graf_' + nome + '" value="' + nome + '" class="chk-grafica"> <label for="graf_' + nome + '">' + nome + '</label></div>';
-  }
+function pfErroCadastro(mensagem) {
+  var el = pfEl('pf-erro-cadastro');
+  el.textContent = mensagem || '';
+  el.style.display = mensagem ? 'block' : 'none';
 }
-
-function avancarParaRevisao() {
-  var idChamado = document.getElementById("inputChamado").value;
-  var tipoEmail = document.querySelector('input[name="tipoEmail"]:checked').value; // Captura qual e-mail foi escolhido
-  var opcaoVersao = document.querySelector('input[name="opcaoVersao"]:checked').value;
-  var numVersao = document.getElementById("inputNumVersao").value;
-  var checkboxes = document.querySelectorAll('.chk-grafica:checked');
-  var graficasSelecionadas = [];
-
-  for (var i = 0; i < checkboxes.length; i++) {
-    graficasSelecionadas.push(checkboxes[i].value);
-  }
-
-  var msgErro = document.getElementById("mensagem-erro");
-
-  if (idChamado === "") {
-    msgErro.innerText = "Por favor, preencha o ID do Chamado.";
-    return;
-  }
-  if (opcaoVersao === 'manual' && numVersao === "") {
-    msgErro.innerText = "Por favor, informe o número da versão desejada.";
-    return;
-  }
-  if (graficasSelecionadas.length === 0) {
-    msgErro.innerText = "Por favor, selecione pelo menos uma Gráfica.";
-    return;
-  }
-
-  msgErro.innerText = "";
-  document.getElementById("loader1").style.display = "block";
-
-  google.script.run.withSuccessHandler(function(resposta) {
-    document.getElementById("loader1").style.display = "none";
-
-    if (resposta.erro) {
-      msgErro.innerText = resposta.erro;
-    } else {
-      dadosGlobais.idChamado = idChamado;
-      dadosGlobais.idArquivo = resposta.idExcel;
-
-      // Configura o preview e o NOME PADRONIZADO do anexo
-      document.getElementById("nomeAnexo").innerText = "Chamado " + idChamado + ".xlsx";
-      document.getElementById("linkPreview").href = resposta.urlExcel;
-
-      // Assunto padrão
-      document.getElementById("assuntoEmail").value = "Solicitação de prazo: Chamado " + idChamado + " - " + resposta.valorF;
-
-      // Cria caixas de input dinâmicas para cada gráfica selecionada
-      var containerDest = document.getElementById("containerDestinatarios");
-      containerDest.innerHTML = ""; 
-
-      for (var i = 0; i < graficasSelecionadas.length; i++) {
-        var graf = graficasSelecionadas[i];
-        if (listaGraficas[graf] && listaGraficas[graf].length > 0) {
-          var emailsStr = listaGraficas[graf].join(", ");
-          var htmlCaixa = '<div class="caixa-dinamica-emails">' +
-                          '<label>Destinatários - <strong>' + graf + '</strong>:</label>' +
-                          '<input type="text" class="input-destinatario" value="' + emailsStr + '">' +
-                          '</div>';
-          containerDest.innerHTML += htmlCaixa;
-        }
-      }
-
-      // LÓGICA DE TEXTO DE E-MAIL DINÂMICO
-      var textoPadrao = "";
-
-      if (tipoEmail === "reentrada") {
-          textoPadrao = "Bom dia,\n\n" +
-          "Por gentileza, podem analisar a produção em anexo e nos retornar se conseguem atender as datas desejadas de entrega no CD/acabadora e se não, qual a melhor data de atendimento?\n\n" +
-          "Peço retorno das seguintes datas prévias para que a data de coleta desejada ocorra:\n" +
-          "1. Data de envio de arquivo\n" +
-          "2. Data de envio dos bonecos\n" +
-          "3. Data de aprove dos bonecos\n" +
-          "4. Data planejada de entrada em máquina\n" +
-          "5. Data da coleta desejada: " + resposta.dataColeta + "\n\n" +
-          "OBS: O aceite desta solicitação não pode impactar em prazos já acordados de outras produções em andamento, including etapas de pré impressão.\n\n" +
-          "Aguardamos um breve retorno.\n\n" +
-          "Obrigada desde já.\n\n" +
-          "Att;";
-      } else if (tipoEmail === "inclusivo") {
-          textoPadrao = "Boa tarde,\n" +
-          "Espero encontrá-lo bem!\n\n" +
-          "Segue consulta da necessidade de produção de ampliado, se é viável o atendimento no prazo a seguir, com a respectiva PPG em anexo.\n\n" +
-          "A formalização da produção ocorrerá após o retorno dos prazos pela gráfica.\n" +
-          "Considerar o prazo para envio dos arquivos até 03 dias após a formalização da produção (exceto SAS que os links estão na aba de especificações).\n\n" +
-          "1. Data da coleta desejada: " + resposta.dataColeta + "\n\n" +
-          "Fico no aguardo.\n" +
-          "Obrigado,\n\n" +
-          "João Alberti";
-      }
-
-      document.getElementById("corpoEmail").value = textoPadrao;
-
-      document.getElementById("passo1").classList.remove("ativo");
-      document.getElementById("passo2").classList.add("ativo");
-    }
-  }).obterDadosChamado(idChamado, opcaoVersao, numVersao);
-}
-
-function voltar() {
-  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
-  alternarCampoVersao();
-
-  document.getElementById("passo2").classList.remove("ativo");
-  document.getElementById("passo1").classList.add("ativo");
-}
-
-function enviarEmail() {
-  dadosGlobais.corpo = document.getElementById("corpoEmail").value;
-  dadosGlobais.assunto = document.getElementById("assuntoEmail").value;
-
-  var inputsDest = document.querySelectorAll('.input-destinatario');
-  var arrayDestinos = [];
-
-  for (var i = 0; i < inputsDest.length; i++) {
-    var val = inputsDest[i].value.trim();
-    if (val !== "") {
-      arrayDestinos.push(val);
-    }
-  }
-
-  if (arrayDestinos.length === 0) {
-    alert("Por favor, preencha pelo menos um destinatário válido.");
-    return;
-  }
-
-  dadosGlobais.arrayDestinos = arrayDestinos;
-
-  document.getElementById("loader2").style.display = "block";
-
-  google.script.run.withSuccessHandler(function(resultado) {
-    document.getElementById("loader2").style.display = "none";
-    if(resultado.indexOf("sucesso") !== -1 || resultado.indexOf("Sucesso") !== -1) {
-      document.getElementById("passo2").classList.remove("ativo");
-      document.getElementById("passo3").classList.add("ativo");
-    } else {
-      alert(resultado);
-    }
-  }).dispararEmailFinal(dadosGlobais);
-}
-
-function enviarNovoEmail() {
-  document.getElementById("inputChamado").value = "";
-  document.getElementById("inputNumVersao").value = "";
-
-  var checkboxes = document.querySelectorAll('.chk-grafica');
-  for (var i = 0; i < checkboxes.length; i++) {
-    checkboxes[i].checked = false;
-  }
-
-  // Reseta para tipo de e-mail e versão padrão
-  document.querySelector('input[name="tipoEmail"][value="reentrada"]').checked = true;
-  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
-  alternarCampoVersao();
-
-  dadosGlobais = {};
-  document.getElementById("mensagem-erro").innerText = "";
-
-  document.getElementById("passo3").classList.remove("ativo");
-  document.getElementById("passo1").classList.add("ativo");
-}
-
-
-// Fluxo SPG: a rotina historica acima permanece intacta e so e chamada por escolha expressa.
-var _pgflowAvancarAntigo = avancarParaRevisao;
-var _pgflowEnviarAntigo = enviarEmail;
-var _pgflowVoltarAntigo = voltar;
-var _pgflowNovoAntigo = enviarNovoEmail;
-var _pgflowEnviando = false;
-
-function pgflowElementosEscolha() {
-  var el = document.getElementById('pgflowOrigemSPG');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'pgflowOrigemSPG';
-    el.style.cssText = 'margin-top:10px;padding:12px;border:1px solid #d0d7de;border-radius:5px;background:#fafafa;';
-    document.getElementById('mensagem-erro').parentNode.appendChild(el);
-  }
-  el.innerHTML = '';
-  el.style.display = 'block';
+function pfHtmlNode(tag, cls, txt) {
+  var el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (txt !== undefined) el.textContent = txt;
   return el;
 }
-
-function pgflowBotao(texto, acao) {
-  var b = document.createElement('button');
-  b.type = 'button'; b.textContent = texto;
-  b.style.margin = '8px 8px 0 0';
-  b.onclick = acao;
-  return b;
+function pfClone(data) { return JSON.parse(JSON.stringify(data || {})); }
+function pfNormalizarGrafica(nome) {
+  return String(nome || '').trim().toLocaleLowerCase('pt-BR');
 }
-
-function pgflowAdicionarGrafica() {
-  var nome = prompt('Nome da gráfica:');
-  if (nome === null) return;
-  nome = nome.trim();
-  if (!nome) { alert('Informe a gráfica.'); return; }
-  var emails = prompt('E-mails dos destinatários (separados por vírgula):');
-  if (emails === null) return;
-  google.script.run.withSuccessHandler(function(lista) {
-    preencherGraficas(lista);
-    var chk = Array.prototype.find.call(document.querySelectorAll('.chk-grafica'),
-      function(c) { return c.value === nome; });
-    if (chk) chk.checked = true;
-  }).withFailureHandler(function(e) { alert(e.message || String(e)); })
-    .salvarDestinatariosEmailSPG(nome, emails);
+function pfEmailValido(email) {
+  return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email);
 }
-
-function pgflowColeta(data) {
+function pfMostrarPasso(n) {
+  for (var i = 1; i <= 3; i++) {
+    pfEl('passo' + i).classList.toggle('ativo', i === n);
+    pfEl('pf-ind' + i).classList.toggle('pf-current', i === n);
+  }
+}
+function pfAtualizarInfoTipo() {
+  pfEl('pf-dica-tipo').style.display =
+    document.querySelector('input[name="tipoEmail"]:checked').value === 'inclusivo' ? 'block' : 'none';
+}
+function alternarCampoVersao() {
+  pfEl('blocoVersoesManuais').style.display =
+    document.querySelector('input[name="opcaoVersao"]:checked').value === 'manual' ? 'block' : 'none';
+}
+function pfCarregarCadastro(selecionados) {
+  google.script.run.withSuccessHandler(function(resultado) {
+    listaGraficas = (resultado && resultado.graficas) || {};
+    pfVersaoCadastro = (resultado && resultado.versao) || '';
+    pfRenderGraficas(selecionados || []);
+  }).withFailureHandler(function(erro) {
+    pfEl('containerGraficas').textContent = 'Erro ao carregar gráficas: ' + (erro.message || erro);
+    pfErro('O cadastro não pôde ser carregado. Não é seguro continuar sem revisar os destinatários.');
+  }).obterCadastroEmailsSPG();
+}
+function pfRenderGraficas(manter) {
+  var selecionadas = manter || Array.prototype.map.call(document.querySelectorAll('.chk-grafica:checked'),function(x){return x.value;});
+  var box = pfEl('containerGraficas');
+  box.textContent = '';
+  var nomes = Object.keys(listaGraficas).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
+  if (!nomes.length) {
+    box.appendChild(pfHtmlNode('div','pf-empty','Não há gráficas cadastradas. Use “Gerenciar e-mails” para cadastrar.'));
+    return;
+  }
+  nomes.forEach(function(nome) {
+    var label = pfHtmlNode('label','pf-choice-row');
+    var check = document.createElement('input');
+    check.type = 'checkbox'; check.className = 'chk-grafica'; check.value = nome;
+    check.checked = selecionadas.indexOf(nome) !== -1;
+    label.appendChild(check);
+    label.appendChild(pfHtmlNode('strong','',nome));
+    label.appendChild(pfHtmlNode('span','pf-count',(listaGraficas[nome] || []).length + ' e-mail(s)'));
+    box.appendChild(label);
+  });
+}
+function pfSelecionadas() {
+  return Array.prototype.map.call(document.querySelectorAll('.chk-grafica:checked'),function(x){return x.value;});
+}
+function pfResetar() {
+  if (pfEnviando) { alert('O envio já está em andamento. Aguarde a confirmação antes de iniciar outro.'); return; }
+  pfTokenBusca++;
+  pfCarregando = false;
+  pfEl('pf-avancar').disabled = false;
+  pfFecharCadastro(true);
+  pfRascunhoCadastro = null;
+  pfEl('inputChamado').value = '';
+  pfEl('inputNumVersao').value = '';
+  document.querySelector('input[name="tipoEmail"][value="reentrada"]').checked = true;
+  pfAtualizarInfoTipo();
+  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
+  alternarCampoVersao();
+  Array.prototype.forEach.call(document.querySelectorAll('.chk-grafica'),function(c){c.checked=false;});
+  pfGruposSelecionados = [];
+  dadosGlobais = {};
+  pfTipoAtual = 'reentrada';
+  pfUltimaOrigem = '';
+  pfEl('assuntoEmail').value = '';
+  pfEl('corpoEmail').value = '';
+  pfEl('nomeAnexo').textContent = '';
+  pfEl('pf-origem-anexo').textContent = '';
+  pfEl('linkPreview').style.display = 'none';
+  pfEl('linkPreview').removeAttribute('href');
+  pfEl('containerDestinatarios').textContent = '';
+  pfEl('pgflowOrigemSPG').textContent = '';
+  pfEl('pgflowOrigemSPG').style.display = 'none';
+  pfEl('loader1').style.display = 'none';
+  pfEl('loader2').style.display = 'none';
+  pfErro('');
+  pfMostrarPasso(1);
+}
+function enviarNovoEmail() { pfResetar(); }
+function voltar() {
+  if (pfEnviando) { alert('O envio está em andamento.'); return; }
+  pfTokenBusca++;
+  pfMostrarPasso(1);
+  pfErro('');
+}
+function pfVoltarBusca() {
+  pfEl('pgflowOrigemSPG').style.display = 'none';
+  pfEl('pgflowOrigemSPG').textContent = '';
+}
+function pfColeta(data) {
   if (!data) return '';
   var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(data);
   if (!m) return '';
-  var d = new Date(+m[3], +m[2] - 1, +m[1], 12);
-  if (d.getFullYear() !== +m[3] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[1]) return '';
-  d.setDate(d.getDate() - 2);
-  if (d.getDay() === 5) d.setDate(d.getDate() - 1);
-  else if (d.getDay() === 6) d.setDate(d.getDate() - 2);
-  else if (d.getDay() === 0) d.setDate(d.getDate() - 3);
-  return ('0' + d.getDate()).slice(-2) + '/' +
-    ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
+  var d = new Date(+m[3],+m[2]-1,+m[1],12);
+  if (d.getFullYear() !== +m[3] || d.getMonth() !== +m[2]-1 || d.getDate() !== +m[1]) return '';
+  d.setDate(d.getDate()-2);
+  if (d.getDay()===5) d.setDate(d.getDate()-1);
+  else if (d.getDay()===6) d.setDate(d.getDate()-2);
+  else if (d.getDay()===0) d.setDate(d.getDate()-3);
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
 }
-
-function pgflowSelecionadas() {
-  return Array.prototype.map.call(document.querySelectorAll('.chk-grafica:checked'),
-    function(el) { return el.value; });
-}
-
-function pgflowPreencherDestinatarios() {
-  var container = document.getElementById('containerDestinatarios');
-  container.innerHTML = '';
-  pgflowSelecionadas().forEach(function(nome) {
-    var div = document.createElement('div');
-    div.className = 'caixa-dinamica-emails';
-    var label = document.createElement('label');
-    label.textContent = 'Destinatários - ' + nome + ':';
-    var entrada = document.createElement('input');
-    entrada.type = 'text'; entrada.className = 'input-destinatario';
-    entrada.value = (listaGraficas[nome] || []).join(', ');
-    div.appendChild(label); div.appendChild(entrada); container.appendChild(div);
-  });
-  container.appendChild(pgflowBotao('Adicionar outro destinatário', function() {
-    var entrada = document.createElement('input');
-    entrada.type = 'text'; entrada.className = 'input-destinatario';
-    entrada.placeholder = 'email@dominio.com';
-    container.insertBefore(entrada, container.lastChild);
-  }));
-}
-
-function pgflowPrepararRevisao(resp, manual) {
-  var r = manual || {};
-  var data = resp.dataDesejada || r.dataDesejada || '';
-  var descricao = resp.descricao || r.descricao || '';
-  var coleta = pgflowColeta(data);
-  var id = resp.idChamado;
-  var tipo = document.querySelector('input[name="tipoEmail"]:checked').value;
-  dadosGlobais = {
-    origem: 'spg', idChamado: id, anexoHash: resp.anexoHash,
-    sobrescrita: {
-      dataDesejada: r.dataDesejada || '',
-      descricao: r.descricao || '',
-      omitirData: !data,
-      omitirDescricao: !descricao
-    }
-  };
-  document.getElementById('nomeAnexo').textContent = 'Chamado ' + id + '.xlsx (SPG)';
-  var preview = document.getElementById('linkPreview');
-  preview.style.display = 'none';
-  preview.removeAttribute('href');
-  document.getElementById('assuntoEmail').value = 'Solicitação de prazo: Chamado ' +
-    id + (descricao ? ' - ' + descricao : '');
-  pgflowPreencherDestinatarios();
-  var linhaData = coleta ? '1. Data da coleta desejada: ' + coleta + '\n\n' : '';
-  var corpo;
-  if (tipo === 'reentrada') {
-    corpo = 'Bom dia,\n\n' +
-      'Por gentileza, podem analisar a produção em anexo e nos retornar se conseguem atender as datas desejadas de entrega no CD/acabadora e se não, qual a melhor data de atendimento?\n\n' +
-      'Peço retorno das seguintes datas prévias para que a data de coleta desejada ocorra:\n' +
-      '1. Data de envio de arquivo\n' +
-      '2. Data de envio dos bonecos\n' +
-      '3. Data de aprove dos bonecos\n' +
-      '4. Data planejada de entrada em máquina\n' +
-      (coleta ? '5. Data da coleta desejada: ' + coleta + '\n\n' : '\n') +
-      'OBS: O aceite desta solicitação não pode impactar em prazos já acordados de outras produções em andamento, including etapas de pré impressão.\n\n' +
-      'Aguardamos um breve retorno.\n\n' +
-      'Obrigada desde já.\n\nAtt;';
-  } else {
-    corpo = 'Boa tarde,\nEspero encontrá-lo bem!\n\n' +
+function pfTextoEmail(tipo,coleta) {
+  if (tipo === 'inclusivo') {
+    return 'Boa tarde,\nEspero encontrá-lo bem!\n\n' +
       'Segue consulta da necessidade de produção de ampliado, se é viável o atendimento no prazo a seguir, com a respectiva PPG em anexo.\n\n' +
       'A formalização da produção ocorrerá após o retorno dos prazos pela gráfica.\n' +
       'Considerar o prazo para envio dos arquivos até 03 dias após a formalização da produção (exceto SAS que os links estão na aba de especificações).\n\n' +
-      linhaData + 'Fico no aguardo.\nObrigado,\n\nJoão Alberti';
+      (coleta ? '1. Data da coleta desejada: ' + coleta + '\n\n' : '') +
+      'Fico no aguardo.\nObrigado,\n\nJoão Alberti';
   }
-  document.getElementById('corpoEmail').value = corpo;
-  document.getElementById('mensagem-erro').textContent = '';
-  var p = document.getElementById('pgflowOrigemSPG');
-  if (p) p.style.display = 'none';
-  document.getElementById('passo1').classList.remove('ativo');
-  document.getElementById('passo2').classList.add('ativo');
+  return 'Bom dia,\n\n' +
+    'Por gentileza, podem analisar a produção em anexo e nos retornar se conseguem atender as datas desejadas de entrega no CD/acabadora e se não, qual a melhor data de atendimento?\n\n' +
+    'Peço retorno das seguintes datas prévias para que a data de coleta desejada ocorra:\n' +
+    '1. Data de envio de arquivo\n2. Data de envio dos bonecos\n3. Data de aprove dos bonecos\n' +
+    '4. Data planejada de entrada em máquina\n' +
+    (coleta ? '5. Data da coleta desejada: ' + coleta + '\n\n' : '\n') +
+    'OBS: O aceite desta solicitação não pode impactar em prazos já acordados de outras produções em andamento, including etapas de pré impressão.\n\n' +
+    'Aguardamos um breve retorno.\n\nObrigada desde já.\n\nAtt;';
 }
-
-function pgflowCamposPendentes(resp) {
-  var box = pgflowElementosEscolha();
-  var texto = document.createElement('p');
-  texto.textContent = 'Os dados a seguir não constam no SPG. Deseja preencher manualmente ou seguir sem eles?';
-  box.appendChild(texto);
-  var entradas = {};
-  (resp.faltantes || []).forEach(function(f) {
-    var ehData = f.toLowerCase().indexOf('data') !== -1;
-    var div = document.createElement('div');
-    var label = document.createElement('label');
-    label.textContent = f + ':';
-    var input = document.createElement('input');
-    input.type = 'text'; input.placeholder = ehData ? 'DD/MM/AAAA' : 'Preencher manualmente';
-    var check = document.createElement('input');
-    check.type = 'checkbox'; check.checked = false;
-    var span = document.createElement('label');
-    span.textContent = ' Seguir sem este dado';
-    div.appendChild(label); div.appendChild(input); div.appendChild(check);
-    div.appendChild(span); box.appendChild(div);
-    entradas[ehData ? 'dataDesejada' : 'descricao'] = {input: input, check: check};
+function pfRenderDestinatarios() {
+  var area = pfEl('containerDestinatarios');
+  var antes = {};
+  Array.prototype.forEach.call(area.querySelectorAll('.pf-rec-email input'),function(el){antes[el.value]=el.checked;});
+  area.textContent = '';
+  var vistos = {};
+  pfGruposSelecionados.forEach(function(grafica) {
+    var card = pfHtmlNode('div','pf-rec-card');
+    var head = pfHtmlNode('div','pf-rec-head',grafica);
+    card.appendChild(head);
+    var emails = (listaGraficas[grafica] || []);
+    emails.forEach(function(email) {
+      var chave = email.toLowerCase();
+      if (vistos[chave]) return;
+      vistos[chave] = true;
+      var label = pfHtmlNode('label','pf-rec-email');
+      var chk = document.createElement('input');
+      chk.type = 'checkbox'; chk.checked = antes[email] !== false;
+      chk.value = email; chk.dataset.grafica = grafica;
+      label.appendChild(chk);
+      label.appendChild(pfHtmlNode('span','',email));
+      card.appendChild(label);
+    });
+    if (card.querySelectorAll('.pf-rec-email').length) area.appendChild(card);
   });
-  box.appendChild(pgflowBotao('Continuar para revisão', function() {
-    var r = {};
-    for (var campo in entradas) {
-      var c = entradas[campo];
-      if (!c.check.checked && !c.input.value.trim()) {
-        alert('Preencha o campo ou escolha seguir sem ele.'); return;
-      }
-      r[campo] = c.check.checked ? '' : c.input.value.trim();
-    }
-    if (r.dataDesejada && !/^\d{2}\/\d{2}\/\d{4}$/.test(r.dataDesejada)) {
-      alert('Informe a data no formato DD/MM/AAAA.'); return;
-    }
-    if (r.dataDesejada && !pgflowColeta(r.dataDesejada)) {
-      alert('A data informada não é válida.'); return;
-    }
-    pgflowPrepararRevisao(resp, r);
-  }));
+  if (!area.children.length) area.appendChild(pfHtmlNode('div','pf-empty','Nenhum destinatário. Revise o cadastro.'));
 }
-
-function pgflowEscolhaOrigem(resp) {
-  var box = pgflowElementosEscolha();
-  var p = document.createElement('p');
-  p.textContent = 'As informações do chamado não foram encontradas ou estão incompletas no SPG. Esse chamado ainda segue o fluxo antigo, fora do SPG?';
-  box.appendChild(p);
-  if (resp.erro) {
-    var detalhe = document.createElement('small');
-    detalhe.textContent = resp.erro;
-    box.appendChild(detalhe);
-  }
-  box.appendChild(document.createElement('div'));
-  box.appendChild(pgflowBotao('Sim, fluxo antigo', function() {
-    box.style.display = 'none';
-    var preview = document.getElementById('linkPreview');
-    preview.style.display = '';
-    _pgflowAvancarAntigo();
-  }));
-  box.appendChild(pgflowBotao('Não, usar SPG', function() {
-    if (!resp.anexoValido) {
-      box.textContent = 'A PPG com tiragem, árvore e especificação não está disponível ou não foi validada no SPG. Não é seguro enviar este chamado sem o anexo correto.';
+function pfDestinatariosGrupos() {
+  var grupos = [], usados = {};
+  pfGruposSelecionados.forEach(function(grafica) {
+    var emails = [];
+    Array.prototype.forEach.call(pfEl('containerDestinatarios').querySelectorAll('.pf-rec-email input'),function(chk) {
+      var email = chk.value.trim().toLowerCase();
+      if (chk.checked && chk.dataset.grafica === grafica && pfEmailValido(email) && !usados[email]) {
+        usados[email]=true; emails.push(email);
+      }
+    });
+    if (emails.length) grupos.push(emails.join(', '));
+  });
+  return grupos;
+}
+function pfPrepararRevisao(tipoFonte,resp,manual) {
+  var id = pfEl('inputChamado').value.trim();
+  var r = manual || {};
+  var descricao = tipoFonte === 'spg' ? (resp.descricao || r.descricao || '') : (resp.valorF || '');
+  var coleta = tipoFonte === 'spg' ? pfColeta(resp.dataDesejada || r.dataDesejada || '') : (resp.dataColeta || '');
+  pfUltimaOrigem = tipoFonte;
+  dadosGlobais = tipoFonte === 'spg' ?
+    {origem:'spg',tipoEmail:pfTipoAtual,idChamado:id,anexoHash:resp.anexoHash,
+      sobrescrita:{dataDesejada:r.dataDesejada||'',descricao:r.descricao||'',
+        omitirData:!(resp.dataDesejada||r.dataDesejada),
+        omitirDescricao:!(resp.descricao||r.descricao)}} :
+    {origem:'antigo',tipoEmail:pfTipoAtual,idChamado:id,idArquivo:resp.idExcel};
+  pfEl('nomeAnexo').textContent = 'Chamado ' + id + '.xlsx';
+  pfEl('pf-origem-anexo').textContent = tipoFonte === 'spg' ? 'Origem: SPG / API · PPG validada' : 'Origem: fluxo antigo · arquivo do Drive';
+  var link = pfEl('linkPreview');
+  link.style.display = tipoFonte === 'antigo' && resp.urlExcel ? 'inline' : 'none';
+  if (tipoFonte === 'antigo' && resp.urlExcel) link.href = resp.urlExcel;
+  else link.removeAttribute('href');
+  pfEl('assuntoEmail').value = 'Solicitação de prazo: Chamado ' + id + (descricao ? ' - ' + descricao : '');
+  pfEl('corpoEmail').value = pfTextoEmail(pfTipoAtual,coleta);
+  pfRenderDestinatarios();
+  pfVoltarBusca();
+  pfErro('');
+  pfMostrarPasso(2);
+}
+function pfCarregarLegado(nota) {
+  var ticket = ++pfTokenBusca;
+  pfCarregando = true;
+  pfEl('pf-avancar').disabled = true;
+  pfEl('loader1').style.display='block';
+  var id = pfEl('inputChamado').value.trim();
+  var versao = document.querySelector('input[name="opcaoVersao"]:checked').value;
+  var numero = pfEl('inputNumVersao').value;
+  google.script.run.withSuccessHandler(function(resp) {
+    if (ticket !== pfTokenBusca) return;
+    pfCarregando=false; pfEl('pf-avancar').disabled=false; pfEl('loader1').style.display='none';
+    if (!resp || resp.erro || !resp.idExcel) {
+      pfErro('Fluxo antigo: ' + ((resp && resp.erro) || 'PPG não encontrada.'));
       return;
     }
-    pgflowCamposPendentes(resp);
-  }));
+    pfPrepararRevisao('antigo',resp,{});
+  }).withFailureHandler(function(erro) {
+    if (ticket !== pfTokenBusca) return;
+    pfCarregando=false; pfEl('pf-avancar').disabled=false; pfEl('loader1').style.display='none';
+    pfErro('Falha no fluxo antigo: ' + (erro.message || erro));
+  }).obterDadosChamado(id,versao,numero);
 }
-
-avancarParaRevisao = function() {
-  var id = document.getElementById('inputChamado').value.trim();
-  var opcaoVersao = document.querySelector('input[name="opcaoVersao"]:checked').value;
-  var graficas = pgflowSelecionadas();
-  var msg = document.getElementById('mensagem-erro');
-  msg.textContent = '';
-  var painel = document.getElementById('pgflowOrigemSPG');
-  if (painel) painel.style.display = 'none';
-  if (!/^\d{1,12}$/.test(id)) { msg.textContent = 'Informe um número de chamado válido.'; return; }
-  if (!graficas.length) { msg.textContent = 'Selecione ao menos uma gráfica ou adicione um destinatário.'; return; }
-  var loader = document.getElementById('loader1');
-  loader.style.display = 'block';
-  google.script.run.withSuccessHandler(function(resp) {
-    loader.style.display = 'none';
-    if (!resp || resp.status !== 'ok') pgflowEscolhaOrigem(resp || {erro:'Resposta vazia do SPG.'});
-    else pgflowPrepararRevisao(resp, {});
-  }).withFailureHandler(function(e) {
-    loader.style.display = 'none';
-    msg.textContent = 'Falha na consulta ao SPG: ' + (e.message || e);
-  }).consultarPacoteEmailSPG(id, opcaoVersao);
-};
-
-enviarEmail = function() {
-  if (dadosGlobais.origem !== 'spg') return _pgflowEnviarAntigo();
-  if (_pgflowEnviando) return;
-  var inputs = document.querySelectorAll('.input-destinatario');
-  var destinos = [];
-  Array.prototype.forEach.call(inputs, function(el) {
-    if (el.value.trim()) destinos.push(el.value.trim());
+function pfBotao(texto,func,cls) {
+  var b = pfHtmlNode('button',cls||'pf-secondary',texto);
+  b.type='button'; b.onclick=func; return b;
+}
+function pfPerguntarOrigem(resp) {
+  var box = pfEl('pgflowOrigemSPG');
+  box.textContent='';
+  box.style.display='block';
+  box.appendChild(pfHtmlNode('strong','',
+    'As informações do chamado não foram encontradas ou estão incompletas no SPG. Esse chamado ainda segue o fluxo antigo, fora do SPG?'));
+  if (resp.erro) {
+    var m=pfHtmlNode('p','',resp.erro);m.style.marginTop='8px';box.appendChild(m);
+  }
+  var div=pfHtmlNode('div','pf-actions');
+  div.style.marginTop='10px';
+  div.appendChild(pfBotao('Sim, fluxo antigo',function(){pfVoltarBusca();pfCarregarLegado();},'pf-primary'));
+  div.appendChild(pfBotao('Não, continuar no SPG',function(){
+    if (!resp.anexoValido) {
+      box.textContent='A PPG do chamado não está completa no SPG. Não é seguro enviar sem um anexo validado. Complete as informações no SPG.';
+      return;
+    }
+    pfCamposPendentes(resp);
+  }));
+  div.appendChild(pfBotao('Cancelar e limpar',pfResetar,'pf-secondary'));
+  box.appendChild(div);
+}
+function pfCamposPendentes(resp) {
+  var box=pfEl('pgflowOrigemSPG');
+  box.textContent='';
+  box.style.display='block';
+  box.appendChild(pfHtmlNode('strong','','Algumas informações não constam no SPG. Preencha manualmente ou escolha seguir sem elas.'));
+  var campos={};
+  (resp.faltantes||[]).forEach(function(nome) {
+    var data=nome.toLowerCase().indexOf('data')>=0;
+    var div=pfHtmlNode('div','pf-field');
+    div.style.marginTop='10px';
+    div.appendChild(pfHtmlNode('label','pf-label',nome));
+    var input=pfHtmlNode('input');
+    input.type='text';input.placeholder=data?'DD/MM/AAAA':'Preencha para este e-mail';
+    div.appendChild(input);
+    var linha=pfHtmlNode('label','pf-rec-email');
+    var chk=pfHtmlNode('input');chk.type='checkbox';
+    linha.appendChild(chk);linha.appendChild(pfHtmlNode('span','','Seguir sem este dado'));
+    div.appendChild(linha);
+    box.appendChild(div);
+    campos[data?'dataDesejada':'descricao']={input:input,chk:chk};
   });
-  if (!destinos.length) { alert('Informe ao menos um destinatário.'); return; }
-  dadosGlobais.arrayDestinos = destinos;
-  dadosGlobais.assunto = document.getElementById('assuntoEmail').value.trim();
-  dadosGlobais.corpo = document.getElementById('corpoEmail').value;
-  _pgflowEnviando = true;
-  document.getElementById('loader2').style.display = 'block';
-  google.script.run.withSuccessHandler(function(r) {
-    _pgflowEnviando = false;
-    document.getElementById('loader2').style.display = 'none';
-    if (r && r.sucesso) {
-      document.getElementById('passo2').classList.remove('ativo');
-      document.getElementById('passo3').classList.add('ativo');
-    } else alert((r && r.erro) || 'Falha ao enviar e-mail.');
+  var acoes=pfHtmlNode('div','pf-actions');
+  acoes.appendChild(pfBotao('Continuar para revisão',function() {
+    var dados={};
+    for(var nome in campos) {
+      var c=campos[nome];
+      if (!c.chk.checked && !c.input.value.trim()) {alert('Preencha o campo ou marque seguir sem ele.');return;}
+      dados[nome]=c.chk.checked?'':c.input.value.trim();
+    }
+    if (dados.dataDesejada && !pfColeta(dados.dataDesejada)) {
+      alert('Informe uma data válida no formato DD/MM/AAAA.');return;
+    }
+    pfPrepararRevisao('spg',resp,dados);
+  },'pf-primary'));
+  acoes.appendChild(pfBotao('Cancelar e limpar',pfResetar));
+  box.appendChild(acoes);
+}
+function avancarParaRevisao() {
+  if (pfCarregando || pfEnviando) return;
+  var id=pfEl('inputChamado').value.trim();
+  var versao=document.querySelector('input[name="opcaoVersao"]:checked').value;
+  var numero=pfEl('inputNumVersao').value.trim();
+  pfErro('');pfVoltarBusca();
+  if (!/^\d{1,12}$/.test(id)) {pfErro('Informe um número de chamado válido.');return;}
+  if (versao==='manual' && (!/^\d+$/.test(numero) || Number(numero)<1)) {
+    pfErro('Informe um número de versão válido.');return;
+  }
+  pfGruposSelecionados=pfSelecionadas();
+  if (!pfGruposSelecionados.length) {pfErro('Selecione ao menos uma gráfica.');return;}
+  if (!pfVersaoCadastro) {pfErro('Cadastro de destinatários ainda não carregado.');return;}
+  pfTipoAtual=document.querySelector('input[name="tipoEmail"]:checked').value;
+  if (pfTipoAtual==='inclusivo') {
+    // Nunca tratar inclusivo como reentrada: a rota SPG de inclusivos nao foi homologada.
+    pfCarregarLegado();return;
+  }
+  var ticket=++pfTokenBusca;
+  pfCarregando=true;pfEl('pf-avancar').disabled=true;pfEl('loader1').style.display='block';
+  google.script.run.withSuccessHandler(function(resp) {
+    if(ticket!==pfTokenBusca)return;
+    pfCarregando=false;pfEl('pf-avancar').disabled=false;pfEl('loader1').style.display='none';
+    if(resp && resp.status==='ok' && resp.anexoValido) pfPrepararRevisao('spg',resp,{});
+    else pfPerguntarOrigem(resp||{erro:'Resposta vazia do SPG.',anexoValido:false});
+  }).withFailureHandler(function(erro) {
+    if(ticket!==pfTokenBusca)return;
+    pfCarregando=false;pfEl('pf-avancar').disabled=false;pfEl('loader1').style.display='none';
+    pfErro('Falha na consulta ao SPG: '+(erro.message||erro));
+  }).consultarPacoteEmailSPG(id,versao,pfTipoAtual);
+}
+function enviarEmail() {
+  if (pfEnviando) return;
+  var grupos=pfDestinatariosGrupos();
+  if (!grupos.length) {alert('Marque ao menos um destinatário antes de enviar.');return;}
+  var assunto=pfEl('assuntoEmail').value.trim();
+  var corpo=pfEl('corpoEmail').value.trim();
+  if (!assunto||!corpo) {alert('Informe assunto e mensagem.');return;}
+  var pacote=Object.assign({},dadosGlobais,{
+    assunto:assunto,corpo:corpo,arrayDestinos:grupos
+  });
+  pfEnviando=true;pfEl('pf-enviar').disabled=true;
+  pfEl('loader2').style.display='block';
+  var chamada=google.script.run.withSuccessHandler(function(res) {
+    pfEnviando=false;pfEl('pf-enviar').disabled=false;pfEl('loader2').style.display='none';
+    if (pfUltimaOrigem==='spg') {
+      if(res && res.sucesso===true) pfMostrarPasso(3);
+      else alert((res&&res.erro)||'Erro no envio.');
+    } else {
+      if(typeof res==='string' && /enviado com sucesso/i.test(res)) pfMostrarPasso(3);
+      else alert(typeof res==='string'?res:'Falha no envio pelo fluxo antigo.');
+    }
   }).withFailureHandler(function(e) {
-    _pgflowEnviando = false;
-    document.getElementById('loader2').style.display = 'none';
-    alert('Falha ao enviar: ' + (e.message || e));
-  }).dispararEmailPacoteSPG(dadosGlobais);
-};
-
-voltar = function() {
-  _pgflowVoltarAntigo();
-  var painel = document.getElementById('pgflowOrigemSPG');
-  if (painel) painel.style.display = 'none';
-  document.getElementById('linkPreview').style.display = '';
-};
-
-enviarNovoEmail = function() {
-  _pgflowNovoAntigo();
-  _pgflowEnviando = false;
-  document.getElementById('linkPreview').style.display = '';
-  var painel = document.getElementById('pgflowOrigemSPG');
-  if (painel) painel.style.display = 'none';
-};
-
+    pfEnviando=false;pfEl('pf-enviar').disabled=false;pfEl('loader2').style.display='none';
+    alert('Falha ao enviar: '+(e.message||e));
+  });
+  if (pfUltimaOrigem==='spg') chamada.dispararEmailPacoteSPG(pacote);
+  else chamada.dispararEmailFinal(pacote);
+}
+function pfAbrirCadastro() {
+  if (pfEnviando) {alert('Aguarde a conclusão do envio.');return;}
+  if (!pfVersaoCadastro) {pfCarregarCadastro(pfSelecionadas());alert('Carregando cadastro. Abra novamente quando as gráficas aparecerem.');return;}
+  pfRascunhoCadastro=pfClone(listaGraficas);
+  pfEl('pf-busca').value='';
+  pfEl('pf-nova-grafica').value='';
+  pfErroCadastro('');
+  pfRenderCadastro();
+  pfEl('pf-modal').hidden=false;
+}
+function pfFecharCadastro(forcar) {
+  if (pfSalvandoCadastro && !forcar) return;
+  pfEl('pf-modal').hidden=true;
+  pfRascunhoCadastro=null;
+  pfErroCadastro('');
+}
+function pfAdicionarGrafica() {
+  var nome=pfEl('pf-nova-grafica').value.trim();
+  if (!nome) {pfErroCadastro('Informe o nome da gráfica.');return;}
+  if (nome.length>100) {pfErroCadastro('Nome da gráfica muito longo.');return;}
+  var jaExiste=Object.keys(pfRascunhoCadastro).some(function(n){return pfNormalizarGrafica(n)===pfNormalizarGrafica(nome);});
+  if (jaExiste) {pfErroCadastro('Esta gráfica já está cadastrada.');return;}
+  pfRascunhoCadastro[nome]=[''];
+  pfEl('pf-nova-grafica').value='';
+  pfEl('pf-busca').value='';
+  pfErroCadastro('');
+  pfRenderCadastro();
+}
+function pfRenderCadastro() {
+  if (!pfRascunhoCadastro) return;
+  var box=pfEl('pf-lista-cadastro');
+  box.textContent='';
+  var busca=pfNormalizarGrafica(pfEl('pf-busca').value);
+  var nomes=Object.keys(pfRascunhoCadastro).sort(function(a,b){return a.localeCompare(b,'pt-BR');})
+    .filter(function(n){return pfNormalizarGrafica(n).indexOf(busca)!==-1;});
+  if (!nomes.length) box.appendChild(pfHtmlNode('div','pf-empty','Nenhuma gráfica encontrada.'));
+  nomes.forEach(function(nome) {
+    var card=pfHtmlNode('div','pf-manage-graphic');
+    var cab=pfHtmlNode('div','pf-manage-head');
+    cab.appendChild(pfHtmlNode('strong','',nome));
+    cab.appendChild(pfBotao('Excluir gráfica',function(){
+      if (!confirm('Excluir '+nome+' e todos os e-mails cadastrados para esta gráfica?')) return;
+      delete pfRascunhoCadastro[nome];
+      pfRenderCadastro();
+    },'pf-danger'));
+    card.appendChild(cab);
+    (pfRascunhoCadastro[nome]||[]).forEach(function(email,idx){
+      var linha=pfHtmlNode('div','pf-manage-line');
+      var input=pfHtmlNode('input');input.type='email';input.value=email;
+      input.placeholder='nome@empresa.com.br';
+      input.setAttribute('aria-label','E-mail '+(idx+1)+' da gráfica '+nome);
+      input.oninput=function(){pfRascunhoCadastro[nome][idx]=input.value;};
+      linha.appendChild(input);
+      linha.appendChild(pfBotao('Excluir',function(){
+        pfRascunhoCadastro[nome].splice(idx,1);
+        pfRenderCadastro();
+      },'pf-danger'));
+      card.appendChild(linha);
+    });
+    card.appendChild(pfBotao('+ Adicionar e-mail',function(){
+      pfRascunhoCadastro[nome].push('');
+      pfRenderCadastro();
+    },'pf-secondary'));
+    box.appendChild(card);
+  });
+}
+function pfSalvarCadastro() {
+  if (pfSalvandoCadastro || !pfRascunhoCadastro) return;
+  var novo={};
+  var nomes=Object.keys(pfRascunhoCadastro);
+  for(var i=0;i<nomes.length;i++){
+    var nome=nomes[i],emails=pfRascunhoCadastro[nome]||[];
+    if (!emails.length) {pfErroCadastro('A gráfica '+nome+' não possui e-mails. Adicione um ou exclua a gráfica.');return;}
+    var limpos=[],visto={};
+    for(var j=0;j<emails.length;j++){
+      var email=String(emails[j]||'').trim().toLowerCase();
+      if (!pfEmailValido(email)) {pfErroCadastro('Corrija o e-mail '+(j+1)+' da gráfica '+nome+'.');return;}
+      if (!visto[email]) {limpos.push(email);visto[email]=true;}
+    }
+    novo[nome]=limpos;
+  }
+  pfErroCadastro('');
+  pfSalvandoCadastro=true;pfEl('pf-salvar-cadastro').disabled=true;
+  var selecionadas=pfSelecionadas();
+  google.script.run.withSuccessHandler(function(resultado) {
+    pfSalvandoCadastro=false;pfEl('pf-salvar-cadastro').disabled=false;
+    if(!resultado || !resultado.versao) {pfErroCadastro('Resposta inesperada ao salvar cadastro.');return;}
+    listaGraficas=resultado.graficas||{};
+    pfVersaoCadastro=resultado.versao;
+    pfFecharCadastro(true);
+    pfRenderGraficas(selecionadas);
+    if(pfEl('passo2').classList.contains('ativo')) pfRenderDestinatarios();
+  }).withFailureHandler(function(e) {
+    pfSalvandoCadastro=false;pfEl('pf-salvar-cadastro').disabled=false;
+    pfErroCadastro('Não foi possível salvar: '+(e.message||e)+'. Confira se outra pessoa alterou a lista.');
+  }).salvarCadastroEmailsSPG(novo,pfVersaoCadastro);
+}
+if (typeof google !== 'undefined' && google.script && google.script.run) {
+  pfCarregarCadastro([]);
+}
 </script>
-</body>
-</html>

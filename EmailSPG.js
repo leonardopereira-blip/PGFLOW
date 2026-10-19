@@ -234,7 +234,17 @@ function _emailSpgPacote_(idChamado) {
   };
 }
 
-function consultarPacoteEmailSPG(idChamado, opcaoVersao) {
+function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
+  if (tipoEmail === 'inclusivo') {
+    // Rota especifica de inclusivos ainda nao homologada.
+    // Nunca consultar /reentradas para obter um anexo inclusivo.
+    return {status: 'incompleto', anexoValido: false,
+      erro: 'O anexo de inclusivos deve ser obtido pelo fluxo antigo ate a rota especifica do SPG ser validada.'};
+  }
+  if (tipoEmail && tipoEmail !== 'reentrada') {
+    return {status: 'incompleto', anexoValido: false,
+      erro: 'Tipo de formalizacao nao reconhecido.'};
+  }
   var id;
   try {
     id = _emailSpgId_(idChamado);
@@ -297,6 +307,10 @@ function _emailSpgSobrescrita_(pacote, dados) {
 function dispararEmailPacoteSPG(dados) {
   try {
     if (!dados || typeof dados !== 'object') throw new Error('Dados do envio invalidos.');
+    if (dados.tipoEmail === 'inclusivo' ||
+        (dados.tipoEmail && dados.tipoEmail !== 'reentrada')) {
+      throw new Error('Esta rota de PPG atende somente reentradas. Inclusivos devem usar o fluxo antigo.');
+    }
     var id = _emailSpgId_(dados.idChamado), emails = _emailSpgDestinos_(dados.arrayDestinos);
     var assunto = String(dados.assunto || '').trim(), corpo = String(dados.corpo || '').trim();
     if (!assunto || !corpo) throw new Error('Assunto e corpo sao obrigatorios.');
@@ -381,4 +395,74 @@ function salvarDestinatariosEmailSPG(nome, emails) {
       EMAIL_SPG_DESTINATARIOS_PROP, JSON.stringify(atual));
     return atual;
   } finally { lock.releaseLock(); }
+}
+
+
+// Cadastro unico para a interface de email, usado nos fluxos SPG e antigo.
+// Controle de versao impede que dois usuarios sobrescrevam alteracoes simultaneas.
+function _emailSpgVersaoCadastro_(catalogo) {
+  return _emailSpgHex_(Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, JSON.stringify(catalogo || {})));
+}
+
+function obterCadastroEmailsSPG() {
+  var graficas = obterDadosGraficasEmailSPG();
+  return {graficas: graficas, versao: _emailSpgVersaoCadastro_(graficas)};
+}
+
+function _emailSpgValidarCadastro_(proposto) {
+  if (!proposto || typeof proposto !== 'object' || Array.isArray(proposto)) {
+    throw new Error('O cadastro de destinatarios deve conter graficas e emails.');
+  }
+  var nomes = Object.keys(proposto);
+  if (nomes.length > 100) throw new Error('Limite de graficas excedido.');
+  var saida = Object.create(null);
+  var graficaVistas = Object.create(null);
+  nomes.forEach(function(original) {
+    var nome = String(original).trim();
+    if (!nome || nome.length > 100 || /[\x00-\x1f]/.test(nome) ||
+        nome === '__proto__' || nome === 'constructor' || nome === 'prototype') {
+      throw new Error('Nome de grafica invalido: ' + original);
+    }
+    var chave = nome.toLowerCase();
+    if (graficaVistas[chave]) throw new Error('Grafica duplicada: ' + nome);
+    graficaVistas[chave] = true;
+    var entradas = proposto[original];
+    if (!Array.isArray(entradas) || !entradas.length || entradas.length > 80) {
+      throw new Error('A grafica ' + nome + ' deve possuir de 1 a 80 emails.');
+    }
+    // Cada elemento e um email individual, nao uma string de lista.
+    var vistos = Object.create(null);
+    var emails = [];
+    entradas.forEach(function(valor) {
+      var email = String(valor == null ? '' : valor).trim().toLowerCase();
+      if (email.indexOf(';') !== -1 || email.indexOf(',') !== -1 ||
+          !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) {
+        throw new Error('Email invalido da grafica ' + nome + '.');
+      }
+      if (!vistos[email]) {vistos[email] = true;emails.push(email);}
+    });
+    saida[nome] = emails;
+  });
+  var texto = JSON.stringify(saida);
+  // ScriptProperties limita o tamanho de cada propriedade (9 KB).
+  if (Utilities.newBlob(texto, 'text/plain').getBytes().length > 8000) {
+    throw new Error('Cadastro muito grande para salvar. Reduza registros antigos.');
+  }
+  return saida;
+}
+
+function salvarCadastroEmailsSPG(proposto, versaoEsperada) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('Outro usuario esta alterando os emails. Tente novamente.');
+  try {
+    var atual = obterDadosGraficasEmailSPG();
+    if (!versaoEsperada || _emailSpgVersaoCadastro_(atual) !== versaoEsperada) {
+      throw new Error('O cadastro foi alterado por outra pessoa. Feche e abra a lista para atualizar antes de salvar.');
+    }
+    var novo = _emailSpgValidarCadastro_(proposto);
+    PropertiesService.getScriptProperties().setProperty(
+      EMAIL_SPG_DESTINATARIOS_PROP, JSON.stringify(novo));
+    return {graficas: novo, versao: _emailSpgVersaoCadastro_(novo)};
+  } finally {lock.releaseLock();}
 }

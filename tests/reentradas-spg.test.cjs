@@ -149,3 +149,13 @@ test('resumo traz dados reais da OP de producao obtida pela API',()=>{
     assert.equal(res[0].cdsDestino,'FOR, JDI');
   }finally{context._reSpPrepararDados_=orig;}
 });
+
+test('tela de custos SPG nao simula a esteira do Office e so conclui com arquivos confirmados',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
+  assert.match(ui,/Gerando De-Para e calculadora com dados do SPG/);
+  assert.match(ui,/De-Para e calculadora gerados no Drive/);
+  assert.match(ui,/Array\.isArray\(res\.arquivos\)/);
+  assert.match(ui,/concluirTracker\(\)/);
+  assert.doesNotMatch(ui,/pollStatus|checarStatusProcessamento|_hashLote|_jobs|Dados em tr[aâ]nsito para o office/i);
+  assert.doesNotMatch(ui,/<div id="step2"|<div id="step3"/);
+});

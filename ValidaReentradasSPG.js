@@ -162,8 +162,10 @@ function _reSpProteger_(xml) {
   return xml.substring(0,i)+tag+xml.substring(i);
 }
 function _reSpFullCalc_(xml) {
-  xml=xml.replace(/<calcPr\b[^>]*\/>/g,'');
-  return xml.replace('</workbook>','<calcPr calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>');
+  var pr='<calcPr calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>';
+  // Ordem XLSX: calcPr antes de pivotCaches e extLst. Nunca anexar apos extLst.
+  if(/<calcPr\b[^>]*\/>/.test(xml))return xml.replace(/<calcPr\b[^>]*\/>/,pr);
+  return xml.replace(/(?=<pivotCaches\b|<extLst\b|<\/workbook>)/,pr);
 }
 function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
   var saida=partes.partes.map(function(p){
@@ -349,6 +351,82 @@ function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais
     return {sucesso:!!result.length,erro:result.length?undefined:failed.join(' | '),resumo:result,arquivos:result,avisos:failed,jobs:[]};
   }catch(e){return {erro:e.message};}
 }
+// Edita SOMENTE as entradas da CALC Geral mantendo intactas as formulas em
+// todas as linhas e colunas, inclusive as mais de 100 colunas de precificacao.
+function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento){
+  var parte=/<sheetData(?:\s[^>]*)?>[\s\S]*?<\/sheetData>/.exec(xml);
+  if(!parte)throw Error('CALC Geral sem sheetData');
+  var original=parte[0],linhas=/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
+  var f=fornecimento||{},elements=f.elementos||{},tec=_reSpNormal_(f.tecnologia||'DIGITAL');
+  var forn=f.fornecedor||'GRÁFICA';
+  if(['DIGITAL','PLANA','ROTATIVA'].indexOf(tec)<0)throw Error('Tecnologia invalida: '+tec);
+  var inputs=['C','D','F','G','H','I','Y','AB','AE',
+    'CF','CK','CP','CU','CZ','DE','DI',
+    'DN','DS','DX','EC','EH','EM','EQ',
+    'EV','FA','FF','FK','FP','FU','FY',
+    'CE','CJ','CO','CT','CY','DD','DH',
+    'DM','DR','DW','EB','EG','EL','EP',
+    'EU','EZ','FE','FJ','FO','FT','FX'];
+  var index={};inputs.forEach(function(c){index[_reSpIdx_(c)]=true;});
+  var seen=0,regex=/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
+  var rewritten=original.replace(regex,function(full,n){
+    var rn=+n;if(rn<6)return full;
+    var k=rn-6,sku=skus[k],v={};
+    if(sku!==undefined){
+      seen++;
+      var x=porSku[sku];
+      // Campos de entrada extraidos diretamente do contrato da calculadora:
+      // C=chamado, D=SKU, F/G/H/I=tiragens, Y=tecnologia, AB=acabamento.
+      v[_reSpIdx_('C')]='Chamado '+chamado;
+      v[_reSpIdx_('D')]=sku;
+      v[_reSpIdx_('F')]=x.avulso;
+      v[_reSpIdx_('G')]=0;
+      v[_reSpIdx_('H')]=x.kit;
+      v[_reSpIdx_('I')]=x.maleta;
+      v[_reSpIdx_('Y')]=tec;
+      v[_reSpIdx_('AB')]=forn;
+      var blocos={
+        DIGITAL:['CF','CK','CP','CU','CZ','DE','DI'],
+        PLANA:['DN','DS','DX','EC','EH','EM','EQ'],
+        ROTATIVA:['EV','FA','FF','FK','FP','FU','FY']
+      };
+      var keys=['capa','forro','miolo_principal','miolo_professor','encartes','adesivos','ajuste_papel'];
+      Object.keys(blocos).forEach(function(t){
+        blocos[t].forEach(function(col,i){
+          var user=elements[t]||{},val=user[keys[i]]||'';
+          if(val!=='ARCO'&&val!=='GRÁFICA'&&val!=='ARCO TRIANG') {
+            if(val!=='')throw Error('Fornecimento invalido: '+val);
+            val=keys[i]==='capa'||keys[i]==='forro'||keys[i]==='miolo_principal'?'GRÁFICA':'';
+          }
+          if(val)v[_reSpIdx_(col)]=val;
+        });
+      });
+    }
+    var head=/^<row\b[^>]*>/.exec(full)[0],end='</row>';
+    var cells=/<c\b[^>]*\/>|<c\b[^>]*>[\s\S]*?<\/c>/g,found={},match;
+    while((match=cells.exec(full))!==null){
+      var raw=match[0],m=/\br="([A-Z]+)\d+"/.exec(raw);
+      if(!m)continue;
+      var i=_reSpIdx_(m[1]);
+      if(index[i]&& !/<f(?:\s|>)/.test(raw)){
+        // descarta todas as entradas 2910 do modelo, inclusive linhas sobrando
+        var sty=/\bs="(\d+)"/.exec(raw);
+        if(sty)found[i]={style:sty[1]};
+      }else found[i]={xml:raw};
+    }
+    Object.keys(v).forEach(function(k){
+      var i=Number(k),prior=found[i]||{};
+      if(prior.xml&&/<f(?:\s|>)/.test(prior.xml))throw Error('Coluna de entrada tem formula: '+_reSpCol_(i+1));
+      found[i]={xml:_reSpCelula_(_reSpCol_(i+1)+rn,v[i],prior.style)};
+    });
+    var result=Object.keys(found).map(Number).sort(function(a,b){return a-b;})
+      .map(function(i){return found[i].xml||'';}).join('');
+    return head+result+end;
+  });
+  if(seen!==skus.length)throw Error('CALC Geral sem capacidade para '+skus.length+' SKUs (linhas: '+seen+')');
+  return xml.replace(original,rewritten);
+}
+
 function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
   if(!/^\d{2,8}$/.test(chamado))throw Error('Numero do chamado invalido');
   var api=_reSpPrepararDados_(chamado,grafica);
@@ -384,37 +462,27 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
   var ncrows=nc.especificacoes.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+6,o,dstyle);});
   alterDepara[dc]=_reSpTrocarLinhas_(dxml,6,ncrows);
   var da=_reSpAbaPorNome_(deparaOrig,'NC - CALC Geral'),axml=deparaOrig.mapa[da].getDataAsString('UTF-8'),astyle=_reSpEstilos_(axml,4);
-  var cgrows=nc.calc.map(function(x,i){var g={0:x.kit,1:x.sku,2:x.quant,3:x.kit===x.sku?'TRUE':'FALSE',4:x.elementos,
-    5:x.emb,6:x.shrinkIndividual,7:x.shrinkKit,8:x.maleta,9:x.obs};return _reSpLinha_(i+4,g,astyle);});
-  var idx=nc.calc.length+4,bySku=Object.keys(nc.porSku).sort();
-  bySku.forEach(function(sku,i){var n=nc.porSku[sku],j={11:sku,12:n.avulso,13:n.total,15:n.avulso,16:n.kit,17:n.maleta,18:n.total,19:'TRUE'};cgrows.push(_reSpLinha_(idx+i,j,astyle));});
+  // A:J (kits/componentes) e L:U (totais por SKU) sao blocos paralelos,
+  // NAO sequenciais: o consumidor legado le L:S a partir da linha 4.
+  var bySku=Object.keys(nc.porSku).sort(),cgrows=[];
+  for(var ic=0;ic<Math.max(nc.calc.length,bySku.length);ic++){
+    var x=nc.calc[ic],sku=bySku[ic],g={};
+    if(x){g={0:x.kit,1:x.sku,2:x.quant,3:x.kit===x.sku?'TRUE':'FALSE',4:x.elementos,
+      5:x.emb,6:x.shrinkIndividual,7:x.shrinkKit,8:x.maleta,9:x.obs};}
+    if(sku){
+      var n=nc.porSku[sku];
+      g[11]=sku;g[12]=n.avulso;g[13]=n.total;
+      g[15]=n.avulso;g[16]=n.kit;g[17]=n.maleta;g[18]=n.total;g[19]='TRUE';
+    }
+    cgrows.push(_reSpLinha_(ic+4,g,astyle));
+  }
   alterDepara[da]=_reSpTrocarLinhas_(axml,4,cgrows);
   // Insere especificacoes apenas na aba de entrada; as 11 demais mantem formula original.
   var cp=_reSpAbaPorNome_(calcOrig,'PPG Especificações'),cpx=calcOrig.mapa[cp].getDataAsString('UTF-8'),cpstyle=_reSpEstilos_(cpx,5);
   var cr=nc.especificacoes.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+5,o,cpstyle);});
   var alterCalc={};alterCalc[cp]=_reSpTrocarLinhas_(cpx,5,cr);
-  var geral=_reSpAbaPorNome_(calcOrig,'CALC Geral'),gx=calcOrig.mapa[geral].getDataAsString('UTF-8'),gstyle=_reSpEstilos_(gx,6);
-  // Esta planilha contem formulas ate as ultimas colunas. Preserva formulas da linha modelo.
-  var padrao=/<row\b[^>]*\br="6"[^>]*>([\s\S]*?)<\/row>/.exec(gx);
-  if(!padrao)throw Error('Modelo calculadora sem linha de formulas 6');
-  var opF=fornecimento||{},tecnologia=opF.tecnologia||'DIGITAL',forn=opF.fornecedor||'GRÁFICA';
-  var gr=[];
-  bySku.forEach(function(sku,i){
-    var rowno=i+6,tot=nc.porSku[sku],vals={2:'Chamado '+chamado,3:sku,5:tot.avulso,6:0,7:tot.kit,8:tot.maleta,
-      24:tecnologia,27:forn,30:0};
-    var espec=nc.especificacoes.filter(function(r){return r[0]===sku;})[0];
-    if(!espec)throw Error('SKU sem especificacao: '+sku);
-    var base=padrao[1].replace(/(<c\b[^>]*\br="[A-Z]+)6(")/g,'$1'+rowno+'$2')
-      .replace(/(\$?[A-Z]{1,3}\$?)6\b/g,'$1'+rowno);
-    // Retirar valores/constantes da linha original de entrada (inclusive SKU 2740).
-    Object.keys(vals).forEach(function(k){
-      var col=_reSpCol_(+k+1),ref=col+rowno,cellRe=new RegExp('<c\\b[^>]*\\br="'+ref+'"[^>]*(?:\\/\\>|>[\\s\\S]*?<\\/c>)');
-      base=base.replace(cellRe,'');
-    });
-    var add='';Object.keys(vals).forEach(function(k){add+=_reSpCelula_(_reSpCol_(+k+1)+rowno,vals[k],gstyle[k]);});
-    gr.push('<row r="'+rowno+'">'+add+base+'</row>');
-  });
-  alterCalc[geral]=_reSpTrocarLinhas_(gx,6,gr);
+  var geral=_reSpAbaPorNome_(calcOrig,'CALC Geral'),gx=calcOrig.mapa[geral].getDataAsString('UTF-8');
+  alterCalc[geral]=_reSpPreencherCalcGeral_(gx,bySku,nc.porSku,chamado,fornecimento);
   // Marcar todas as formulas para recalculo integral, sem substituir tarifas da Logprint.
   alterDepara['xl/workbook.xml']=_reSpFullCalc_(deparaOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
   alterCalc['xl/workbook.xml']=_reSpFullCalc_(calcOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));

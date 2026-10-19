@@ -52,3 +52,33 @@ test('interface usa fluxo separado e retorna arquivos',()=>{
   assert.match(ui,/Abrir De-Para/);
   assert.doesNotMatch(ui,/\.finalizarProcessamentoLoteDepara\(/);
 });
+
+test('CALC Geral preserva formulas de todas as linhas e remove entradas do chamado anterior',()=>{
+ const xml='<worksheet><sheetData>'+
+ '<row r="5"><c r="C5"><v>header</v></c></row>'+
+ '<row r="6"><c r="C6" t="inlineStr"><is><t>Chamado 2910</t></is></c>'+
+ '<c r="D6" t="inlineStr"><is><t>ANTIGO</t></is></c>'+
+ '<c r="E6"><f>XLOOKUP(D6,D:D,E:E)</f><v>200</v></c>'+
+ '<c r="F6"><v>20</v></c><c r="Y6" t="inlineStr"><is><t>DIGITAL</t></is></c></row>'+
+ '<row r="7"><c r="C7" t="inlineStr"><is><t>Chamado 2910</t></is></c>'+
+ '<c r="D7" t="inlineStr"><is><t>ANTIGO2</t></is></c>'+
+ '<c r="E7"><f>XLOOKUP(D7,D:D,E:E)</f><v>300</v></c>'+
+ '<c r="F7"><v>10</v></c></row></sheetData></worksheet>';
+ const res=context._reSpPreencherCalcGeral_(xml,['SKU-NOVA'],
+  {'SKU-NOVA':{avulso:100,kit:0,maleta:0}},'2964',
+  {tecnologia:'PLANA',fornecedor:'GRÁFICA',elementos:{}});
+ assert.match(res,/XLOOKUP\(D6,D:D,E:E\)/);
+ assert.match(res,/XLOOKUP\(D7,D:D,E:E\)/);
+ assert.match(res,/Chamado 2964/);
+ assert.match(res,/SKU-NOVA/);
+ assert.doesNotMatch(res,/ANTIGO/);
+ assert.doesNotMatch(res,/Chamado 2910/);
+ assert.doesNotMatch(res,/<c r="F7"><v>10/);
+});
+test('calcPr respeita ordem do XML do Excel',()=>{
+ const workbook='<workbook><definedNames></definedNames><calcPr calcId="191029"/>'+
+   '<pivotCaches></pivotCaches><extLst></extLst></workbook>';
+ const res=context._reSpFullCalc_(workbook);
+ assert.ok(res.indexOf('<calcPr')<res.indexOf('<pivotCaches'));
+ assert.match(res,/fullCalcOnLoad="1"/);
+});

@@ -159,3 +159,19 @@ test('tela de custos SPG nao simula a esteira do Office e so conclui com arquivo
   assert.doesNotMatch(ui,/pollStatus|checarStatusProcessamento|_hashLote|_jobs|Dados em tr[aâ]nsito para o office/i);
   assert.doesNotMatch(ui,/<div id="step2"|<div id="step3"/);
 });
+
+test('custos nao oferecem selecao de versao legada e rejeitam cliente antigo',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
+ assert.doesNotMatch(ui,/opcaoVersao|txtVersoes|alternarCampoManual/);
+ const r=context.gerarValidacaoReentradasSPG('LOGPRINT',['2964'],'selecionar','1',[],{});
+ assert.equal(r.sucesso,false);
+ assert.match(r.erro,/versão vinculada/);
+});
+test('entradas antigas de custos falham sem ler Sheets ou enviar Office',()=>{
+ const legacy=fs.readFileSync(path.join(__dirname,'..','ValidaReentradas.js'),'utf8');
+ const isolated={}; vm.createContext(isolated); vm.runInContext(legacy,isolated);
+ ['obterChamadosLogadosMaster','validarFase1Multiplos','finalizarProcessamentoLoteDepara','checarStatusProcessamento','buscarResumoChamados'].forEach(name=>{
+   assert.throws(()=>isolated[name](),/fluxo antigo.*desativado/);
+ });
+ assert.doesNotMatch(legacy,/MailApp|GmailApp|gravarNaFila|ID_PLANILHA_LOG/);
+});

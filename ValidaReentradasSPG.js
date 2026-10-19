@@ -175,7 +175,7 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
   var xlsx=Utilities.zip(saida,nome).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
 }
-function _reSpPrepararDados_(numero,grafica,versaoManual) {
+function _reSpPrepararDados_(numero,grafica) {
   var pacote=_emailSpgPacote_(numero,false,'reentrada');
   if(pacote.id!==numero||!pacote.versaoId||!pacote.blob)throw Error('Chamado ou versao inconsistentes na API');
   if(/CANCELAD/i.test(pacote.statusChamado+' '+pacote.statusProducao))throw Error('Chamado cancelado');
@@ -378,6 +378,9 @@ function validarReentradasSPG(grafica,chamados) {
 }
 function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento) {
   if(_reSpNormal_(grafica)!=='LOGPRINT')return {erro:'Modelo ainda nao homologado para esta grafica.'};
+  if ((opcaoVersao && opcaoVersao !== 'spg' && opcaoVersao !== 'ultima') || String(versoesManuais || '').trim()) {
+    return {sucesso:false,erro:'A validação usa somente a versão vinculada ao chamado no SPG. Atualize a página.'};
+  }
   try{
     var result=[],failed=[];
     (chamados||[]).forEach(function(chamado){

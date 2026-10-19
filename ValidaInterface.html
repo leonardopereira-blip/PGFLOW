@@ -17,15 +17,6 @@
           </select>
           <label class="vc-lbl" for="txtChamados">2. IDs dos chamados (separados por vírgula)</label>
           <input type="text" id="txtChamados" placeholder="Ex: 2465, 2466" oninput="verificarLiberacaoBotao()">
-          <label class="vc-lbl">3. Qual versão da PPG?</label>
-          <div class="vc-radio-group">
-            <label class="vc-radio"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoManual()"> Usar a última versão</label>
-            <label class="vc-radio"><input type="radio" name="opcaoVersao" value="selecionar" onchange="alternarCampoManual()"> Selecionar manualmente</label>
-          </div>
-          <div id="blocoVersoesManuais" style="display:none">
-            <label class="vc-lbl" for="txtVersoes">Versões (Ex: 1, 2)</label>
-            <input type="text" id="txtVersoes" placeholder="Ex: 1">
-          </div>
           <button id="btnAvancar" class="vc-btn-primary" onclick="abrirResumoAntesDeAvancar()" disabled>Iniciar validação</button>
         </div>
       </div>
@@ -225,11 +216,6 @@
     document.getElementById('btnAvancar').disabled = !(g!=="" && c!=="");
   }
  
-  function alternarCampoManual(){
-    document.getElementById('blocoVersoesManuais').style.display =
-      document.getElementById('vSelecionar')?document.getElementById('vSelecionar').checked?'block':'none':
-      (document.querySelector('input[name=opcaoVersao]:checked').value==='selecionar'?'block':'none');
-  }
   function abrirResumoAntesDeAvancar() {
     var chamados = document.getElementById('txtChamados').value;
     if (!chamados) return;
@@ -524,8 +510,6 @@
     document.querySelectorAll('.inp-forn').forEach(function(s){ elementos[s.getAttribute('data-tec')][s.getAttribute('data-el')] = s.value; });
     var fornecimentoUI={ tecnologia: document.getElementById('selTecnologia').value, fornecedor: document.getElementById('selFornecedor').value, elementos: elementos };
     var idPastaOuNome=document.getElementById('selectGraficas').value;
-    var opVersao=document.querySelector('input[name=opcaoVersao]:checked').value;
-    var vManuais=(document.getElementById('txtVersoes')||{}).value||'';
 
     _resumo = [];
     google.script.run.withSuccessHandler(function(res) {
@@ -541,7 +525,7 @@
       }
     }).withFailureHandler(function(err) {
       mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
-    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
+    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI);
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }

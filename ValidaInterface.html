@@ -73,13 +73,9 @@
          
           <div style="background: #fcfcfd; padding: 25px; border-radius: 12px; border: 1px solid #e6e8ef;">
             <div id="step1" class="tracker-row pending">
-              <span class="icon">⏳</span> <span class="lbl">1. Gerando base de dados (De-Para)...</span> <span class="time"></span>
-            </div>
-            <div id="step2" class="tracker-row pending">
-              <span class="icon">⏳</span> <span class="lbl">2. Dados em trânsito para o office...</span> <span class="time"></span>
-            </div>
-            <div id="step3" class="tracker-row pending">
-              <span class="icon">⏳</span> <span class="lbl">3. Dados processados, e calculadora gerada!</span> <span class="time"></span>
+              <span class="icon">⏳</span>
+              <span class="lbl">Gerando De-Para e calculadora com dados do SPG...</span>
+              <span class="time"></span>
             </div>
           </div>
          
@@ -429,9 +425,7 @@
   function toggleTech(id){ document.getElementById(id).classList.toggle('open'); }
   function abrirOutras(){ document.querySelectorAll('.vc-tech:not(.active)').forEach(function(g){g.classList.add('open');}); }
   function escolherTec(){ renderTecGroups(); }
-  var _timers = { tTotal: 0, tStep: 0, interval: null, step: 1 };
-  var _jobs = [];
-  var _hashLote = "";
+  var _timers = { tTotal: 0, interval: null };
   // Resumo do que foi gerado (gráfica / chamado / marca / série), devolvido pelo backend.
   var _resumo = [];
 
@@ -487,94 +481,40 @@
     var sec = s % 60;
     return m + 'm ' + (sec > 0 ? sec + 's' : '');
   }
+  // A geração nativa é uma única chamada ao Apps Script. Não há fila ou Office.
   function iniciarTracker() {
     document.getElementById('telaFase2').style.display = 'none';
     document.getElementById('telaFase3').style.display = 'block';
-   
     document.getElementById('erroFase3').style.display = 'none';
     document.getElementById('finishArea').style.display = 'none';
     document.getElementById('stepTotal').style.display = 'none';
     document.getElementById('resumoGerado').style.display = 'none';
     document.getElementById('resumoGerado').innerHTML = '';
-    ['step1', 'step2', 'step3'].forEach(function(id) {
-      var el = document.getElementById(id);
-      el.className = 'tracker-row pending';
-      el.querySelector('.icon').innerHTML = '⏳';
-      el.querySelector('.time').innerHTML = '';
-    });
+    var el = document.getElementById('step1');
+    el.className = 'tracker-row active';
+    el.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
+    el.querySelector('.lbl').textContent = 'Gerando De-Para e calculadora com dados do SPG...';
+    el.querySelector('.time').textContent = '';
     _timers.tTotal = Date.now();
-    _timers.tStep = Date.now();
-    _timers.step = 1;
-    var currStepEl = document.getElementById('step1');
-    currStepEl.className = 'tracker-row active';
-    currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
-    if(_timers.interval) clearInterval(_timers.interval);
+    if (_timers.interval) clearInterval(_timers.interval);
     _timers.interval = setInterval(tickTracker, 1000);
   }
   function tickTracker() {
-    var sStep = Math.floor((Date.now() - _timers.tStep)/1000);
-    var currStepEl = document.getElementById('step' + _timers.step);
-    if(currStepEl) currStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
+    document.querySelector('#step1 .time').textContent =
+      fmtTime(Math.floor((Date.now() - _timers.tTotal) / 1000));
   }
-  function avancarStep(newStep) {
-    var sStep = Math.floor((Date.now() - _timers.tStep)/1000);
-    var oldStepEl = document.getElementById('step' + _timers.step);
-   
-    if(oldStepEl) {
-      oldStepEl.className = 'tracker-row done';
-      oldStepEl.querySelector('.icon').innerHTML = '✓';
-      oldStepEl.querySelector('.time').innerHTML = fmtTime(sStep);
-    }
-    _timers.step = newStep;
-    _timers.tStep = Date.now();
-    if(newStep <= 3) {
-      var currStepEl = document.getElementById('step' + newStep);
-      currStepEl.className = 'tracker-row active';
-      currStepEl.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
-    } else {
-      if(_timers.interval) clearInterval(_timers.interval);
-      var sTotal = Math.floor((Date.now() - _timers.tTotal)/1000);
-      var totEl = document.getElementById('stepTotal');
-      totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
-      totEl.style.display = 'block';
-      renderResumo(_resumo, 'resumoGerado');
-      document.getElementById('finishArea').style.display = 'block';
-    }
-  }
-  // Limite de espera do polling (min). Evita ficar girando para sempre se o
-  // backend tiver morrido de verdade depois de a conexão cair.
-  var LIMITE_POLL_MS = 15 * 60 * 1000;
-
-  function pollStatus() {
-    if(_timers.step > 3) return;
-
-    if (Date.now() - _timers.tTotal > LIMITE_POLL_MS) {
-      return mostrarErroCustos("Tempo limite atingido. O e-mail do lote " + _hashLote +
-        " não apareceu na caixa. Confira a pasta da gráfica no Drive: o De-Para pode ter sido gerado mesmo assim.");
-    }
-
-    google.script.run.withSuccessHandler(function(res) {
-      if (res.erro || (res.queueStatus && res.queueStatus.indexOf("ERRO") !== -1)) {
-        return mostrarErroCustos(res.erro || res.queueStatus);
-      }
-     
-      if (res.queueStatus === "DONE") {
-        if (_timers.step <= 2) avancarStep(3);
-        setTimeout(function() { avancarStep(4); }, 300);
-        return;
-      }
-      if (_timers.step === 2 && res.emailNaCaixa) {
-        avancarStep(3);
-      }
-      else if (_timers.step === 3 && !res.emailNaCaixa) {
-        avancarStep(4);
-        return;
-      }
-     
-      setTimeout(pollStatus, 1500);
-    }).withFailureHandler(function(err) {
-      setTimeout(pollStatus, 1500);
-    }).checarStatusProcessamento(_jobs, _hashLote);
+  function concluirTracker() {
+    if (_timers.interval) { clearInterval(_timers.interval); _timers.interval = null; }
+    var el = document.getElementById('step1');
+    el.className = 'tracker-row done';
+    el.querySelector('.icon').textContent = '✓';
+    el.querySelector('.lbl').textContent = 'De-Para e calculadora gerados no Drive';
+    var total = fmtTime(Math.floor((Date.now() - _timers.tTotal) / 1000));
+    el.querySelector('.time').textContent = total;
+    document.getElementById('stepTotal').textContent = 'Tempo total: ' + total;
+    document.getElementById('stepTotal').style.display = 'block';
+    renderResumo(_resumo, 'resumoGerado');
+    document.getElementById('finishArea').style.display = 'block';
   }
   function executarFase2(){
     iniciarTracker();
@@ -587,35 +527,21 @@
     var opVersao=document.querySelector('input[name=opcaoVersao]:checked').value;
     var vManuais=(document.getElementById('txtVersoes')||{}).value||'';
 
-    // GERA O HASH NO FRONTEND PARA NÃO PERDER A REFERÊNCIA SE A CONEXÃO CAIR
-    _hashLote = new Date().getTime().toString();
-    _jobs = [];
     _resumo = [];
-
     google.script.run.withSuccessHandler(function(res) {
-        if (res.erro) return mostrarErroCustos(res.erro);
-        _jobs = res.jobs || [];
-        _hashLote = res.hashLote || _hashLote;
-        _resumo = res.resumo || [];
-        if (res.arquivos) {
-          avancarStep(2);
-          avancarStep(3);
-          avancarStep(4);
-          if (res.avisos && res.avisos.length) {
-            var e = document.getElementById('erroFase3');
-            if (e) { e.textContent = 'Avisos: ' + res.avisos.join(' | '); e.style.display = 'block'; }
-          }
-          return;
-        }
-        avancarStep(2);
-        pollStatus();
+      if (!res || res.erro || !res.sucesso || !Array.isArray(res.arquivos) || !res.arquivos.length) {
+        return mostrarErroCustos(res && res.erro || 'O Apps Script não confirmou a geração dos arquivos.');
+      }
+      _resumo = res.resumo || [];
+      concluirTracker();
+      if (res.avisos && res.avisos.length) {
+        var aviso = document.getElementById('erroFase3');
+        aviso.textContent = 'Avisos: ' + res.avisos.join(' | ');
+        aviso.style.display = 'block';
+      }
     }).withFailureHandler(function(err) {
-        var msgErro = String((err && err.message) || err);
-
-        // O fluxo nativo nao utiliza email/fila; nao tentar consultar a esteira legada.
-        mostrarErroCustos(msgErro);
-    })
-      .gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
+      mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
+    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
@@ -631,13 +557,19 @@
     verificarLiberacaoBotao();
   }
   function mostrarErroCustos(e){
-    if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
+    if (_timers.interval) { clearInterval(_timers.interval); _timers.interval = null; }
+    document.getElementById('telaFase3').style.display = 'block';
+    var etapa = document.getElementById('step1');
+    etapa.className = 'tracker-row';
+    etapa.querySelector('.icon').textContent = '×';
+    etapa.querySelector('.lbl').textContent = 'Não foi possível gerar os arquivos';
+    etapa.querySelector('.time').textContent = '';
     var err = document.getElementById('erroFase3');
     err.style.display = 'block';
-    err.innerHTML = '<b style="color:#b5341f">Erro Crítico:</b> '+(e&&e.message?e.message:e);
+    err.textContent = 'Erro na geração: ' + String(e && e.message || e || 'Erro desconhecido');
     document.getElementById('finishArea').style.display = 'block';
     document.getElementById('stepTotal').style.display = 'none';
   }
- 
+
   function setMsg(id,t,c){ var d=document.getElementById(id); if(d){ d.style.color=c; d.innerHTML=t; } }
 </script>

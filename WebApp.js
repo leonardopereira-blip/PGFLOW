@@ -66,7 +66,9 @@ function include(filename) {
     // Entrega o cadastro junto com a pagina, sem uma chamada do navegador para carregar a lista.
     var cadastro = JSON.stringify(obterCadastroEmailsSPG())
       .replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
-    conteudo = conteudo.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null', function() { return cadastro; });
+    // O HTML pode chegar sem comentarios. A atribuicao identifica o ponto de injecao.
+    conteudo = conteudo.replace(/var\s+pfCadastroSalvo\s*=\s*(?:\/\*PF_EMAIL_CADASTRO_INICIAL\*\/\s*)?null\s*;/,
+      function() { return 'var pfCadastroSalvo = ' + cadastro + ';'; });
   }
   return conteudo;
 }

@@ -179,7 +179,46 @@ test('Lista inicial vem do portal sem Sheets e cadastro salvo preserva alteracoe
   props[c.EMAIL_SPG_DESTINATARIOS_PROP]=JSON.stringify({Nova:['new@example.com']});
   assert.equal(Object.keys(c.obterCadastroEmailsSPG().graficas).join(','),'Nova');
   props[c.EMAIL_SPG_DESTINATARIOS_PROP]='{}';
+  assert.equal(Object.keys(c.obterCadastroEmailsSPG().graficas).length,10);
+  props[c.EMAIL_SPG_CADASTRO_EDITADO_PROP]='1';
   assert.equal(Object.keys(c.obterCadastroEmailsSPG().graficas).length,0);
+});
+
+test('ordem de graficas ou emails nao gera falso conflito de versao', () => {
+  assert.equal(ctx._emailSpgVersaoCadastro_({B:['z@example.com','a@example.com'],A:['b@example.com']}),
+    ctx._emailSpgVersaoCadastro_({A:['b@example.com'],B:['a@example.com','z@example.com']}));
+});
+
+test('pagina sem comentarios injeta versao salva e permite editar e salvar sem falso conflito', () => {
+  const c=createContext([]),props={};
+  c.PropertiesService.getScriptProperties=()=>({getProperty:k=>props[k]||null,setProperty:(k,v)=>{props[k]=v;}});
+  c.LockService.getScriptLock=()=>({tryLock:()=>true,releaseLock(){}});
+  const defaults=c.obterDadosGraficasEmailSPG();
+  const old={};Object.keys(defaults).reverse().forEach(name=>{old[name]=defaults[name].slice().reverse();});
+  props[c.EMAIL_SPG_DESTINATARIOS_PROP]=JSON.stringify(old);
+  const html=fs.readFileSync(path.join(__dirname,'..','TelaEmail.html'),'utf8').replace('/*PF_EMAIL_CADASTRO_INICIAL*/','');
+  c.HtmlService={createHtmlOutputFromFile:()=>({getContent:()=>html})};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','WebApp.js'),'utf8'),c);
+  const loaded=JSON.parse(c.include('TelaEmail').match(/var pfCadastroSalvo = (.*);/)[1]);
+  assert.equal(loaded.versao,c.obterCadastroEmailsSPG().versao);
+  loaded.graficas.Star7.push('novo@example.com');
+  loaded.graficas.FormaCerta=loaded.graficas.FormaCerta.filter(e=>e!=='alessandra@formacerta.com.br');
+  const saved=c.salvarCadastroEmailsSPG(loaded.graficas,loaded.versao);
+  assert.ok(saved.graficas.Star7.includes('novo@example.com'));
+  assert.ok(!saved.graficas.FormaCerta.includes('alessandra@formacerta.com.br'));
+  assert.equal(c.obterCadastroEmailsSPG().versao,saved.versao);
+});
+
+test('lista fixa e cadastro vazio legado usam a mesma versao para o primeiro salvamento', () => {
+  const c=createContext([]),props={EMAIL_SPG_DESTINATARIOS_GRAFICAS:'{}'};
+  c.PropertiesService.getScriptProperties=()=>({getProperty:k=>props[k]||null,setProperty:(k,v)=>{props[k]=v;}});
+  c.LockService.getScriptLock=()=>({tryLock:()=>true,releaseLock(){}});
+  const html=fs.readFileSync(path.join(__dirname,'..','TelaEmail.html'),'utf8');
+  const hash=html.match(/var pfCadastroInicial = \{graficas:pfGraficasPadrao,versao:"([a-f0-9]+)"\}/)[1];
+  const loaded=c.obterCadastroEmailsSPG();
+  assert.equal(loaded.versao,hash);
+  loaded.graficas.Teste.push('outro@example.com');
+  assert.equal(c.salvarCadastroEmailsSPG(loaded.graficas,hash).graficas.Teste.length,2);
 });
 
 test('Pagina inclui cadastro e versao no HTML sem RPC e protege texto de fechamento de script', () => {

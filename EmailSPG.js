@@ -512,7 +512,10 @@ function obterDadosGraficasEmailSPG() {
   var props = PropertiesService.getScriptProperties();
   var salvo = props.getProperty(EMAIL_SPG_DESTINATARIOS_PROP);
   if (salvo) {
-    try { return JSON.parse(salvo); } catch (e) {}
+    try {
+      var cadastro = JSON.parse(salvo);
+      if (Object.keys(cadastro).length || props.getProperty(EMAIL_SPG_CADASTRO_EDITADO_PROP) === '1') return cadastro;
+    } catch (e) {}
   }
   // Lista inicial do proprio portal. Alteracoes salvas continuam compartilhadas.
   var internos = ['joao.alberti@arcoeducacao.com.br', 'leonardo.pereira@arcoeducacao.com.br', 'priscillabianchi@arcoeducacao.com.br'];
@@ -549,8 +552,12 @@ function salvarDestinatariosEmailSPG(nome, emails) {
 // Cadastro unico para a interface de email, usado nos fluxos SPG e antigo.
 // Controle de versao impede que dois usuarios sobrescrevam alteracoes simultaneas.
 function _emailSpgVersaoCadastro_(catalogo) {
+  // Ordem de exibicao nao e uma alteracao de destinatarios.
+  var conteudo = Object.keys(catalogo || {}).sort().map(function(nome) {
+    return [nome, catalogo[nome].map(function(email) { return String(email).trim().toLowerCase(); }).sort()];
+  });
   return _emailSpgHex_(Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256, JSON.stringify(catalogo || {})));
+    Utilities.DigestAlgorithm.SHA_256, JSON.stringify(conteudo)));
 }
 
 function obterCadastroEmailsSPG() {
@@ -608,7 +615,7 @@ function salvarCadastroEmailsSPG(proposto, versaoEsperada) {
   try {
     var atual = obterDadosGraficasEmailSPG();
     if (!versaoEsperada || _emailSpgVersaoCadastro_(atual) !== versaoEsperada) {
-      throw new Error('O cadastro foi alterado por outra pessoa. Feche e abra a lista para atualizar antes de salvar.');
+      throw new Error('O cadastro foi alterado por outra pessoa. Atualize a página para carregar a lista atual antes de salvar.');
     }
     var novo = _emailSpgValidarCadastro_(proposto);
     PropertiesService.getScriptProperties().setProperty(

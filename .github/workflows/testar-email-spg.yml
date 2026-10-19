@@ -1,0 +1,26 @@
+name: Validar envio SPG por API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - EmailSPG.js
+      - TelaEmail.html
+      - tests/email-spg.test.cjs
+      - .github/workflows/testar-email-spg.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Testar regras de anexo e envio sem disparar emails
+        run: node --test tests/email-spg.test.cjs

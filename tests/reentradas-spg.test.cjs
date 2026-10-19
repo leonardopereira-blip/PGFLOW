@@ -115,3 +115,37 @@ test('resumo nao oculta falhas de API como chamado com tiragem zero',()=>{
   assert.match(ui,/Falha ao carregar dados do SPG/);
   assert.match(ui,/Erro ao consultar o SPG/);
 });
+
+test('lista de graficas de reentradas nao depende de Sheets nem inclui graficas sem calculadora',()=>{
+  const graficas=context.listarPastasGraficasReentradasSPG();
+  assert.equal(graficas.length,1);
+  assert.equal(graficas[0].id,'LOGPRINT');
+  const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
+  assert.match(ui,/listarPastasGraficasReentradasSPG/);
+  assert.doesNotMatch(ui,/\.obterPastasGraficas\(/);
+});
+test('resumo traz dados reais da OP de producao obtida pela API',()=>{
+  const orig=context._reSpPrepararDados_;
+  context._reSpPrepararDados_=(id,grafica)=>{
+    assert.equal(id,'2964');
+    assert.equal(grafica,'LOGPRINT');
+    return {
+      espec:{headers:['1. ID_Código SKU','2. INF_Marca','2. INF_Série','4. CAP_Papel da capa','5. MIO_PRIN_Papel'],linhas:[
+        ['SKU-1','SAS','3ª Série','Couché 250g','Offset 75g'],
+        ['SKU-2','SAS','3ª Série','Couché 250g','Offset 75g'],
+        ['SKU-3','Geekie','2ª Série','Cartão 250g','Pólen 80g']
+      ]},
+      tiragem:{headers:['16. TIR_SKU','15. DES_CD envio'],linhas:[['100','FOR'],['200','JDI']]}
+    };
+  };
+  try{
+    const res=context.buscarResumoReentradasSPG('2964');
+    assert.equal(res[0].totalSkus,3);
+    assert.equal(res[0].tiragemTotal,300);
+    assert.equal(res[0].marcas,'SAS, Geekie');
+    assert.equal(res[0].series,'3ª Série, 2ª Série');
+    assert.equal(res[0].papeisCapa,'Couché 250g, Cartão 250g');
+    assert.equal(res[0].papeisMiolo,'Offset 75g, Pólen 80g');
+    assert.equal(res[0].cdsDestino,'FOR, JDI');
+  }finally{context._reSpPrepararDados_=orig;}
+});

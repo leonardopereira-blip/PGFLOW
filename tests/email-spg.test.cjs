@@ -167,6 +167,36 @@ test('Cadastro valida e-mails, nomes e permite excluir entradas', () => {
   assert.throws(()=>ctx._emailSpgValidarCadastro_(JSON.parse('{"__proto__":["a@example.com"]}')),/grafica/);
   assert.throws(()=>ctx._emailSpgValidarCadastro_({Alpha:['e-mail invalido']}),/Email invalido/);
 });
+test('Lista inicial vem do portal sem Sheets e cadastro salvo preserva alteracoes e exclusoes', () => {
+  const c = createContext([]), props = {};
+  c.PropertiesService.getScriptProperties = () => ({getProperty:k=>props[k]||null});
+  c.SpreadsheetApp.openById = () => {throw new Error('Nao consultar Sheets');};
+  c.obterDadosGraficas = () => {throw new Error('Nao consultar cadastro antigo');};
+  const initial = c.obterCadastroEmailsSPG();
+  assert.equal(Object.keys(initial.graficas).length,10);
+  assert.equal(initial.graficas.Logprint.length,11);
+  assert.equal(initial.graficas.Teste[0],'leonardo.pereira@arcoeducacao.com.br');
+  props[c.EMAIL_SPG_DESTINATARIOS_PROP]=JSON.stringify({Nova:['new@example.com']});
+  assert.equal(Object.keys(c.obterCadastroEmailsSPG().graficas).join(','),'Nova');
+  props[c.EMAIL_SPG_DESTINATARIOS_PROP]='{}';
+  assert.equal(Object.keys(c.obterCadastroEmailsSPG().graficas).length,0);
+});
+
+test('Pagina inclui cadastro e versao no HTML sem RPC e protege texto de fechamento de script', () => {
+  const c=createContext([]);
+  const html=fs.readFileSync(path.join(__dirname,'..','TelaEmail.html'),'utf8');
+  c.obterCadastroEmailsSPG=()=>({graficas:{'</script><img>':['test@example.com']},versao:'v1'});
+  c.HtmlService={createHtmlOutputFromFile:()=>({getContent:()=>html})};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','WebApp.js'),'utf8'),c);
+  const rendered=c.include('TelaEmail');
+  assert.doesNotMatch(rendered,/PF_EMAIL_CADASTRO_INICIAL/);
+  assert.doesNotMatch(rendered,/\.obterCadastroEmailsSPG\(/);
+  assert.doesNotMatch(rendered,/<\/script><img>/);
+  const embedded=rendered.match(/var pfCadastroInicial = (.*);/)[1];
+  assert.equal(JSON.parse(embedded).versao,'v1');
+  assert.equal(JSON.parse(embedded).graficas['</script><img>'][0],'test@example.com');
+});
+
 test('Cadastro compartilhado usa versao e impede sobrescrita concorrente', () => {
   const props = {};
   const locks = {tryLock:()=>true,releaseLock:()=>{}};

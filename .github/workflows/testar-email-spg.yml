@@ -6,6 +6,8 @@ on:
     paths:
       - EmailSPG.js
       - TelaEmail.html
+      - WebApp.js
+      - Menu_Emails.js
       - tests/email-spg.test.cjs
       - tests/email-ui-flow.test.cjs
       - .github/workflows/testar-email-spg.yml

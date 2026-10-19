@@ -201,6 +201,7 @@
 <script>
 /* Estado unico compartilhado entre SPG e fluxo antigo. */
 var listaGraficas = {};
+var pfCadastroInicial = /*PF_EMAIL_CADASTRO_INICIAL*/null;
 var dadosGlobais = {};
 var pfVersaoCadastro = '';
 var pfRascunhoCadastro = null;
@@ -286,20 +287,12 @@ function alternarCampoVersao() {
     document.querySelector('input[name="pfEmailVersao"]:checked').value === 'manual' ? 'block' : 'none';
 }
 function pfCarregarCadastro(selecionados, sucesso, falha) {
-  var ticket = ++pfTokenCadastro;
-  var geracao = pfGeracaoTela;
-  google.script.run.withSuccessHandler(function(resultado) {
-    if (ticket !== pfTokenCadastro) return;
-    listaGraficas = (resultado && resultado.graficas) || {};
-    pfVersaoCadastro = (resultado && resultado.versao) || '';
-    pfRenderGraficas(geracao === pfGeracaoTela ? (selecionados || pfSelecionadas()) : []);
-    if (geracao === pfGeracaoTela && sucesso) sucesso(resultado);
-  }).withFailureHandler(function(erro) {
-    if (ticket !== pfTokenCadastro || geracao !== pfGeracaoTela) return;
-    pfEl('containerGraficas').textContent = 'Erro ao carregar gráficas: ' + (erro.message || erro);
-    pfErro('O cadastro não pôde ser carregado. Não é seguro continuar sem revisar os destinatários.');
-    if (falha) falha(erro);
-  }).obterCadastroEmailsSPG();
+  if (!pfVersaoCadastro && pfCadastroInicial) {
+    listaGraficas = pfClone(pfCadastroInicial.graficas);
+    pfVersaoCadastro = pfCadastroInicial.versao || '';
+  }
+  pfRenderGraficas(selecionados || pfSelecionadas());
+  if (sucesso) sucesso({graficas:listaGraficas,versao:pfVersaoCadastro});
 }
 function pfRenderGraficas(manter) {
   var selecionadas = manter || pfSelecionadas();
@@ -663,15 +656,15 @@ function pfAbrirCadastro() {
   pfEl('pf-lista-cadastro').textContent='Carregando cadastro atualizado…';
   pfEl('pf-salvar-cadastro').disabled=true;
   pfEl('pf-modal').hidden=false;
-  // Cada abertura le o cadastro e sua versao; nunca reaproveita uma versao em conflito.
+  // O cadastro ja acompanha a pagina; abrir o popup nao consulta outro lugar.
   pfCarregarCadastro(pfSelecionadas(),function() {
     if(sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
     pfRascunhoCadastro=pfClone(listaGraficas);
     pfEl('pf-salvar-cadastro').disabled=false;
     pfRenderCadastro();
     if(pfCadastroConflito) {
-      pfErroCadastro('O cadastro foi atualizado com os dados atuais. As alterações anteriores não foram salvas; revise e aplique novamente as que desejar.');
-      pfCadastroConflito=false;
+      pfEl('pf-salvar-cadastro').disabled=true;
+      pfErroCadastro('Outra pessoa alterou o cadastro. Atualize a página para carregar a lista atual antes de editar novamente.');
     }
   },function(e) {
     if(sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
@@ -745,7 +738,7 @@ function pfRenderCadastro() {
   }
 }
 function pfSalvarCadastro() {
-  if (pfSalvandoCadastro || !pfRascunhoCadastro) return;
+  if (pfSalvandoCadastro || !pfRascunhoCadastro || pfCadastroConflito) return;
   var novo={};
   var nomes=Object.keys(pfRascunhoCadastro);
   for(var i=0;i<nomes.length;i++){
@@ -783,11 +776,12 @@ function pfSalvarCadastro() {
     pfSalvandoCadastro=false;pfEl('pf-salvar-cadastro').disabled=false;
     if(ticket!==pfTokenCadastro || sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
     pfCadastroConflito=/alterad|vers[aã]o|outra pessoa/i.test(e.message||String(e));
+    pfEl('pf-salvar-cadastro').disabled=pfCadastroConflito;
     pfRenderCadastro();
-    pfErroCadastro('Não foi possível salvar: '+(e.message||e)+'. Seu rascunho foi mantido nesta tela. Para carregar o cadastro atualizado, feche e abra novamente.');
+    pfErroCadastro('Não foi possível salvar: '+(e.message||e)+'. Seu rascunho foi mantido nesta tela. Para carregar o cadastro atualizado, atualize a página.');
   }).salvarCadastroEmailsSPG(novo,pfVersaoCadastro);
 }
-if (typeof google !== 'undefined' && google.script && google.script.run) {
+if (pfCadastroInicial) {
   pfCarregarCadastro([]);
 }
 </script>

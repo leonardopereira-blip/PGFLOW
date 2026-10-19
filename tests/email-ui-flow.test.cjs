@@ -102,8 +102,10 @@ function makeScreen() {
     });
     return chain;
   }});
+  const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
   const context = { document: doc, google, alert: msg => alerts.push(msg), confirm: () => true };
-  vm.createContext(context); vm.runInContext(source, context);
+  vm.createContext(context); vm.runInContext(source.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null',
+    JSON.stringify({graficas,versao:'v1'})), context);
   const el = id => { const value = doc.getElementById(id); assert(value, 'Missing element ' + id); return value; };
   function pending(method) {
     const result = requests.find(req => req.method === method && !req.done);
@@ -129,8 +131,6 @@ function makeScreen() {
     const result = scope.querySelectorAll('button').find(x => x.textContent === text);
     assert(result, 'Missing button ' + text); return result;
   }
-  const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
-  reply('obterCadastroEmailsSPG', { graficas, versao: 'v1' });
   choose();
   return { context, doc, el, requests, alerts, pending, reply, dispatch, graphic, choose, button, graficas };
 }
@@ -362,7 +362,6 @@ test('contatos comuns aparecem em cada gráfica e seleção individual é preser
 
 test('salvamento concluído depois de Cancelar não restaura seleções nem reabre cadastro', () => {
   const s = makeScreen(); s.context.pfAbrirCadastro();
-  s.reply('obterCadastroEmailsSPG', { graficas: s.graficas, versao: 'v1' });
   s.context.pfSalvarCadastro(); s.context.pfResetar();
   s.reply('salvarCadastroEmailsSPG', { graficas: s.graficas, versao: 'v2' });
   assert.equal(s.context.pfSelecionadas().length, 0);
@@ -371,23 +370,22 @@ test('salvamento concluído depois de Cancelar não restaura seleções nem reab
   assert.equal(s.el('passo1').classList.contains('ativo'), true);
 });
 
-test('conflito mantém rascunho; reabertura busca cadastro e versão atualizados', () => {
+test('conflito mantém rascunho e impede sobrescrever cadastro sem atualizar a página', () => {
   const s = makeScreen(); s.context.pfAbrirCadastro();
-  s.reply('obterCadastroEmailsSPG', { graficas: s.graficas, versao: 'v1' });
   s.context.pfRascunhoCadastro.Teste[0] = 'draft@example.com'; s.context.pfSalvarCadastro();
   s.reply('salvarCadastroEmailsSPG', { message: 'O cadastro foi alterado por outra pessoa.' }, true);
   assert.equal(s.context.pfRascunhoCadastro.Teste[0], 'draft@example.com');
   s.context.pfFecharCadastro(); s.context.pfAbrirCadastro();
-  s.reply('obterCadastroEmailsSPG', { graficas: { Teste: ['fresh@example.com'] }, versao: 'v9' });
-  assert.equal(s.context.pfVersaoCadastro, 'v9');
-  assert.equal(s.context.pfRascunhoCadastro.Teste[0], 'fresh@example.com');
-  assert.match(s.el('pf-erro-cadastro').textContent, /alterações anteriores não foram salvas/);
-  s.context.pfSalvarCadastro(); assert.equal(s.pending('salvarCadastroEmailsSPG').args[1], 'v9');
+  assert.equal(s.el('pf-salvar-cadastro').disabled, true);
+  assert.match(s.el('pf-erro-cadastro').textContent, /Atualize a página/);
+  s.context.pfSalvarCadastro();
+  assert.equal(s.requests.filter(r => r.method === 'salvarCadastroEmailsSPG').length, 1);
 });
 
-test('abrir cadastro e cancelar antes da resposta não repõe seleção anterior', () => {
+test('lista e popup abrem sem consultar função do servidor; cancelar limpa seleções', () => {
   const s = makeScreen(); s.context.pfAbrirCadastro(); s.context.pfResetar();
-  s.reply('obterCadastroEmailsSPG', { graficas: s.graficas, versao: 'v2' });
+  assert.equal(s.requests.length, 0);
+  assert.equal(s.el('containerGraficas').querySelectorAll('input').length, 2);
   assert.equal(s.context.pfSelecionadas().length, 0);
   assert.equal(s.el('pf-modal').hidden, true);
   assert.equal(s.context.pfRascunhoCadastro, null);
@@ -407,7 +405,6 @@ test('novo envio limpa a etapa concluída e permite preparar outro chamado', () 
 
 test('cadastro permite adicionar gráfica e editar, adicionar e excluir emails no popup', () => {
   const s = makeScreen(); s.context.pfAbrirCadastro();
-  s.reply('obterCadastroEmailsSPG', { graficas: s.graficas, versao: 'v1' });
   s.el('pf-nova-grafica').value = 'Nova'; s.context.pfAdicionarGrafica();
   let card = s.el('pf-lista-cadastro').querySelectorAll('.pf-manage-graphic').find(x => x.textContent.includes('Nova'));
   let input = card.querySelector('input'); input.value = 'new@example.com'; s.dispatch(input, 'input');

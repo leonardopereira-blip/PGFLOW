@@ -61,7 +61,14 @@ function doGet(e) {
 
 // Helper para injetar as sub-telas HTML dentro do arquivo Index mestre
 function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  var conteudo = HtmlService.createHtmlOutputFromFile(filename).getContent();
+  if (filename === 'TelaEmail') {
+    // Entrega o cadastro junto com a pagina, sem uma chamada do navegador para carregar a lista.
+    var cadastro = JSON.stringify(obterCadastroEmailsSPG())
+      .replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+    conteudo = conteudo.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null', function() { return cadastro; });
+  }
+  return conteudo;
 }
 
 

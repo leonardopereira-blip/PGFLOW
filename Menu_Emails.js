@@ -15,7 +15,7 @@ function onOpen() {
 }
 
 function abrirTelaEmail() {
-  var html = HtmlService.createHtmlOutputFromFile('TelaEmail')
+  var html = HtmlService.createHtmlOutput(include('TelaEmail'))
       .setWidth(550)
       .setHeight(650);
   SpreadsheetApp.getUi().showModalDialog(html, 'Envio de Arquivo para Production');

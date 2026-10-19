@@ -513,27 +513,20 @@ function obterDadosGraficasEmailSPG() {
   if (salvo) {
     try { return JSON.parse(salvo); } catch (e) {}
   }
-  // Migracao unica do cadastro de destinatarios, sem leitura recorrente do Sheets.
-  var antigos = {};
-  try { antigos = obterDadosGraficas(); } catch (e) { antigos = {}; }
-  // Web Apps podem nao ter planilha ativa; migrar pelo ID ja utilizado no PGFLOW.
-  if (!Object.keys(antigos).length) {
-    try {
-      var sheet = SpreadsheetApp.openById(ID_PLANILHA_LOG).getSheetByName('Emails_Envio');
-      if (sheet) {
-        var values = sheet.getDataRange().getDisplayValues();
-        for (var i = 1; i < values.length; i++) {
-          var nome = String(values[i][0] || '').trim();
-          var email = String(values[i][1] || '').trim();
-          if (!nome || !email) continue;
-          if (!antigos[nome]) antigos[nome] = [];
-          antigos[nome].push(email);
-        }
-      }
-    } catch (e) { /* Cadastro pode ser criado pela tela. */ }
-  }
-  props.setProperty(EMAIL_SPG_DESTINATARIOS_PROP, JSON.stringify(antigos));
-  return antigos;
+  // Lista inicial do proprio portal. Alteracoes salvas continuam compartilhadas.
+  var internos = ['joao.alberti@arcoeducacao.com.br', 'leonardo.pereira@arcoeducacao.com.br', 'priscillabianchi@arcoeducacao.com.br'];
+  return {
+    FormaCerta: internos.concat(['alessandra@formacerta.com.br','atendimento3@formacerta.com.br','fabricio@formacerta.com.br','neto@formacerta.com.br','orcamentos3@formacerta.com.br']),
+    Logprint: internos.concat(['arnaldo.fortes@logprint.com.br','gilberto.moura@logprint.com.br','henrique.aragao@logprint.com.br','luciano.villaca@logprint.com.br','marcos.bolina@logprint.com.br','mateus.pereira@logprint.com.br','pedidosorcamentos@logprint.com.br','valter.almeida@logprint.com.br']),
+    Meta: internos.concat(['andre.agnesini@metabrasil.com.br','andre.teixeira@metabrasil.com.br','ensino@metabrasil.com.br','orcamento@metabrasil.com.br']),
+    Posigraf: internos.concat(['gcfurtado@positivo.com.br','hjuliano@positivo.com.br','htelma@positivo.com.br','jamilani@positivo.com.br','jcastro@positivo.com.br','joferreira@positivo.com.br']),
+    Reproset: internos.concat(['daniel.esteban@reproset.com.br','igor@reproset.com.br','nedson@reproset.com.br','orcamento@reproset.com.br']),
+    Rona: internos.concat(['edicao@ronaeditora.com.br','producao@ronaeditora.com.br','rafael@ronaeditora.com.br','simoney@ronaeditora.com.br']),
+    'Casa da Grafica': internos.concat(['frankie@casadagrafica.com','rafaelrodrigues@casadagrafica.com']),
+    Star7: internos.concat(['alexandre.gameiro@star-7.com','tiago.pereira@star-7.com']),
+    Prints: internos.concat(['felipe@graficaprints.com.br']),
+    Teste: ['leonardo.pereira@arcoeducacao.com.br']
+  };
 }
 
 function salvarDestinatariosEmailSPG(nome, emails) {

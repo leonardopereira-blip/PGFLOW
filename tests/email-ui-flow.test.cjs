@@ -135,7 +135,108 @@ function makeScreen() {
   return { context, doc, el, requests, alerts, pending, reply, dispatch, graphic, choose, button, graficas };
 }
 const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
-  anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100' };
+  anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
+  statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
+
+test('revisão mostra o status atual do chamado sem confundir com resultado técnico ou versão', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, statusChamado: 'VALIDADO' });
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: Validado');
+  assert.equal(s.el('pf-status-spg').style.display, 'block');
+  assert.equal(s.el('pf-status-spg').getAttribute('role'), 'status');
+  assert.equal(s.el('passo2').classList.contains('ativo'), true);
+  assert.doesNotMatch(s.el('corpoEmail').value, /Status do chamado/);
+});
+
+test('chamado cancelado mostra alerta e não permite legado, dados manuais, revisão ou envio', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, status: 'cancelado', cancelado: true,
+    statusChamado: 'CANCELADO', dataDesejada: '', anexoValido: false,
+    erro: 'Este chamado está cancelado no SPG. O envio de formalização está indisponível.',
+    faltantes: ['Data desejada de entrega'] });
+  assert.match(s.el('pf-status-spg').textContent, /Status do chamado no SPG: Cancelado/);
+  assert.match(s.el('pf-status-spg').textContent, /envio de formalização está indisponível/);
+  assert.equal(s.el('pf-status-spg').getAttribute('role'), 'alert');
+  assert.equal(s.el('pgflowOrigemSPG').style.display, 'none');
+  assert.equal(s.el('pgflowOrigemSPG').textContent, '');
+  assert.equal(s.el('passo1').classList.contains('ativo'), true);
+  assert.equal(s.el('passo2').classList.contains('ativo'), false);
+  s.context.enviarEmail();
+  assert.equal(s.requests.some(r => /obterDadosChamado|dispararEmail/.test(r.method)), false);
+  assert.equal(Object.keys(s.context.dadosGlobais).length, 0);
+});
+
+for (const statusProducao of ['CANCELADO', 'CANCELADA']) test('produção ' + statusProducao + ' preserva a distinção do status ativo do chamado', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, status: 'cancelado', cancelado: true,
+    statusChamado: 'LIBERADO', statusProducao, anexoValido: false });
+  assert.match(s.el('pf-status-spg').textContent, /Status do chamado no SPG: Liberado/);
+  assert.match(s.el('pf-status-spg').textContent, /Status da produção no SPG: Cancelada/);
+  assert.doesNotMatch(s.el('pf-status-spg').textContent, /Status do chamado no SPG: Cancelado/);
+  assert.equal(s.el('passo2').classList.contains('ativo'), false);
+});
+
+test('status real CANCELADA da produção bloqueia mesmo sem marcador técnico de cancelamento', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, statusChamado: 'VALIDADO', statusProducao: 'CANCELADA' });
+  assert.equal(s.context.pfChamadoCancelado, true);
+  assert.match(s.el('pf-status-spg').textContent, /Status do chamado no SPG: Validado/);
+  assert.match(s.el('pf-status-spg').textContent, /Status da produção no SPG: Cancelada/);
+  assert.equal(s.el('passo2').classList.contains('ativo'), false);
+  assert.equal(s.el('pgflowOrigemSPG').textContent, '');
+});
+
+test('status desconhecido é exibido como texto seguro e ausente não é inventado', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, statusChamado: '<img src=x onerror=alert(1)>' });
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: <img src=x onerror=alert(1)>');
+  assert.equal(s.el('pf-status-spg').querySelectorAll('img').length, 0);
+  s.context.pfResetar();
+  assert.equal(s.el('pf-status-spg').textContent, '');
+  assert.equal(s.el('pf-status-spg').style.display, 'none');
+  s.choose(['Teste'], 'inclusivo'); s.context.avancarParaRevisao();
+  s.reply('obterDadosChamado', { idExcel: 'excel3100', valorF: '3100', dataColeta: '12/11/2026' });
+  assert.equal(s.el('pf-status-spg').style.display, 'none');
+});
+
+test('faltantes mantém status durante a pergunta de origem e preenchimento manual', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, status: 'incompleto', statusChamado: 'ALOCADO',
+    dataDesejada: '', faltantes: ['Data desejada de entrega'] });
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: Alocado');
+  assert.match(s.el('pgflowOrigemSPG').textContent, /fluxo antigo/);
+  s.dispatch(s.button('Não, continuar no SPG'));
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: Alocado');
+  s.el('pgflowOrigemSPG').querySelector('input[type="checkbox"]').checked = true;
+  s.dispatch(s.button('Continuar para revisão'));
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: Alocado');
+  assert.equal(s.el('passo2').classList.contains('ativo'), true);
+});
+
+test('opção explícita pelo legado conserva apenas o status já consultado no SPG', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, status: 'incompleto', statusChamado: 'SOLICITADO',
+    dataDesejada: '', faltantes: ['Data desejada de entrega'] });
+  s.dispatch(s.button('Sim, fluxo antigo'));
+  s.reply('obterDadosChamado', { idExcel: 'excel3100', valorF: '3100', dataColeta: '12/11/2026' });
+  assert.equal(s.el('pf-status-spg').textContent, 'Status do chamado no SPG: Solicitado');
+  assert.equal(s.context.dadosGlobais.origem, 'antigo');
+});
+
+test('troca do chamado e cancelar apagam status, inclusive cancelado, sem aceitar resposta atrasada', () => {
+  const s = makeScreen(); s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG', { ...complete, status: 'cancelado', cancelado: true, statusChamado: 'CANCELADO' });
+  s.el('inputChamado').value = '2961'; s.dispatch('inputChamado', 'input');
+  assert.equal(s.el('pf-status-spg').textContent, '');
+  assert.equal(s.el('pf-status-spg').style.display, 'none');
+  assert.equal(s.context.pfChamadoCancelado, false);
+  s.context.avancarParaRevisao();
+  const late = s.pending('consultarPacoteEmailSPG');
+  s.context.pfResetar();
+  late.done = true; late.success({ ...complete, idChamado: '2961', statusChamado: 'CANCELADO', cancelado: true });
+  assert.equal(s.el('pf-status-spg').textContent, '');
+  assert.equal(s.context.pfChamadoCancelado, false);
+});
 
 test('consulta bloqueia os campos e mantém snapshot do chamado, tipo, versão e gráficas', () => {
   const s = makeScreen(); s.context.avancarParaRevisao();

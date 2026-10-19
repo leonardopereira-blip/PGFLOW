@@ -213,7 +213,7 @@ test('Cancelar limpa identificacao, selecoes, origem, assunto, corpo e volta ao 
   });
   const el=id=>elements[id]||(elements[id]={
     value:'sujo',textContent:'sujo',innerHTML:'',checked:false,disabled:false,
-    style:{display:'block'},classList:classe(),hidden:false,removeAttribute(){},
+    style:{display:'block'},classList:classe(),hidden:false,removeAttribute(){},setAttribute(){},
     querySelectorAll(){return [];}
   });
   const checked=[{checked:true,value:'Grafica A'},{checked:false,value:'Grafica B'}];
@@ -262,7 +262,7 @@ test('Inclusivos ficam no fluxo legado sem tentativa de usar rota de reentradas'
   let legado=0;
   const context={
     document:{
-      getElementById:id=>vals[id]||(vals[id]={value:'',style:{},textContent:''}),
+      getElementById:id=>vals[id]||(vals[id]={value:'',style:{},textContent:'',setAttribute(){}}),
       querySelector:q=>q.includes('tipoEmail')?{value:'inclusivo'}:{value:'ultima'},
       querySelectorAll:q=>q.includes('.pf-email-grafica:checked')?[{value:'Grafica A'}]:[]
     }
@@ -323,6 +323,8 @@ function apiHarness(options={}) {
 test('consulta pacote completo por UUID e le dados da versao vinculada',()=>{
   const h=apiHarness(),p=h.prepare();
   assert.equal(p.status,'ok');assert.equal(p.anexoValido,true);
+  assert.equal(p.statusChamado,'SOLICITADO');assert.equal(p.statusProducao,'PUBLICADA');
+  assert.equal(p.cancelado,false);
   assert.equal(p.dataDesejada,'15/11/2026');assert.equal(p.dataColeta,'12/11/2026');
   assert.equal(p.descricao,'Reentrada 3100 · SPOT · SPE');
   assert.equal(p.op,'OP-26-520-762');assert.equal(p.versaoId,UUID_VERSAO);assert.equal(p.opParcial,true);
@@ -355,12 +357,71 @@ test('recusa metadados de paginacao invalidos e chamado nao encontrado',()=>{
 
 test('recusa detalhes de outro chamado e versao incoerente antes de obter anexo',()=>{
   for(const mutate of [d=>d.detalhe.numero=9999,d=>d.detalhe.id='outro',
-    d=>d.detalhe.versaoId='invalido',d=>d.detalhe.versao.id='outra',d=>d.versao.id='outra',
-    d=>d.detalhe.status='CANCELADO',d=>d.versao.status='CANCELADA']){
+    d=>d.detalhe.versaoId='invalido',d=>d.detalhe.versao.id='outra',d=>d.versao.id='outra']){
     const h=apiHarness({mutate}),p=h.prepare();
     assert.equal(p.status,'incompleto');assert.equal(p.anexoValido,false);
     assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
   }
+});
+
+test('chamado cancelado tem resposta propria antes de consultar producao ou Excel',()=>{
+  for(const status of ['CANCELADO','CANCELADA']){
+    const h=apiHarness({mutate(d){
+      d.detalhe.status=status;d.detalhe.dataDesejadaEntrega=null;
+      d.detalhe.versao.status='CANCELADA';
+    }}),p=h.prepare();
+    assert.equal(p.status,'cancelado');assert.equal(p.cancelado,true);
+    assert.equal(p.statusChamado,status);assert.equal(p.statusProducao,'CANCELADA');
+    assert.equal(p.anexoValido,false);assert.equal(p.faltantes.length,0);
+    assert.match(p.erro,/Este chamado está cancelado/);
+    assert.equal(h.state.network.length,2);
+    assert.equal(h.state.network.some(r=>r.url.includes('/api/tiragem/')||r.url.endsWith('/op')),false);
+    assert.equal(h.state.emails.length,0);
+  }
+});
+
+test('producao cancelada tem alerta proprio sem classificar o chamado como cancelado',()=>{
+  for(const status of ['CANCELADO','CANCELADA']){
+    const h=apiHarness({mutate(d){d.versao.status=status;}}),p=h.prepare();
+    assert.equal(p.status,'cancelado');assert.equal(p.cancelado,true);
+    assert.equal(p.statusChamado,'SOLICITADO');assert.equal(p.statusProducao,status);
+    assert.equal(p.anexoValido,false);assert.equal(p.faltantes.length,0);
+    assert.match(p.erro,/versão de produção deste chamado está cancelada/);
+    assert.doesNotMatch(p.erro,/Este chamado está cancelado/);
+    assert.equal(h.state.network.length,3);
+    assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
+    assert.equal(h.state.emails.length,0);
+  }
+});
+
+test('selecao de versao antiga consulta o status atual sem baixar o Excel atual',()=>{
+  const h=apiHarness(),p=h.c.consultarPacoteEmailSPG('3100','manual','reentrada');
+  assert.equal(p.status,'incompleto');assert.equal(p.cancelado,false);
+  assert.equal(p.statusChamado,'SOLICITADO');assert.equal(p.statusProducao,'PUBLICADA');
+  assert.equal(p.anexoValido,false);assert.match(p.erro,/versao antiga/);
+  assert.equal(h.state.network.length,3);
+  assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
+});
+
+test('selecao de versao antiga nao contorna cancelamento de chamado ou producao',()=>{
+  for(const mutate of [d=>d.detalhe.status='CANCELADO',d=>d.versao.status='CANCELADA']){
+    const h=apiHarness({mutate}),p=h.c.consultarPacoteEmailSPG('3100','manual','reentrada');
+    assert.equal(p.status,'cancelado');assert.equal(p.cancelado,true);
+    assert.equal(p.anexoValido,false);assert.match(p.erro,/cancelad[oa]/);
+    assert.doesNotMatch(p.erro,/fluxo antigo/);
+    assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
+    assert.equal(h.state.emails.length,0);
+  }
+});
+
+test('status confirmado permanece disponivel se outros metadados falharem',()=>{
+  const h=apiHarness({mutate(d){d.detalhe.versaoId='invalido';}}),p=h.prepare();
+  assert.equal(p.status,'incompleto');assert.equal(p.cancelado,false);
+  assert.equal(p.statusChamado,'SOLICITADO');assert.equal(p.statusProducao,'');
+  assert.equal(p.anexoValido,false);
+  const wrong=apiHarness({mutate(d){d.detalhe.id='outro';d.detalhe.status='CANCELADO';}}).prepare();
+  assert.equal(wrong.status,'incompleto');assert.equal(wrong.statusChamado,'');
+  assert.equal(wrong.statusProducao,'');assert.equal(wrong.cancelado,false);
 });
 
 test('nao completa data ou descricao usando campos de produtos aninhados',()=>{
@@ -370,6 +431,8 @@ test('nao completa data ou descricao usando campos de produtos aninhados',()=>{
     d.versao.descricao='';d.versao.items=[{descricao:'Outro SKU'}];
   }}),p=h.prepare();
   assert.equal(p.status,'incompleto');assert.equal(p.anexoValido,true);
+  assert.equal(p.statusChamado,'SOLICITADO');assert.equal(p.statusProducao,'PUBLICADA');
+  assert.equal(p.cancelado,false);
   assert.equal(p.dataDesejada,'');assert.equal(p.descricao,'');assert.equal(p.faltantes.length,2);
   const missing=h.send(p);assert.equal(missing.sucesso,false);assert.equal(h.state.emails.length,0);
   const explicit=h.send(p,{sobrescrita:{omitirData:true,omitirDescricao:true}});
@@ -380,6 +443,8 @@ test('anexo precisa identificar a versao vinculada do chamado',()=>{
   const other=zip(true).map(p=>({getName:p.getName,getDataAsString:()=>p.getDataAsString().replaceAll(UUID_VERSAO,'c1acf191-3f72-4bb5-8aa5-682c15e129e1')}));
   const h=apiHarness({zip:other}),p=h.prepare();
   assert.equal(p.anexoValido,false);assert.match(p.erro,/corresponde.*versão/);
+  assert.equal(p.status,'incompleto');assert.equal(p.statusChamado,'SOLICITADO');
+  assert.equal(p.statusProducao,'PUBLICADA');assert.equal(p.cancelado,false);
 });
 
 test('hash considera textos compartilhados e relacionamentos mas ignora docProps',()=>{
@@ -393,11 +458,21 @@ test('hash considera textos compartilhados e relacionamentos mas ignora docProps
   }
 });
 
-test('alteracao da data ou descricao entre revisao e envio exige nova revisao',()=>{
-  for(const mutate of [d=>d.detalhe.dataDesejadaEntrega='2026-11-16',d=>d.versao.descricao='Nova descricao',d=>d.versao.opParcial=false]){
+test('alteracao de dados ou status entre revisao e envio exige nova revisao',()=>{
+  for(const mutate of [d=>d.detalhe.dataDesejadaEntrega='2026-11-16',d=>d.versao.descricao='Nova descricao',
+    d=>d.versao.opParcial=false,d=>d.detalhe.status='VALIDADO',d=>d.versao.status='APROVADA']){
     const h=apiHarness(),p=h.prepare();mutate(h.data);
     const result=h.send(p);assert.equal(result.sucesso,false);
     assert.match(result.erro,/dados do chamado foram alterados/);assert.equal(h.state.emails.length,0);
+  }
+});
+
+test('cancelamento entre revisao e envio bloqueia Gmail sem baixar outro Excel',()=>{
+  for(const mutate of [d=>d.detalhe.status='CANCELADO',d=>d.versao.status='CANCELADA']){
+    const h=apiHarness(),p=h.prepare();mutate(h.data);h.state.network.length=0;
+    const result=h.send(p);assert.equal(result.sucesso,false);
+    assert.match(result.erro,/cancelad[oa]/);assert.equal(h.state.emails.length,0);
+    assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
   }
 });
 

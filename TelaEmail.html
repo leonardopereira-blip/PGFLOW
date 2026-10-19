@@ -49,6 +49,7 @@
 #pf-email .pf-actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #pf-email .pf-alert {margin-top:12px;color:#a42e31;background:#fff4f3;border:1px solid #ffddda;border-radius:8px;padding:10px 12px;font-size:12px}
 #pf-email .pf-note {background:#f4f7fb;border:1px solid #e0e7f1;border-radius:9px;padding:12px 14px;margin-top:12px;font-size:12px;color:#496078}
+#pf-email .pf-status-spg {margin:0 0 14px}
 #pf-email .pf-progress {padding:10px 0;color:#63758f;font-size:12px}
 #pf-email .pf-anexo {display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f4f8ff;border:1px solid #dce8fa;border-radius:9px;padding:13px 14px;margin-bottom:18px;font-size:13px;flex-wrap:wrap}
 #pf-email .pf-anexo small {display:block;color:#7d8a9a;margin-top:4px;font-size:11px}
@@ -90,6 +91,7 @@
     <span id="pf-ind2">2 · Revisar</span>
     <span id="pf-ind3">3 · Concluído</span>
   </div>
+  <div id="pf-status-spg" class="pf-note pf-status-spg" role="status" aria-live="polite" style="display:none"></div>
 
   <section id="passo1" class="passo ativo pf-panel" aria-label="Selecionar chamado">
     <h3>Dados da solicitação</h3>
@@ -214,6 +216,7 @@ var pfGeracaoTela = 0;
 var pfTokenCadastro = 0;
 var pfSessaoCadastro = 0;
 var pfCadastroConflito = false;
+var pfChamadoCancelado = false;
 
 function pfEl(id) { return document.getElementById(id); }
 function pfErro(mensagem) {
@@ -231,6 +234,35 @@ function pfHtmlNode(tag, cls, txt) {
   if (cls) el.className = cls;
   if (txt !== undefined) el.textContent = txt;
   return el;
+}
+function pfNomeStatusSPG(status) {
+  var valor = String(status || '').trim();
+  var nomes = {solicitado:'Solicitado',liberado:'Liberado',alocado:'Alocado',validado:'Validado',
+    produzido:'Produzido',concluido:'Concluído',cancelado:'Cancelado',cancelada:'Cancelada'};
+  var chave = valor.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return nomes[chave] || valor;
+}
+function pfStatusCanceladoSPG(status) {
+  return /^cancelad[oa]$/i.test(String(status || '').trim());
+}
+function pfMostrarStatusSPG(resp) {
+  var box = pfEl('pf-status-spg');
+  var chamado = pfNomeStatusSPG(resp && resp.statusChamado);
+  var producao = pfNomeStatusSPG(resp && resp.statusProducao);
+  pfChamadoCancelado = !!(resp && (resp.cancelado || resp.status === 'cancelado')) ||
+    pfStatusCanceladoSPG(chamado) || pfStatusCanceladoSPG(producao);
+  box.textContent = '';
+  box.className = (pfChamadoCancelado ? 'pf-alert' : 'pf-note') + ' pf-status-spg';
+  box.setAttribute('role',pfChamadoCancelado ? 'alert' : 'status');
+  box.style.display = chamado || pfChamadoCancelado ? 'block' : 'none';
+  if (chamado) box.appendChild(pfHtmlNode('strong','','Status do chamado no SPG: ' + chamado));
+  if (pfChamadoCancelado) {
+    if (pfStatusCanceladoSPG(producao) && !pfStatusCanceladoSPG(chamado)) {
+      box.appendChild(pfHtmlNode('p','','Status da produção no SPG: Cancelada'));
+    }
+    box.appendChild(pfHtmlNode('p','',(resp && resp.erro) ||
+      'Cancelamento identificado no SPG. O envio de formalização está indisponível para este chamado.'));
+  }
 }
 function pfClone(data) { return JSON.parse(JSON.stringify(data || {})); }
 function pfNormalizarGrafica(nome) {
@@ -307,6 +339,7 @@ function pfInvalidarConsulta() {
   pfGruposSelecionados = [];
   dadosGlobais = {};
   pfUltimaOrigem = '';
+  pfMostrarStatusSPG(null);
   pfVoltarBusca();
   pfErro('');
 }
@@ -429,7 +462,7 @@ function pfDestinatariosGrupos() {
   return grupos;
 }
 function pfPrepararRevisao(tipoFonte,resp,manual,consulta) {
-  if (!pfConsultaVigente(consulta)) return;
+  if (!pfConsultaVigente(consulta) || pfChamadoCancelado) return;
   var id = consulta.id;
   if (resp.idChamado && String(resp.idChamado) !== id) {
     pfErro('O chamado retornado não corresponde ao solicitado. Consulte novamente antes de enviar.');
@@ -552,7 +585,7 @@ function avancarParaRevisao() {
   var id=pfEl('inputChamado').value.trim();
   var versao=document.querySelector('input[name="pfEmailVersao"]:checked').value;
   var numero=pfEl('inputNumVersao').value.trim();
-  pfErro('');pfVoltarBusca();
+  pfErro('');pfVoltarBusca();pfMostrarStatusSPG(null);
   if (!/^\d{1,12}$/.test(id)) {pfErro('Informe um número de chamado válido.');return;}
   if (versao==='manual' && (!/^\d+$/.test(numero) || Number(numero)<1)) {
     pfErro('Informe um número de versão válido.');return;
@@ -572,6 +605,15 @@ function avancarParaRevisao() {
   google.script.run.withSuccessHandler(function(resp) {
     if(!pfConsultaVigente(consulta))return;
     pfBloquearBusca(false);
+    if(resp && resp.idChamado && String(resp.idChamado) !== consulta.id) {
+      pfErro('O chamado retornado não corresponde ao solicitado. Consulte novamente antes de enviar.');
+      return;
+    }
+    pfMostrarStatusSPG(resp);
+    if(pfChamadoCancelado) {
+      dadosGlobais={};pfGruposSelecionados=[];pfMostrarPasso(1);
+      return;
+    }
     if(resp && resp.status==='ok' && resp.anexoValido) pfPrepararRevisao('spg',resp,{},consulta);
     else pfPerguntarOrigem(resp||{erro:'Resposta vazia do SPG.',anexoValido:false},consulta);
   }).withFailureHandler(function(erro) {
@@ -582,6 +624,7 @@ function avancarParaRevisao() {
 }
 function enviarEmail() {
   if (pfEnviando) return;
+  if (pfChamadoCancelado) {alert('Cancelamento identificado no SPG. Não é possível enviar a formalização.');return;}
   var grupos=pfDestinatariosGrupos();
   if (!grupos.length) {alert('Marque ao menos um destinatário antes de enviar.');return;}
   var assunto=pfEl('assuntoEmail').value.trim();

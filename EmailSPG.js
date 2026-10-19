@@ -321,36 +321,63 @@ function _emailSpgResolverId_(numero, token) {
   return ids[0];
 }
 
-function _emailSpgPacote_(idChamado) {
-  var numero = _emailSpgId_(idChamado), token = _spgLogin_();
-  if (!token) throw new Error('Autenticacao do SPG indisponivel.');
-  var id = _emailSpgResolverId_(numero, token);
-  var detalhe = _emailSpgLerJson_('/api/reentradas/' + id, token).reentrada;
-  if (!detalhe || detalhe.id !== id || String(detalhe.numero) !== numero) {
-    throw new Error('Nao foi possivel confirmar a identificacao do chamado no SPG.');
+function _emailSpgStatus_(valor) {
+  return typeof valor === 'string' ? valor.trim() : '';
+}
+
+function _emailSpgCancelado_(status) {
+  return /^CANCELAD[OA]$/.test(_emailSpgStatus_(status).toUpperCase());
+}
+
+function _emailSpgPacote_(idChamado, apenasMetadados) {
+  var statusChamado = '', statusProducao = '';
+  try {
+    var numero = _emailSpgId_(idChamado), token = _spgLogin_();
+    if (!token) throw new Error('Autenticacao do SPG indisponivel.');
+    var id = _emailSpgResolverId_(numero, token);
+    var detalhe = _emailSpgLerJson_('/api/reentradas/' + id, token).reentrada;
+    if (!detalhe || detalhe.id !== id || String(detalhe.numero) !== numero) {
+      throw new Error('Nao foi possivel confirmar a identificacao do chamado no SPG.');
+    }
+    statusChamado = _emailSpgStatus_(detalhe.status);
+    if (detalhe.versao && detalhe.versao.id === detalhe.versaoId) {
+      statusProducao = _emailSpgStatus_(detalhe.versao.status);
+    }
+    if (_emailSpgCancelado_(statusChamado)) throw new Error('Este chamado está cancelado no SPG. O envio de formalização está bloqueado.');
+    var versaoId = _emailSpgUuid_(detalhe.versaoId);
+    if (!detalhe.versao || detalhe.versao.id !== versaoId) {
+      throw new Error('A versao de producao do chamado esta incompleta ou inconsistente no SPG.');
+    }
+    var versao = _emailSpgLerJson_('/api/tiragem/' + versaoId, token).versao;
+    if (!versao || versao.id !== versaoId) throw new Error('Nao foi possivel confirmar a versao da producao no SPG.');
+    statusProducao = _emailSpgStatus_(versao.status);
+    if (_emailSpgCancelado_(statusProducao)) {
+      throw new Error('A versão de produção deste chamado está cancelada no SPG. O envio de formalização está bloqueado.');
+    }
+    // Mesmo a escolha de historico precisa confirmar a situacao atual no SPG.
+    // O Excel atual nao e necessario quando o usuario pediu uma versao antiga.
+    if (apenasMetadados) return {id: numero, statusChamado: statusChamado, statusProducao: statusProducao};
+    var respostaOp = _emailSpgApi_('/api/reentradas/' + id + '/op', token);
+    var blob = _emailSpgBlobDeResposta_(respostaOp, numero, versaoId);
+    // Le somente os campos do chamado e da versao confirmada, nunca de seus SKUs.
+    var data = _emailSpgData_(detalhe.dataDesejadaEntrega);
+    var descricao = String(versao.descricao || '').trim();
+    var op = String(versao.opCode || '').trim();
+    var opParcial = versao.opParcial === true;
+    // O mesmo marcador protege o anexo, os dados e a situacao mostrada na revisao.
+    var hash = _emailSpgHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+      JSON.stringify([id, numero, versaoId, data, descricao, op, opParcial,
+        statusChamado, statusProducao, _emailSpgHash_(blob)])));
+    return {id: numero, idSpg: id, versaoId: versaoId, dataDesejada: data,
+      descricao: descricao, op: op, opParcial: opParcial, hash: hash, blob: blob,
+      statusChamado: statusChamado, statusProducao: statusProducao};
+  } catch (e) {
+    // Preserva os status confirmados mesmo se outro dado ou o Excel estiver incompleto.
+    e.statusChamado = statusChamado;
+    e.statusProducao = statusProducao;
+    e.cancelado = _emailSpgCancelado_(statusChamado) || _emailSpgCancelado_(statusProducao);
+    throw e;
   }
-  if (detalhe.status === 'CANCELADO') throw new Error('Este chamado esta cancelado no SPG.');
-  var versaoId = _emailSpgUuid_(detalhe.versaoId);
-  if (!detalhe.versao || detalhe.versao.id !== versaoId) {
-    throw new Error('A versao de producao do chamado esta incompleta ou inconsistente no SPG.');
-  }
-  var versao = _emailSpgLerJson_('/api/tiragem/' + versaoId, token).versao;
-  if (!versao || versao.id !== versaoId) throw new Error('Nao foi possivel confirmar a versao da producao no SPG.');
-  if (versao.status === 'CANCELADO' || versao.status === 'CANCELADA') {
-    throw new Error('A versao de producao esta cancelada no SPG.');
-  }
-  var respostaOp = _emailSpgApi_('/api/reentradas/' + id + '/op', token);
-  var blob = _emailSpgBlobDeResposta_(respostaOp, numero, versaoId);
-  // Le somente os campos do chamado e da versao confirmada, nunca de seus SKUs.
-  var data = _emailSpgData_(detalhe.dataDesejadaEntrega);
-  var descricao = String(versao.descricao || '').trim();
-  var op = String(versao.opCode || '').trim();
-  var opParcial = versao.opParcial === true;
-  // O mesmo marcador protege o anexo e os dados usados ao montar a revisao.
-  var hash = _emailSpgHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
-    JSON.stringify([id, numero, versaoId, data, descricao, op, opParcial, _emailSpgHash_(blob)])));
-  return {id: numero, idSpg: id, versaoId: versaoId, dataDesejada: data,
-    descricao: descricao, op: op, opParcial: opParcial, hash: hash, blob: blob};
 }
 
 function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
@@ -367,22 +394,25 @@ function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
   var id;
   try {
     id = _emailSpgId_(idChamado);
+    var p = _emailSpgPacote_(id, opcaoVersao === 'manual');
     // Historico por versao somente quando o SPG expuser selecao inequívoca.
     if (opcaoVersao === 'manual') return {
-      status: 'incompleto', anexoValido: false,
+      status: 'incompleto', idChamado: p.id, anexoValido: false,
+      statusChamado: p.statusChamado, statusProducao: p.statusProducao, cancelado: false,
       erro: 'O SPG fornece a PPG atual. Para selecionar uma versao antiga, utilize o fluxo antigo.'
     };
-    var p = _emailSpgPacote_(id);
     var faltantes = [];
     if (!p.dataDesejada) faltantes.push('Data desejada de entrega');
     if (!p.descricao) faltantes.push('Descricao da producao');
     return {status: faltantes.length ? 'incompleto' : 'ok',
       idChamado: p.id, anexoValido: true, anexoHash: p.hash,
+      statusChamado: p.statusChamado, statusProducao: p.statusProducao, cancelado: false,
       dataDesejada: p.dataDesejada, dataColeta: _emailSpgColeta_(p.dataDesejada),
       descricao: p.descricao, op: p.op, opParcial: p.opParcial, versaoId: p.versaoId, faltantes: faltantes};
   } catch (e) {
-    return {status: 'incompleto', idChamado: id || '',
-      anexoValido: false, erro: e.message, faltantes: []};
+    return {status: e.cancelado ? 'cancelado' : 'incompleto', idChamado: id || '',
+      statusChamado: e.statusChamado || '', statusProducao: e.statusProducao || '',
+      cancelado: e.cancelado === true, anexoValido: false, erro: e.message, faltantes: []};
   }
 }
 

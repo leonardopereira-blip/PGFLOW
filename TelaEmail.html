@@ -399,16 +399,23 @@ function pfColeta(data) {
   else if (d.getDay()===0) d.setDate(d.getDate()-3);
   return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
 }
+function pfSaudacao(data) {
+  var hora = Number(new Intl.DateTimeFormat('pt-BR', {
+    timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23'
+  }).format(data || new Date()));
+  return hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+}
 function pfTextoEmail(tipo,coleta) {
+  var saudacao = pfSaudacao();
   if (tipo === 'inclusivo') {
-    return 'Boa tarde,\nEspero encontrá-lo bem!\n\n' +
+    return saudacao + ',\nEspero encontrá-lo bem!\n\n' +
       'Segue consulta da necessidade de produção de ampliado, se é viável o atendimento no prazo a seguir, com a respectiva PPG em anexo.\n\n' +
       'A formalização da produção ocorrerá após o retorno dos prazos pela gráfica.\n' +
       'Considerar o prazo para envio dos arquivos até 03 dias após a formalização da produção (exceto SAS que os links estão na aba de especificações).\n\n' +
       (coleta ? '1. Data da coleta desejada: ' + coleta + '\n\n' : '') +
       'Fico no aguardo.\nObrigado,\n\nJoão Alberti';
   }
-  return 'Bom dia,\n\n' +
+  return saudacao + ',\n\n' +
     'Por gentileza, podem analisar a produção em anexo e nos retornar se conseguem atender as datas desejadas de entrega no CD/acabadora e se não, qual a melhor data de atendimento?\n\n' +
     'Peço retorno das seguintes datas prévias para que a data de coleta desejada ocorra:\n' +
     '1. Data de envio de arquivo\n2. Data de envio dos bonecos\n3. Data de aprove dos bonecos\n' +

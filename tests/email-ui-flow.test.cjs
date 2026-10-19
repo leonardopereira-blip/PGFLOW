@@ -138,6 +138,20 @@ const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
   anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
   statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
 
+test('saudacao respeita meia-noite, meio-dia e 18h no horario de Brasilia', () => {
+  const s=makeScreen();
+  for (const [hora,esperada] of [['00:00:00','Bom dia'],['11:59:59','Bom dia'],
+    ['12:00:00','Boa tarde'],['17:59:59','Boa tarde'],['18:00:00','Boa noite'],['23:59:59','Boa noite']]) {
+    assert.equal(s.context.pfSaudacao(new Date('2026-10-19T'+hora+'-03:00')),esperada,hora);
+  }
+  for (const esperada of ['Bom dia','Boa tarde','Boa noite']) {
+    s.context.pfSaudacao=()=>esperada;
+    for (const tipo of ['reentrada','inclusivo']) {
+      assert.ok(s.context.pfTextoEmail(tipo,'12/11/2026').startsWith(esperada+',\n'));
+    }
+  }
+});
+
 test('tabela fixa de dez graficas e 64 emails aparece mesmo sem cadastro injetado', () => {
   const s=makeScreen(null);
   assert.equal(s.requests.length,0);

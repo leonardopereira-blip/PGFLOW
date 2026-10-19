@@ -214,7 +214,7 @@
   ];
   var ICONES_ACAB = {RELEVO:"🔲","UV LOCALIZADO":"✨","HOT STAMPING":"🥇",ORELHA:"📑","CORTE / VINCO":"✂️",SERRILHA:"〰️",SHRINK:"📦",MALETA:"🧳"};
   var cacheChamadosValidos = [];
-  setTimeout(function(){ google.script.run.withSuccessHandler(preencherPastasGraficasApp).obterPastasGraficas(); }, 100);
+  setTimeout(function(){ google.script.run.withSuccessHandler(preencherPastasGraficasApp).listarPastasGraficasReentradasSPG(); }, 100);
   function preencherPastasGraficasApp(dados){
     var s = document.getElementById('selectGraficas'); s.innerHTML='';
     if(!dados || dados.length===0){ s.innerHTML='<option value="">Crie a aba "Graficas_Lista" no log</option>'; return; }
@@ -285,7 +285,7 @@
       document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
       document.getElementById('conteudoResumoLoader').innerHTML = '<span style="color:#b5341f">Erro ao processar dados na PPG.</span>';
       document.getElementById('botoesResumo').style.display = 'flex';
-    }).buscarResumoChamados(chamados);
+    }).buscarResumoReentradasSPG(chamados);
   }
   function cancelarResumo() {
     document.getElementById('painelResumo').classList.remove('active');
@@ -307,7 +307,7 @@
     var c=document.getElementById('txtChamados').value;
     document.getElementById('btnAvancar').disabled=true;
     setMsg('mensagemFase1','<span class="vc-loader"></span> Validando chamados...', '#333');
-    google.script.run.withSuccessHandler(processarResultadoFase1App).withFailureHandler(mostrarErroCustos).validarFase1Multiplos(g,c);
+    google.script.run.withSuccessHandler(processarResultadoFase1App).withFailureHandler(mostrarErroCustos).validarReentradasSPG(g,c);
   }
   function processarResultadoFase1App(res){
     if(res.erro){ setMsg('mensagemFase1', res.erro, '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
@@ -452,6 +452,11 @@
         html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:0 8px 8px; border-bottom:1px solid #eef1f5; color:#6b7684; font-size:11px;">' +
           escHtml(r.arquivo) + '</td></tr>';
       }
+      if (r.depara && r.calculadora && /^https:\/\/drive.google.com\//.test(r.depara) && /^https:\/\/drive.google.com\//.test(r.calculadora)) {
+        html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:8px;">' +
+          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.depara) + '">Abrir De-Para</a> · ' +
+          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.calculadora) + '">Abrir calculadora Logprint</a></td></tr>';
+      }
     });
 
     el.innerHTML = html + '</tbody></table></div>';
@@ -573,21 +578,25 @@
         _jobs = res.jobs || [];
         _hashLote = res.hashLote || _hashLote;
         _resumo = res.resumo || [];
+        if (res.arquivos) {
+          avancarStep(2);
+          avancarStep(3);
+          avancarStep(4);
+          if (res.avisos && res.avisos.length) {
+            var e = document.getElementById('erroFase3');
+            if (e) { e.textContent = 'Avisos: ' + res.avisos.join(' | '); e.style.display = 'block'; }
+          }
+          return;
+        }
         avancarStep(2);
         pollStatus();
     }).withFailureHandler(function(err) {
         var msgErro = String((err && err.message) || err);
 
-        // SE O NAVEGADOR DER TIMEOUT/HTTP 0, IGNORAMOS E VAMOS PROCURAR O EMAIL MESMO ASSIM!
-        if (msgErro.indexOf("HTTP 0") !== -1 || msgErro.indexOf("NetworkError") !== -1 || msgErro.indexOf("conexão") !== -1) {
-          console.warn("Conexão com o servidor expirou, mas o backend continua rodando. Iniciando busca pelo email...");
-          avancarStep(2);
-          pollStatus();
-        } else {
-          mostrarErroCustos(msgErro);
-        }
+        // O fluxo nativo nao utiliza email/fila; nao tentar consultar a esteira legada.
+        mostrarErroCustos(msgErro);
     })
-      .finalizarProcessamentoLoteDepara(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI, _hashLote);
+      .gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, opVersao, vManuais, respostas, fornecimentoUI);
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }

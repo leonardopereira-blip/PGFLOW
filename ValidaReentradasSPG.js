@@ -314,13 +314,49 @@ function listarPastasGraficasReentradasSPG(){
   // Disponibilidade de modelos: por ora somente Logprint homologada.
   return [{nome:'Logprint',id:'LOGPRINT'}];
 }
+function _reSpValoresResumo_(dados,campos) {
+  var unicos={},valores=[];
+  dados.linhas.forEach(function(linha){
+    campos.forEach(function(campo){
+      var valor=_reSpBuscar_(linha,dados.headers,campo);
+      if(valor===null||valor===undefined)return;
+      valor=String(valor).trim();
+      if(!valor||valor==='-'||/^(N\/A|NÃO INFORMADO|NAO INFORMADO)$/i.test(valor))return;
+      var chave=_reSpNormal_(valor);
+      if(!chave||unicos[chave])return;
+      unicos[chave]=true;
+      valores.push(valor);
+    });
+  });
+  return valores.join(', ');
+}
 function buscarResumoReentradasSPG(chamados){
   return String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean).map(function(id){
-    try{var p=_reSpPrepararDados_(id,'LOGPRINT');
-      var skus={};p.espec.linhas.forEach(function(r){var s=_reSpBuscar_(r,p.espec.headers,'1. ID_Código SKU');if(s)skus[s]=1;});
-      var total=0,cds={};p.tiragem.linhas.forEach(function(r){total+=_reSpQuant_(_reSpBuscar_(r,p.tiragem.headers,'16. TIR_SKU'));var cd=_reSpBuscar_(r,p.tiragem.headers,'15. DES_CD envio');if(cd)cds[cd]=1;});
-      return {chamado:id,totalSkus:Object.keys(skus).length,tiragemTotal:total,cdsDestino:Object.keys(cds).join(', '),marcas:'',series:'',papeisCapa:'',papeisMiolo:''};
-    }catch(err){return {chamado:id,erro:err.message,totalSkus:0,tiragemTotal:0,marcas:'',series:'',papeisCapa:'',papeisMiolo:'',cdsDestino:''};}
+    try{
+      var p=_reSpPrepararDados_(id,'LOGPRINT');
+      var skus={};
+      p.espec.linhas.forEach(function(r){
+        var sku=_reSpBuscar_(r,p.espec.headers,'1. ID_Código SKU');
+        if(sku)skus[sku]=true;
+      });
+      var total=0;
+      p.tiragem.linhas.forEach(function(r){
+        total+=_reSpQuant_(_reSpBuscar_(r,p.tiragem.headers,'16. TIR_SKU'));
+      });
+      return {
+        chamado:id,
+        totalSkus:Object.keys(skus).length,
+        tiragemTotal:total,
+        marcas:_reSpValoresResumo_(p.espec,['2. INF_Marca']),
+        series:_reSpValoresResumo_(p.espec,['2. INF_Série']),
+        papeisCapa:_reSpValoresResumo_(p.espec,['4. CAP_Papel da capa']),
+        papeisMiolo:_reSpValoresResumo_(p.espec,['5. MIO_PRIN_Papel']),
+        cdsDestino:_reSpValoresResumo_(p.tiragem,['15. DES_CD envio'])
+      };
+    }catch(err){
+      return {chamado:id,erro:err.message,totalSkus:0,tiragemTotal:0,
+        marcas:'',series:'',papeisCapa:'',papeisMiolo:'',cdsDestino:''};
+    }
   });
 }
 function validarReentradasSPG(grafica,chamados) {

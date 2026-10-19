@@ -48,6 +48,13 @@ test('destinatarios duplicados nao causam multiplos envios', () => {
   assert.equal(ctx._emailSpgDestinos_(['a@example.com, A@EXAMPLE.COM','b@example.com']).length,2);
   assert.throws(()=>ctx._emailSpgDestinos_(['invalido']));
 });
+
+test('nunca usa descricao de um SKU como descricao do chamado', () => {
+  assert.equal(ctx._emailSpgDescricao_({items:[{descricao:'SKU indevido'}]}),'');
+  assert.equal(ctx._emailSpgDescricao_({solicitacao:{descricao:'Produção correta'}}),
+    'Produção correta');
+});
+
 function zip(terceiraValida) {
   const xml = valido => '<worksheet><sheetData><row r="1"><c><t>header</t></c></row>' +
     (valido?'<row r="2"><c><v>3</v></c></row>':'<row r="2"><c><v></v></c></row>') +

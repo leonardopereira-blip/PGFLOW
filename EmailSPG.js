@@ -41,6 +41,30 @@ function _emailSpgCampo_(origem, nomes) {
   return '';
 }
 
+
+function _emailSpgDescricao_(json) {
+  // Nunca escolher a descricao de um SKU apenas por existir em "items".
+  var principal = _emailSpgCampo_(json, [
+    'indexadorTiragem', 'indexador', 'descricaoProducao',
+    'descricaoOP', 'descricaoChamado', 'op']);
+  if (principal) return principal;
+  var possiveis = [json, json && json.chamado, json && json.solicitacao,
+    json && json.data, json && json.reentrada, json && json.dados];
+  for (var i = 0; i < possiveis.length; i++) {
+    var objeto = possiveis[i];
+    if (!objeto || typeof objeto !== 'object' || Array.isArray(objeto)) continue;
+    var chaves = Object.keys(objeto);
+    for (var j = 0; j < chaves.length; j++) {
+      if (_emailSpgNormalizar_(chaves[j]) !== 'descricao') continue;
+      var valor = objeto[chaves[j]];
+      if (valor != null && typeof valor !== 'object' && String(valor).trim()) {
+        return String(valor).trim();
+      }
+    }
+  }
+  return '';
+}
+
 function _emailSpgApi_(path, token) {
   var resposta = UrlFetchApp.fetch(EMAIL_SPG_BASE + path, {
     method: 'get',
@@ -203,9 +227,7 @@ function _emailSpgPacote_(idChamado) {
   var data = json ? _emailSpgCampo_(json, [
     'dataDesejada', 'dataDesejadaEntrega', 'dataDesejadaDeEntrega',
     'dataEntregaDesejada', 'dataDesejadaCD']) : '';
-  var descricao = json ? _emailSpgCampo_(json, [
-    'indexadorTiragem', 'indexador', 'descricaoProducao', 'descricaoOP',
-    'descricaoChamado', 'descricao', 'op']) : '';
+  var descricao = json ? _emailSpgDescricao_(json) : '';
   return {
     id: id, dataDesejada: _emailSpgData_(data), descricao: descricao,
     hash: _emailSpgHash_(blob), blob: blob

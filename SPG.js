@@ -850,8 +850,15 @@ function _gravarAba(ss, nomeAba, dadosMatriz) {
 }
 
 function _boolPT(val) {
-  if (val === 'true') return 'Sim';
-  if (val === 'false') return 'Não';
+  // A API pode devolver booleano real ou texto (inclusive com caixa variavel).
+  // Preservar numeros e campos nao booleanos: apenas true/false viram Sim/Nao.
+  if (val === true) return 'Sim';
+  if (val === false) return 'Não';
+  if (typeof val === 'string') {
+    var normal = val.trim().toLowerCase();
+    if (normal === 'true') return 'Sim';
+    if (normal === 'false') return 'Não';
+  }
   return val;
 }
 

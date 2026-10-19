@@ -330,6 +330,45 @@ function _emailSpgCancelado_(status) {
   return /^CANCELAD[OA]$/.test(_emailSpgStatus_(status).toUpperCase());
 }
 
+function identificarTipoEmailSPG(idChamado) {
+  var numero = String(idChamado == null ? '' : idChamado).trim();
+  try {
+    numero = _emailSpgId_(numero);
+    var token = _spgLogin_();
+    if (!token) throw new Error('Autenticacao do SPG indisponivel.');
+    var id = _emailSpgResolverId_(numero, token);
+    var detalhe = _emailSpgLerJson_('/api/reentradas/' + id, token).reentrada;
+    if (!detalhe || detalhe.id !== id || String(detalhe.numero) !== numero) {
+      throw new Error('Nao foi possivel confirmar a identificacao do chamado no SPG.');
+    }
+    // A selecao usa apenas o tipo e a justificativa do chamado confirmado.
+    // Dados de produtos, descricao da producao e anexo nao identificam o modelo.
+    var tipoSolicitacao = _emailSpgStatus_(detalhe.tipoSolicitacao);
+    var tipoNormalizado = _emailSpgNormalizar_(tipoSolicitacao);
+    var justificativa = _emailSpgStatus_(detalhe.justificativa).normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    var tipoEmail = '';
+    if (tipoNormalizado === 'reentrada') tipoEmail = 'reentrada';
+    else if (tipoNormalizado === 'inclusivos' ||
+        (tipoNormalizado === 'spot' && /(^|[^a-z0-9])ampliad[oa]s?($|[^a-z0-9])/.test(justificativa))) {
+      tipoEmail = 'inclusivo';
+    }
+    var statusChamado = _emailSpgStatus_(detalhe.status);
+    var statusProducao = '';
+    var versaoId = String(detalhe.versaoId || '');
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(versaoId) &&
+        detalhe.versao && detalhe.versao.id === versaoId) {
+      statusProducao = _emailSpgStatus_(detalhe.versao.status);
+    }
+    return {encontrado: true, idChamado: numero, tipoEmail: tipoEmail,
+      tipoSolicitacao: tipoSolicitacao, statusChamado: statusChamado,
+      statusProducao: statusProducao,
+      cancelado: _emailSpgCancelado_(statusChamado) || _emailSpgCancelado_(statusProducao)};
+  } catch (e) {
+    return {encontrado: false, idChamado: numero, erro: String(e.message || e)};
+  }
+}
+
 function _emailSpgPacote_(idChamado, apenasMetadados) {
   var statusChamado = '', statusProducao = '';
   try {

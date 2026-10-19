@@ -98,13 +98,13 @@
     <div class="pf-grid">
       <div class="pf-field">
         <label class="pf-label" for="inputChamado">Número do chamado</label>
-        <input id="inputChamado" type="text" inputmode="numeric" maxlength="12" placeholder="Ex.: 3100" autocomplete="off" oninput="pfInvalidarConsulta()">
+        <input id="inputChamado" type="text" inputmode="numeric" maxlength="12" placeholder="Ex.: 3100" autocomplete="off" oninput="pfAoDigitarChamado()">
       </div>
       <div class="pf-field">
         <span class="pf-label">Tipo de formalização</span>
         <div class="pf-choices">
-          <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfAtualizarInfoTipo();pfInvalidarConsulta()"> Reentradas</label>
-          <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfAtualizarInfoTipo();pfInvalidarConsulta()"> Inclusivos (ampliados)</label>
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfEscolherTipoManual()"> Reentradas</label>
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfEscolherTipoManual()"> Inclusivos (ampliados)</label>
         </div>
         <p id="pf-dica-tipo" class="pf-help" style="display:none">Inclusivos: o anexo continua vindo do fluxo antigo até a rota específica do SPG ser validada.</p>
       </div>
@@ -224,6 +224,7 @@ var pfTokenCadastro = 0;
 var pfSessaoCadastro = 0;
 var pfCadastroConflito = false;
 var pfChamadoCancelado = false;
+var pfTimerTipo = null, pfTokenTipo = 0, pfTipoPendente = false, pfStatusTipo = null;
 
 function pfEl(id) { return document.getElementById(id); }
 function pfErro(mensagem) {
@@ -285,8 +286,42 @@ function pfMostrarPasso(n) {
   }
 }
 function pfAtualizarInfoTipo() {
+  var selecionado = document.querySelector('input[name="tipoEmail"]:checked');
   pfEl('pf-dica-tipo').style.display =
-    document.querySelector('input[name="tipoEmail"]:checked').value === 'inclusivo' ? 'block' : 'none';
+    selecionado && selecionado.value === 'inclusivo' ? 'block' : 'none';
+}
+function pfCancelarIdentificacaoTipo() {
+  pfTokenTipo++;
+  if (pfTimerTipo !== null) clearTimeout(pfTimerTipo);
+  pfTimerTipo = null; pfTipoPendente = false;
+  pfEl('pf-avancar').disabled = pfCarregando || pfEnviando;
+}
+function pfEscolherTipoManual() {
+  pfCancelarIdentificacaoTipo(); pfAtualizarInfoTipo(); pfInvalidarConsulta();
+}
+function pfAoDigitarChamado() {
+  pfCancelarIdentificacaoTipo(); pfStatusTipo = null; pfInvalidarConsulta();
+  Array.prototype.forEach.call(document.querySelectorAll('#pf-email input[name="tipoEmail"]'),function(el){el.checked=false;});
+  pfAtualizarInfoTipo();
+  var id = pfEl('inputChamado').value.trim(), ticket = pfTokenTipo;
+  if (!/^\d{1,12}$/.test(id) || Number(id) < 1) return;
+  pfTipoPendente = true; pfEl('pf-avancar').disabled = true;
+  function concluir(resp) {
+    if (ticket !== pfTokenTipo || pfEl('inputChamado').value.trim() !== id) return;
+    pfTipoPendente = false; pfEl('pf-avancar').disabled = pfCarregando || pfEnviando;
+    if (resp && resp.encontrado && String(resp.idChamado) === id) {
+      pfStatusTipo = resp;
+      if (resp.tipoEmail === 'inclusivo' || resp.tipoEmail === 'reentrada') {
+        document.querySelector('input[name="tipoEmail"][value="'+resp.tipoEmail+'"]').checked = true;
+        pfAtualizarInfoTipo();
+      } else pfErro('Tipo no SPG: '+(resp.tipoSolicitacao || 'não identificado')+'. Selecione o tipo de formalização.');
+      pfMostrarStatusSPG(resp);
+    } else pfErro('Não foi possível identificar o tipo automaticamente. Selecione o tipo de formalização.');
+  }
+  pfTimerTipo = setTimeout(function() {
+    pfTimerTipo = null;
+    google.script.run.withSuccessHandler(concluir).withFailureHandler(function(){concluir(null);}).identificarTipoEmailSPG(id);
+  },450);
 }
 function alternarCampoVersao() {
   pfEl('pfEmailBlocoVersoesManuais').style.display =
@@ -327,7 +362,7 @@ function pfSelecionadas() {
 }
 function pfBloquearBusca(ativo) {
   pfCarregando = ativo;
-  pfEl('pf-avancar').disabled = ativo;
+  pfEl('pf-avancar').disabled = ativo || pfTipoPendente;
   pfEl('loader1').style.display = ativo ? 'block' : 'none';
   Array.prototype.forEach.call(document.querySelectorAll('#pf-email #passo1 input'),function(el){el.disabled=ativo;});
 }
@@ -347,6 +382,7 @@ function pfConsultaVigente(consulta) {
 }
 function pfResetar() {
   if (pfEnviando) { alert('O envio já está em andamento. Aguarde a confirmação antes de iniciar outro.'); return; }
+  pfCancelarIdentificacaoTipo(); pfStatusTipo = null;
   pfGeracaoTela++;
   pfInvalidarConsulta();
   pfFecharCadastro(true);
@@ -587,8 +623,11 @@ function pfCamposPendentes(resp,consulta) {
   box.appendChild(acoes);
 }
 function avancarParaRevisao() {
-  if (pfCarregando || pfEnviando) return;
+  if (pfCarregando || pfEnviando || pfTipoPendente) return;
   var id=pfEl('inputChamado').value.trim();
+  if (pfStatusTipo && pfStatusTipo.idChamado === id && pfStatusTipo.cancelado) {pfMostrarStatusSPG(pfStatusTipo);return;}
+  var tipoSelecionado=document.querySelector('input[name="tipoEmail"]:checked');
+  if (!tipoSelecionado) {pfErro('Selecione o tipo de formalização.');return;}
   var versao=document.querySelector('input[name="pfEmailVersao"]:checked').value;
   var numero=pfEl('inputNumVersao').value.trim();
   pfErro('');pfVoltarBusca();pfMostrarStatusSPG(null);
@@ -599,7 +638,7 @@ function avancarParaRevisao() {
   var grupos=pfSelecionadas();
   if (!grupos.length) {pfErro('Selecione ao menos uma gráfica.');return;}
   if (!pfVersaoCadastro) {pfErro('Cadastro de destinatários ainda não carregado.');return;}
-  pfTipoAtual=document.querySelector('input[name="tipoEmail"]:checked').value;
+  pfTipoAtual=tipoSelecionado.value;
   var consulta=Object.freeze({ticket:++pfTokenBusca,id:id,tipo:pfTipoAtual,
     versao:versao,numero:numero,graficas:Object.freeze(grupos.slice())});
   pfConsultaAtual=consulta;

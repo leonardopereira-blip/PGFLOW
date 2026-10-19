@@ -390,6 +390,137 @@ function apiHarness(options={}) {
   return {c,state,data,prepare,send};
 }
 
+test('identifica o SPOT de ampliados pelos metadados do chamado sem obter producao ou Excel',()=>{
+  const h=apiHarness({mutate(d){
+    d.detalhe.tipoSolicitacao='SPOT';d.detalhe.justificativa='Tiragem V1 Ampliados';
+    d.detalhe.versao.status='PUBLICADA';
+  }});
+  let logins=0;
+  h.c._spgLogin_=()=>{logins++;return 'token';};
+  h.c.Utilities.unzip=()=>{throw new Error('nao deve ler Excel');};
+  const result=h.c.identificarTipoEmailSPG(' 3100 ');
+  assert.deepEqual(JSON.parse(JSON.stringify(result)),{
+    encontrado:true,idChamado:'3100',tipoEmail:'inclusivo',tipoSolicitacao:'SPOT',
+    statusChamado:'SOLICITADO',statusProducao:'PUBLICADA',cancelado:false
+  });
+  assert.equal(logins,1);assert.equal(h.state.network.length,2);
+  assert.ok(h.state.network.every(r=>r.method==='get'));
+  assert.ok(h.state.network[0].url.includes('/api/reentradas/sheets/relatorio?'));
+  assert.ok(h.state.network[1].url.endsWith('/api/reentradas/'+UUID_CHAMADO));
+  assert.equal(h.state.network.some(r=>r.url.includes('/api/tiragem/')||r.url.endsWith('/op')),false);
+  assert.equal(h.state.attempts,0);assert.equal(h.state.emails.length,0);
+  assert.equal(h.state.properties.size,0);assert.equal(h.state.cache.size,0);
+});
+
+test('selecao automatica distingue REENTRADA, INCLUSIVOS e palavra ampliado normalizada em SPOT',()=>{
+  const cases=[
+    ['REENTRADA','','reentrada'],[' reentrada ','Ampliados','reentrada'],
+    ['INCLUSIVOS','','inclusivo'],['inclusívos','','inclusivo'],
+    ...['Ampliados','AMPLIADO','ampliada','ampliadas','AMPLÍADOS','(ampliados).']
+      .map(word=>[' sPoT ','Tiragem V1 '+word,'inclusivo'])
+  ];
+  for(const [tipo,justificativa,expected] of cases){
+    const h=apiHarness({mutate(d){
+      d.detalhe.tipoSolicitacao=tipo;d.detalhe.justificativa=justificativa;
+    }}),result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,true);
+    assert.equal(result.tipoEmail,expected,JSON.stringify([tipo,justificativa]));
+    assert.equal(result.tipoSolicitacao,tipo.trim());
+  }
+});
+
+test('SPOT comum e tipos desconhecidos nao assumem um modelo de email',()=>{
+  const cases=[
+    ['SPOT','Tiragem V1'],['SPOT','superampliados'],['SPOT','ampliados123'],
+    ['SPOT','ampliadamente'],['SPOT','ampliadores'],['SPOT',null],
+    ['OUTRO','Tiragem Ampliados'],['','Tiragem Ampliados'],[null,null]
+  ];
+  for(const [tipo,justificativa] of cases){
+    const h=apiHarness({mutate(d){
+      d.detalhe.tipoSolicitacao=tipo;d.detalhe.justificativa=justificativa;
+    }}),result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,true);
+    assert.equal(result.tipoEmail,'',JSON.stringify([tipo,justificativa]));
+  }
+});
+
+test('identificacao nao busca tipo ou justificativa em SKU, producao ou campos parecidos',()=>{
+  for(const tipo of [undefined,'SPOT']){
+    const h=apiHarness({mutate(d){
+      d.detalhe.tipoSolicitacao=tipo;
+      d.detalhe.descricao='Ampliados';d.detalhe.justificativaSolicitacao='Ampliados';
+      d.detalhe.items=[{tipoSolicitacao:'INCLUSIVOS',justificativa:'Ampliados'}];
+      d.detalhe.versao.tipoSolicitacao='REENTRADA';
+      d.detalhe.versao.justificativa='Ampliados';
+      d.versao.tipoSolicitacao='INCLUSIVOS';d.versao.descricao='Ampliados';
+    }}),result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,true);assert.equal(result.tipoEmail,'');
+    assert.equal(h.state.network.length,2);
+  }
+});
+
+test('identificacao so aceita identidade numerica e UUID confirmados no detalhe',()=>{
+  for(const mutate of [d=>d.detalhe.numero=9999,d=>d.detalhe.id=UUID_VERSAO,
+    d=>d.detalhe=null]){
+    const h=apiHarness({mutate}),result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,false);assert.equal(result.idChamado,'3100');
+    assert.match(result.erro,/confirmar a identificacao/);
+    assert.equal(Object.hasOwn(result,'tipoEmail'),false);
+    assert.equal(h.state.network.length,2);
+  }
+});
+
+test('identificacao informa cancelamento do chamado e da versao com vinculo valido',()=>{
+  for(const [statusChamado,statusProducao] of [
+    ['CANCELADO','PUBLICADA'],[' cancelada ','PUBLICADA'],
+    ['SOLICITADO','CANCELADA'],['SOLICITADO',' cancelado ']
+  ]){
+    const h=apiHarness({mutate(d){
+      d.detalhe.tipoSolicitacao='REENTRADA';d.detalhe.status=statusChamado;
+      d.detalhe.versao.status=statusProducao;
+    }}),result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,true);assert.equal(result.cancelado,true);
+    assert.equal(result.statusChamado,statusChamado.trim());
+    assert.equal(result.statusProducao,statusProducao.trim());
+    assert.equal(result.tipoEmail,'reentrada');assert.equal(h.state.network.length,2);
+  }
+});
+
+test('identificacao ignora status de producao com vinculo de versao ausente ou invalido',()=>{
+  for(const mutate of [d=>d.detalhe.versao.id=UUID_CHAMADO,
+    d=>d.detalhe.versao=null,d=>delete d.detalhe.versaoId,
+    d=>{d.detalhe.versaoId='invalido';d.detalhe.versao.id='invalido';}]){
+    const h=apiHarness({mutate(d){d.detalhe.versao.status='CANCELADA';mutate(d);}});
+    const result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,true);assert.equal(result.statusProducao,'');
+    assert.equal(result.cancelado,false);assert.equal(h.state.network.length,2);
+  }
+  const h=apiHarness({mutate(d){d.detalhe.status='CANCELADO';d.detalhe.versao=null;}});
+  assert.equal(h.c.identificarTipoEmailSPG('3100').cancelado,true);
+});
+
+test('falhas de identificacao retornam erro sem escolher tipo ou consultar anexos',()=>{
+  const scenarios=[
+    h=>{h.c._spgLogin_=()=>null;},
+    h=>{h.c.UrlFetchApp.fetch=()=>{throw new Error('SPG indisponivel');};},
+    h=>{h.data.pages[0].rows=[];},
+    h=>{h.data.pages[0].rows[0]['ID Chamado']='invalido';},
+    h=>{h.c.UrlFetchApp.fetch=()=>({getResponseCode:()=>200,getContentText:()=>'{invalido'});}
+  ];
+  for(const change of scenarios){
+    const h=apiHarness();change(h);
+    const result=h.c.identificarTipoEmailSPG('3100');
+    assert.equal(result.encontrado,false);assert.equal(result.idChamado,'3100');
+    assert.equal(typeof result.erro,'string');assert.ok(result.erro);
+    assert.equal(Object.hasOwn(result,'tipoEmail'),false);
+    assert.equal(h.state.network.some(r=>r.url.includes('/api/tiragem/')||r.url.endsWith('/op')),false);
+    assert.equal(h.state.attempts,0);
+  }
+  const h=apiHarness(),result=h.c.identificarTipoEmailSPG('../3100');
+  assert.equal(result.encontrado,false);assert.match(result.erro,/numero de chamado valido/);
+  assert.equal(h.state.network.length,0);
+});
+
 test('consulta pacote completo por UUID e le dados da versao vinculada',()=>{
   const h=apiHarness(),p=h.prepare();
   assert.equal(p.status,'ok');assert.equal(p.anexoValido,true);

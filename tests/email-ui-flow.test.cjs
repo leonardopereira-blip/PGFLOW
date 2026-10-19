@@ -96,14 +96,16 @@ function makeScreen(bootstrap) {
       withSuccessHandler(fn) { this.success = fn; return this; },
       withFailureHandler(fn) { this.failure = fn; return this; }
     };
-    ['obterCadastroEmailsSPG', 'salvarCadastroEmailsSPG', 'consultarPacoteEmailSPG',
+    ['identificarTipoEmailSPG', 'obterCadastroEmailsSPG', 'salvarCadastroEmailsSPG', 'consultarPacoteEmailSPG',
       'obterDadosChamado', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
       chain[method] = (...args) => requests.push({ method, args, success: chain.success, failure: chain.failure });
     });
     return chain;
   }});
   const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
-  const context = { document: doc, google, alert: msg => alerts.push(msg), confirm: () => true };
+  const timers=new Map();let timerId=0;
+  const context = { document: doc, google, alert: msg => alerts.push(msg), confirm: () => true,
+    setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id) };
   vm.createContext(context); vm.runInContext(source.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null',
     JSON.stringify(bootstrap === undefined ? {graficas,versao:'v1'} : bootstrap)), context);
   const el = id => { const value = doc.getElementById(id); assert(value, 'Missing element ' + id); return value; };
@@ -132,11 +134,34 @@ function makeScreen(bootstrap) {
     assert(result, 'Missing button ' + text); return result;
   }
   choose();
-  return { context, doc, el, requests, alerts, pending, reply, dispatch, graphic, choose, button, graficas };
+  return { context, doc, el, requests, alerts, pending, reply, dispatch, graphic, choose, button, graficas,
+    runTimers(){const fns=[...timers.values()];timers.clear();fns.forEach(fn=>fn());} };
 }
 const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
   anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
   statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
+
+test('digitar chamado SPOT com ampliados seleciona inclusivo e mantem seu fluxo antigo', () => {
+  const s=makeScreen();s.dispatch('inputChamado','input');
+  assert.equal(s.el('pf-avancar').disabled,true);s.runTimers();
+  s.reply('identificarTipoEmailSPG',{encontrado:true,idChamado:'3100',tipoSolicitacao:'SPOT',tipoEmail:'inclusivo'});
+  assert.equal(s.doc.querySelector('input[name="tipoEmail"]:checked').value,'inclusivo');
+  s.context.avancarParaRevisao();
+  assert.equal(s.pending('obterDadosChamado').args[0],'3100');
+  assert.equal(s.requests.some(r=>r.method==='consultarPacoteEmailSPG'),false);
+});
+
+test('outro SPOT exige escolha manual e resposta atrasada nao altera outro chamado', () => {
+  const s=makeScreen();s.dispatch('inputChamado','input');s.runTimers();
+  const old=s.pending('identificarTipoEmailSPG');old.done=true;
+  s.el('inputChamado').value='2961';s.dispatch('inputChamado','input');s.runTimers();
+  old.success({encontrado:true,idChamado:'3100',tipoEmail:'inclusivo'});
+  assert.equal(s.doc.querySelector('input[name="tipoEmail"]:checked'),null);
+  s.reply('identificarTipoEmailSPG',{encontrado:true,idChamado:'2961',tipoSolicitacao:'SPOT',tipoEmail:''});
+  s.context.avancarParaRevisao();
+  assert.match(s.el('mensagem-erro').textContent,/Selecione o tipo/);
+  assert.equal(s.requests.some(r=>r.method==='consultarPacoteEmailSPG'||r.method==='obterDadosChamado'),false);
+});
 
 test('saudacao respeita meia-noite, meio-dia e 18h no horario de Brasilia', () => {
   const s=makeScreen();
@@ -258,6 +283,7 @@ test('troca do chamado e cancelar apagam status, inclusive cancelado, sem aceita
   const s = makeScreen(); s.context.avancarParaRevisao();
   s.reply('consultarPacoteEmailSPG', { ...complete, status: 'cancelado', cancelado: true, statusChamado: 'CANCELADO' });
   s.el('inputChamado').value = '2961'; s.dispatch('inputChamado', 'input');
+  s.runTimers();s.reply('identificarTipoEmailSPG',{encontrado:true,idChamado:'2961',tipoEmail:'reentrada'});
   assert.equal(s.el('pf-status-spg').textContent, '');
   assert.equal(s.el('pf-status-spg').style.display, 'none');
   assert.equal(s.context.pfChamadoCancelado, false);

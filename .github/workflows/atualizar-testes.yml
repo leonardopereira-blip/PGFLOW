@@ -1,0 +1,71 @@
+name: Atualizar ambiente de testes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '*.gs'
+      - '*.js'
+      - '*.html'
+      - appsscript.json
+      - .clasp.json
+      - .claspignore
+      - .github/workflows/atualizar-testes.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pgflow-testes
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Preparar destino de testes e autenticacao
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          const expectedScriptId = '1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu';
+          const config = JSON.parse(fs.readFileSync('.clasp.json', 'utf8'));
+          if (config.scriptId !== expectedScriptId) {
+            throw new Error('O destino do PGFLOW mudou. Confira o projeto antes de enviar aos testes.');
+          }
+          if (!process.env.CLASPRC_JSON) {
+            throw new Error('Falta o segredo CLASPRC_JSON neste repositorio. Nenhum codigo foi enviado ao Apps Script.');
+          }
+          const auth = JSON.parse(process.env.CLASPRC_JSON);
+          config.rootDir = '.';
+          config.skipSubdirectories = true;
+          fs.writeFileSync('.clasp.json', JSON.stringify(config));
+          fs.writeFileSync(path.join(os.homedir(), '.clasprc.json'), JSON.stringify(auth), {mode: 0o600});
+          NODE
+
+      - name: Atualizar codigo usado nos testes
+        run: node node_modules/@google/clasp/build/src/index.js push --force < /dev/null
+
+      - name: Registrar atualizacao
+        run: |
+          COMMIT_TESTES=$(git rev-parse HEAD)
+          printf 'Codigo enviado ao HEAD do PGFLOW usado pelo /dev: `%s`.\n\nNenhuma versao ou implantacao de producao foi criada ou alterada.\n' "$COMMIT_TESTES" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remover autenticacao temporaria
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"

@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '..', 'TelaEmail.html'), 'utf8');
 const source = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-function makeScreen() {
+function makeScreen(bootstrap) {
   let doc;
   function matches(el, selector) {
     if (selector.includes(':checked') && !el.checked) return false;
@@ -105,7 +105,7 @@ function makeScreen() {
   const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
   const context = { document: doc, google, alert: msg => alerts.push(msg), confirm: () => true };
   vm.createContext(context); vm.runInContext(source.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null',
-    JSON.stringify({graficas,versao:'v1'})), context);
+    JSON.stringify(bootstrap === undefined ? {graficas,versao:'v1'} : bootstrap)), context);
   const el = id => { const value = doc.getElementById(id); assert(value, 'Missing element ' + id); return value; };
   function pending(method) {
     const result = requests.find(req => req.method === method && !req.done);
@@ -137,6 +137,23 @@ function makeScreen() {
 const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
   anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
   statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
+
+test('tabela fixa de dez graficas e 64 emails aparece mesmo sem cadastro injetado', () => {
+  const s=makeScreen(null);
+  assert.equal(s.requests.length,0);
+  assert.equal(s.el('containerGraficas').querySelectorAll('input').length,10);
+  assert.equal(Object.values(s.context.listaGraficas).reduce((n,a)=>n+a.length,0),64);
+  assert.equal(s.context.listaGraficas.Logprint.length,11);
+  assert.equal(s.context.listaGraficas.Teste.join(','),'leonardo.pereira@arcoeducacao.com.br');
+});
+
+test('cadastro vazio antigo nao esconde a tabela; exclusao intencional continua respeitada', () => {
+  const old=makeScreen({graficas:{},versao:'empty-hash'});
+  assert.equal(old.el('containerGraficas').querySelectorAll('input').length,10);
+  assert.equal(old.context.pfVersaoCadastro,'empty-hash');
+  const deleted=makeScreen({graficas:{},versao:'empty-hash',vazioIntencional:true});
+  assert.equal(deleted.el('containerGraficas').querySelectorAll('input').length,0);
+});
 
 test('revisão mostra o status atual do chamado sem confundir com resultado técnico ou versão', () => {
   const s = makeScreen(); s.context.avancarParaRevisao();

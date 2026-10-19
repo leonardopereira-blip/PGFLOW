@@ -192,7 +192,7 @@ test('Pagina inclui cadastro e versao no HTML sem RPC e protege texto de fechame
   assert.doesNotMatch(rendered,/PF_EMAIL_CADASTRO_INICIAL/);
   assert.doesNotMatch(rendered,/\.obterCadastroEmailsSPG\(/);
   assert.doesNotMatch(rendered,/<\/script><img>/);
-  const embedded=rendered.match(/var pfCadastroInicial = (.*);/)[1];
+  const embedded=rendered.match(/var pfCadastroSalvo = (.*);/)[1];
   assert.equal(JSON.parse(embedded).versao,'v1');
   assert.equal(JSON.parse(embedded).graficas['</script><img>'][0],'test@example.com');
 });
@@ -213,6 +213,7 @@ test('Cadastro compartilhado usa versao e impede sobrescrita concorrente', () =>
     /alterado por outra pessoa/);
   const final = ctx.salvarCadastroEmailsSPG({},depois.versao);
   assert.equal(Object.keys(final.graficas).length,0);
+  assert.equal(ctx.obterCadastroEmailsSPG().vazioIntencional,true);
 });
 
 
@@ -262,7 +263,7 @@ test('Cancelar limpa identificacao, selecoes, origem, assunto, corpo e volta ao 
   };
   const context={document,alert:()=>{throw Error('alerta inesperado');}};
   vm.createContext(context);
-  vm.runInContext(source,context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
   context.pfEnviando=false;
   context.pfRascunhoCadastro={Grafica:['email@example.com']};
   context.dadosGlobais={idChamado:'3100',idArquivo:'antigo'};
@@ -298,7 +299,7 @@ test('Inclusivos ficam no fluxo legado sem tentativa de usar rota de reentradas'
     }
   };
   vm.createContext(context);
-  vm.runInContext(source,context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
   context.pfVersaoCadastro='versao';
   context.pfCarregarLegado=()=>{legado++;};
   context.avancarParaRevisao();

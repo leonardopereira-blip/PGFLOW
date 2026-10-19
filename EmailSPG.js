@@ -2,6 +2,7 @@
 // O fluxo historico continua isolado em Menu_Emails.js durante a transicao.
 var EMAIL_SPG_BASE = 'https://spg-api.prod.arcocv.co';
 var EMAIL_SPG_DESTINATARIOS_PROP = 'EMAIL_SPG_DESTINATARIOS_GRAFICAS';
+var EMAIL_SPG_CADASTRO_EDITADO_PROP = 'EMAIL_SPG_CADASTRO_EDITADO';
 
 function _emailSpgId_(id) {
   var valor = String(id == null ? '' : id).trim();
@@ -554,7 +555,9 @@ function _emailSpgVersaoCadastro_(catalogo) {
 
 function obterCadastroEmailsSPG() {
   var graficas = obterDadosGraficasEmailSPG();
-  return {graficas: graficas, versao: _emailSpgVersaoCadastro_(graficas)};
+  return {graficas: graficas, versao: _emailSpgVersaoCadastro_(graficas),
+    vazioIntencional: !Object.keys(graficas).length &&
+      PropertiesService.getScriptProperties().getProperty(EMAIL_SPG_CADASTRO_EDITADO_PROP) === '1'};
 }
 
 function _emailSpgValidarCadastro_(proposto) {
@@ -610,6 +613,7 @@ function salvarCadastroEmailsSPG(proposto, versaoEsperada) {
     var novo = _emailSpgValidarCadastro_(proposto);
     PropertiesService.getScriptProperties().setProperty(
       EMAIL_SPG_DESTINATARIOS_PROP, JSON.stringify(novo));
+    PropertiesService.getScriptProperties().setProperty(EMAIL_SPG_CADASTRO_EDITADO_PROP, '1');
     return {graficas: novo, versao: _emailSpgVersaoCadastro_(novo)};
   } finally {lock.releaseLock();}
 }

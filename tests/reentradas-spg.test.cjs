@@ -10,7 +10,7 @@ vm.runInContext(code,context);
 test('script isolado nao usa Google Sheets nem envio de email',()=>{
   assert.doesNotMatch(code, /\bSpreadsheetApp\.|\bMailApp\.|\bGmailApp\.|\bgravarNaFila\(/);
   assert.match(code,/function gerarValidacaoReentradasSPG\(/);
-  assert.match(code,/\/api\/tiragem\/.*\/alocacao/);
+  assert.doesNotMatch(code,/\/api\/tiragem\/.*\/alocacao/);
 });
 test('normalizacao numerica com virgula e ponto',()=>{
   assert.equal(context._reSpQuant_('4.146'),4146);
@@ -174,4 +174,49 @@ test('entradas antigas de custos falham sem ler Sheets ou enviar Office',()=>{
    assert.throws(()=>isolated[name](),/fluxo antigo.*desativado/);
  });
  assert.doesNotMatch(legacy,/MailApp|GmailApp|gravarNaFila|ID_PLANILHA_LOG/);
+});
+
+function fixtureOp2964(){
+ const skus=['PG25LP295SDI0','PG26LP276SDI0','SAE27ARACL21102BRDO200','SAE27LSPEN38101BRPDR00'];
+ const matrizes={
+  'Esp. Técnica (legado)':{headers:['1. ID_Código SKU'],linhas:skus.map(sku=>[sku])},
+  'Árvore (legado)':{headers:['1. ID_Código Kit','1. ID_Código SKU','13. MAN_Total de itens colecionados'],
+   linhas:skus.flatMap(sku=>[[sku,'',1],[sku,sku,'']])},
+  'Tiragem (legado)':{headers:['1. ID_Código Kit','1. ID_Código SKU','15. DES_CD envio','16. TIR_SKU','16. TIR_Item','16. TIR_Miolo','GRAFICA'],
+   linhas:[[skus[0],'CITA',200],[skus[0],'CJUN',200],[skus[1],'CITA',150],
+    [skus[2],'CITA',250],[skus[3],'CITA',140],[skus[3],'CJUN',60]]
+    .map(([sku,cd,qtd])=>[sku,sku,cd,qtd,0,0,'OUTRA GRAFICA'])}
+ };
+ const pacote={id:'2964',versaoId:'dac7d511-83a1-4670-b9e9-cccffe06942e',blob:{},statusChamado:'SOLICITADO',statusProducao:'PUBLICADA'};
+ const isolated={};vm.createContext(isolated);vm.runInContext(code,isolated);
+ isolated._emailSpgPacote_=(id,forcar,tipo)=>{
+  assert.equal(id,'2964');assert.equal(tipo,'reentrada');return pacote;
+ };
+ isolated._reSpPartes_=()=>({});
+ isolated._reSpMatriz_=(_,nome)=>matrizes[nome];
+ isolated._emailSpgLerJson_=()=>{throw Error('Consulta adicional de alocacao nao permitida');};
+ return {isolated,pacote,matrizes};
+}
+
+test('modelo escolhido usa OP integral do chamado sem exigir alocacao ou alterar dados',()=>{
+ const {isolated,matrizes}=fixtureOp2964(),antes=JSON.stringify(matrizes);
+ const res=isolated._reSpPrepararDados_('2964','LOGPRINT');
+ assert.equal(res.espec.linhas.length,4);
+ assert.equal(res.arvore.linhas.length,8);
+ assert.equal(res.tiragem.linhas.length,6);
+ assert.equal(res.tiragem.linhas.reduce((soma,linha)=>soma+Number(linha[3]),0),1000);
+ assert.ok(res.tiragem.linhas.every(linha=>linha[4]===0&&linha[5]===0&&linha[6]==='OUTRA GRAFICA'));
+ assert.equal(JSON.stringify(matrizes),antes);
+});
+
+test('OP integral mantem bloqueio de chamado cancelado',()=>{
+ const {isolated,pacote}=fixtureOp2964();pacote.statusChamado='CANCELADO';
+ assert.throws(()=>isolated._reSpPrepararDados_('2964','LOGPRINT'),/cancelad/i);
+});
+
+test('OP integral rejeita tiragem sem especificacao ou sem par kit e SKU na arvore',()=>{
+ const semEspec=fixtureOp2964();semEspec.matrizes['Esp. Técnica (legado)'].linhas.shift();
+ assert.throws(()=>semEspec.isolated._reSpPrepararDados_('2964','LOGPRINT'),/especifica/i);
+ const semArvore=fixtureOp2964();semArvore.matrizes['Árvore (legado)'].linhas.splice(1,1);
+ assert.throws(()=>semArvore.isolated._reSpPrepararDados_('2964','LOGPRINT'),/árvore|arvore/i);
 });

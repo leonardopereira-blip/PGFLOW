@@ -176,6 +176,7 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
   return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
 }
 function _reSpPrepararDados_(numero,grafica) {
+  if(_reSpNormal_(grafica)!=='LOGPRINT')throw Error('Modelo ainda nao homologado para esta grafica.');
   var pacote=_emailSpgPacote_(numero,false,'reentrada');
   if(pacote.id!==numero||!pacote.versaoId||!pacote.blob)throw Error('Chamado ou versao inconsistentes na API');
   if(/CANCELAD/i.test(pacote.statusChamado+' '+pacote.statusProducao))throw Error('Chamado cancelado');
@@ -184,56 +185,34 @@ function _reSpPrepararDados_(numero,grafica) {
   var a=_reSpMatriz_(raw,'Árvore (legado)');
   var t=_reSpMatriz_(raw,'Tiragem (legado)');
   if(!e.linhas.length||!a.linhas.length||!t.linhas.length)throw Error('OP do SPG sem as tres matrizes de producao');
-  // A OP pode conter alocacoes de varias graficas. Sem atribuicao demonstravel, NAO atribuir a Logprint por suposicao.
-  var colunaGrafica=t.headers.find(function(h){return /^(GRAFICA|GRÁFICA|GRAFICA DESTINO|GRÁFICA DESTINO)$/i.test(h);});
-  var tGraf=colunaGrafica?t.linhas.filter(function(l){return _reSpNormal_(_reSpBuscar_(l,t.headers,colunaGrafica))===_reSpNormal_(grafica);}):[];
-  if(!tGraf.length){
-    // Exclusivamente o contrato de alocacao de versao, nunca o consolidado.
-    // Se nao fornecer grafica, kit, sku, CD e quantidade inequivocos, bloquear.
-    var dadosAlocacao;
-    try{dadosAlocacao=_emailSpgLerJson_('/api/tiragem/'+pacote.versaoId+'/alocacao',_spgLogin_());}
-    catch(exc){throw Error('Nao foi possivel segmentar o chamado por grafica na API: '+exc.message);}
-    var aloc=Array.isArray(dadosAlocacao)?dadosAlocacao:
-      (dadosAlocacao.alocacoes||dadosAlocacao.rows||dadosAlocacao.data||[]);
-    if(!Array.isArray(aloc))throw Error('Resposta de alocacoes desconhecida; processamento bloqueado');
-    var chave=function(a,b,c){return [_reSpNormal_(a),_reSpNormal_(b),_reSpNormal_(c)].join('|');};
-    var xAloc={};
-    aloc.forEach(function(z){
-      var nome=z.nomeGrafica||(z.grafica&&(z.grafica.nome||z.grafica.name))||z.graficaNome||'';
-      if(_reSpNormal_(nome)!==_reSpNormal_(grafica))return;
-      var sku=z.skuAtual||z.sku||z.codigoSku||'',kit=z.kitCode||z.kit||z.codigoKit||'';
-      var cd=z.cdDestino||z.cd||z.destinoCd||'';
-      var q=z.quantidade===undefined?z.tiragem:z.quantidade;
-      if(!sku||!kit||!cd||q===undefined)throw Error('Alocacao sem chave/quantidade completa: abortado');
-      var k=chave(kit,sku,cd);
-      if(xAloc[k])throw Error('Alocacoes duplicadas precisam de conciliacao: '+k);
-      xAloc[k]=_reSpQuant_(q);
-    });
-    if(!Object.keys(xAloc).length)throw Error('A API nao confirmou tiragem da '+grafica+' nesta versao');
-    tGraf=[];
-    t.linhas.forEach(function(ln){
-      var kit=_reSpBuscar_(ln,t.headers,'1. ID_Código Kit'),sku=_reSpBuscar_(ln,t.headers,'1. ID_Código SKU'),
-          cd=_reSpBuscar_(ln,t.headers,'15. DES_CD envio'),k=chave(kit,sku,cd);
-      if(xAloc[k]===undefined)return;
-      var item=ln.slice(),cabe=t.headers;
-      ['16. TIR_SKU','16. TIR_Item','16. TIR_Miolo','16. TIR_Capa avulsa','16. TIR_Kit'].forEach(function(h){
-        var i=cabe.indexOf(h);if(i>=0)item[i]=xAloc[k];
-      });
-      tGraf.push(item);delete xAloc[k];
-    });
-    if(Object.keys(xAloc).length)throw Error('Alocacoes da grafica nao conciliadas com a OP: '+Object.keys(xAloc).join(', '));
-  }
-  if(!tGraf.length)throw Error('Nenhuma tiragem vinculada a grafica '+grafica+' na versao '+pacote.versaoId);
-  var skus={},kits={};
+  // A grafica escolhida define o modelo de custos para a OP inteira do chamado.
+  // O calculo pode anteceder a alocacao; nao consulta nem altera alocacoes no SPG.
+  var tGraf=t.linhas,skus=Object.create(null),kits=Object.create(null),pares=Object.create(null);
   tGraf.forEach(function(l){
-    var sku=_reSpBuscar_(l,t.headers,'1. ID_Código SKU'),kit=_reSpBuscar_(l,t.headers,'1. ID_Código Kit');
-    if(sku)skus[sku]=true;if(kit)kits[kit]=true;
+    var sku=_reSpBuscar_(l,t.headers,'1. ID_Código SKU'),kit=_reSpBuscar_(l,t.headers,'1. ID_Código Kit'),
+        cd=_reSpBuscar_(l,t.headers,'15. DES_CD envio');
+    if(!sku||!kit||!cd)throw Error('Tiragem do chamado sem SKU, kit ou CD de destino.');
+    _reSpQuant_(_reSpBuscar_(l,t.headers,'16. TIR_SKU'));
+    skus[sku]=true;kits[kit]=true;pares[JSON.stringify([kit,sku])]=true;
   });
-  return {pacote:pacote,espec:{headers:e.headers,linhas:e.linhas.filter(function(l){
+  var espec=e.linhas.filter(function(l){
     return !!skus[_reSpBuscar_(l,e.headers,'1. ID_Código SKU')];
-  })},arvore:{headers:a.headers,linhas:a.linhas.filter(function(l){
-    return !!kits[_reSpBuscar_(l,a.headers,'1. ID_Código Kit')];
-  })},tiragem:{headers:t.headers,linhas:tGraf}};
+  }),especSkus=Object.create(null),arvorePares=Object.create(null);
+  espec.forEach(function(l){especSkus[_reSpBuscar_(l,e.headers,'1. ID_Código SKU')]=true;});
+  Object.keys(skus).forEach(function(sku){
+    if(!especSkus[sku])throw Error('SKU sem especificacao no SPG: '+sku);
+  });
+  var arvore=a.linhas.filter(function(l){
+    var kit=_reSpBuscar_(l,a.headers,'1. ID_Código Kit'),sku=_reSpBuscar_(l,a.headers,'1. ID_Código SKU'),
+        par=JSON.stringify([kit,sku]);
+    if(sku&&pares[par])arvorePares[par]=true;
+    return !!kits[kit]&&(!sku||!!pares[par]);
+  });
+  Object.keys(pares).forEach(function(par){
+    if(!arvorePares[par])throw Error('Kit/SKU sem arvore no SPG: '+JSON.parse(par).join(' / '));
+  });
+  return {pacote:pacote,espec:{headers:e.headers,linhas:espec},
+    arvore:{headers:a.headers,linhas:arvore},tiragem:{headers:t.headers,linhas:tGraf}};
 }
 function _reSpMontarBase_(source,headersModelo) {
   return _reSpMapearCab_(headersModelo,source.headers,source.linhas);

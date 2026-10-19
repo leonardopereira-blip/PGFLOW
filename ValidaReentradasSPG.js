@@ -119,7 +119,7 @@ function _reSpQuant_(v) {
 function _reSpBool_(v) {
   if(v===true||/^(TRUE|SIM)$/i.test(String(v).trim()))return 'Sim';
   if(v===false||/^(FALSE|NÃO|NAO)$/i.test(String(v).trim()))return 'Não';
-  return v===null||v===undefined?'':String(v);
+  return v===null||v===undefined?'':v;
 }
 function _reSpCelula_(ref,val,style) {
   if(val===undefined||val===null||val==='')return '';
@@ -265,7 +265,7 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
     else p.kit+=x.quant;
     p.total+=x.quant;
   });
-  var normPapel=function(s){s=String(s||'').trim().toUpperCase();return s.replace(/^CARTÃO (\d+)G$/,'CARTÃO TRIPLEX $1G').replace(/^OFFSET (\d+)G$/,'OFFSET $1G').replace(/^LAMINAÇÃO BOPP BRILHO$/,'LAMINAÇÃO BRILHO').replace(/^LAMINAÇÃO BOPP FOSCO$/,'LAMINAÇÃO FOSCA');};
+  var normPapel=function(s){s=String(s==null?'':s).trim().toUpperCase();if(!s||s==='-'||s==='NULL')return 0;return s.replace(/^CARTÃO (\d+)G$/,'CARTÃO TRIPLEX $1G').replace(/^OFFSET (\d+)G$/,'OFFSET $1G').replace(/^LAMINAÇÃO BOPP BRILHO$/,'LAMINAÇÃO BRILHO').replace(/^LAMINAÇÃO BOPP FOSCO$/,'LAMINAÇÃO FOSCA');};
   var capa=function(s){s=String(s||'').trim().toUpperCase();return s==='DURA'?'CAPA DURA':s;};
   var enc=function(s){s=String(s||'').toUpperCase();return s==='CANOA'?'GRAMPO CANOA':s==='LOMBADA_QUADRADA_PUR'?'PUR':s;};
   var manual=function(col,def){return man[col]===undefined?def:man[col];};
@@ -281,19 +281,19 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
     v(25,/personalizada/i.test(g('BU'))?'Sim':'Não');v(26,g('BW'));
     v(27,g('AC')&&Number(g('AC'))!==0?'Sim':'Não');v(28,_reSpNormal_(g('F'))==='MARALTO'?g('AC'):0);
     v(29,_reSpBool_(g('AK')));v(30,normPapel(g('AH')));v(31,normPapel(g('AI')));
-    for(var col=32;col<=37;col++)v(col,manual(col,col%2===0?'Não':0));
+    for(var col=32;col<=37;col++)v(col,manual(col,0));
     v(38,g('BR'));v(39,cap==='CAPA DURA'&&enc(g('BM'))!=='ESPIRAL'?8:cap==='CAPA DURA'?4:0);
-    v(40,cap==='CAPA DURA'?String(g('AE')).slice(-1)+'x0':g('AE'));
+    v(40,cap==='CAPA DURA'?String(g('AE')).slice(-1)+'x0':0);
     v(41,normPapel(g('AG')));v(42,g('AL'));v(43,g('AN'));v(44,normPapel(g('AM')));
     v(45,g('BW'));v(46,/^(CYAN|MAGENTA)$/i.test(g('AO'))?'Sim':'Não');
     v(47,g('BT'));v(48,g('AO'));v(49,_reSpBool_(g('AQ')));v(50,_reSpBool_(g('AP')));
-    v(51,manual(51,'Não'));v(52,g('AR'));v(53,g('AS'));v(54,g('AU'));v(55,normPapel(g('AT')));
+    v(51,manual(51,0));v(52,g('AR'));v(53,g('AS'));v(54,g('AU'));v(55,normPapel(g('AT')));
     v(56,_reSpBool_(g('AX')));v(57,_reSpBool_(g('AW')));v(58,g('AY'));
     v(59,g('AZ'));v(60,g('BB'));v(61,normPapel(g('BA')));v(62,_reSpBool_(g('BE')));
     v(63,_reSpBool_(g('BD')));v(64,g('BF'));v(65,g('BG'));v(66,g('BI'));
-    v(67,normPapel(g('BH')));v(68,manual(68,'Não'));v(69,_reSpBool_(g('BK')));
+    v(67,normPapel(g('BH')));v(68,manual(68,0));v(69,_reSpBool_(g('BK')));
     v(70,g('BL'));v(71,enc(g('BM')));v(72,manual(72,0));v(73,manual(73,0));
-    v(74,g('BN'));v(75,manual(75,'Não'));v(76,g('BQ'));
+    v(74,g('BN'));v(75,manual(75,0));v(76,g('BQ'));
     var entries=matCalc.filter(function(y){return y.sku===sku;});
     v(77,entries.some(function(y){return y.shrinkIndividual==='Sim';})?'Sim':'Não');
     v(78,manual(78,'Não'));

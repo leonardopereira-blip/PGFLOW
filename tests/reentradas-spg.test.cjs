@@ -82,3 +82,26 @@ test('calcPr respeita ordem do XML do Excel',()=>{
  assert.ok(res.indexOf('<calcPr')<res.indexOf('<pivotCaches'));
  assert.match(res,/fullCalcOnLoad="1"/);
 });
+
+test('NC especificacoes replica regras do exemplo real 2740: 0 numerico onde nao existe operacao',()=>{
+ const cab=Array(80).fill('');
+ cab[1]='1. ID_Código SKU';
+ const linha=Array(80).fill('-');
+ linha[1]='SKU-2740'; linha[2]='LIVRO TESTE';linha[27]='Simples';
+ linha[29]='Cartão 250g';linha[30]='4x0';
+ linha[33]='Laminação BOPP brilho';linha[37]='248';
+ linha[38]='Offset 70g';linha[39]='4x4';linha[64]='PUR';
+ const ar={headers:['1. ID_Código Kit','13. MAN_Total de itens colecionados','13. MAN_Embalagem'],
+  linhas:[['SKU-2740',1,'Caixa']]};
+ const tr={headers:['1. ID_Código Kit','1. ID_Código SKU','16. TIR_SKU'],
+  linhas:[['SKU-2740','SKU-2740',1000]]};
+ const result=context._reSpConstrucaoNC_({headers:cab,linhas:[linha]},ar,tr,[]).especificacoes[0];
+ const zeradas=[31,32,34,36,40,41,51,55,61,67,68,75];
+ zeradas.forEach(function(col){
+   assert.equal(result[col-3],0,'Coluna do De-Para '+col+' deveria ser 0 numerico');
+ });
+ assert.equal(result[21-3],'SIMPLES');
+ assert.equal(result[24-3],'CARTÃO TRIPLEX 250G');
+ assert.equal(result[30-3],'LAMINAÇÃO BRILHO');
+ assert.equal(result[44-3],'OFFSET 70G');
+});

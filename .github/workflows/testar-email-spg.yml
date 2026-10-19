@@ -7,6 +7,7 @@ on:
       - EmailSPG.js
       - TelaEmail.html
       - tests/email-spg.test.cjs
+      - tests/email-ui-flow.test.cjs
       - .github/workflows/testar-email-spg.yml
   workflow_dispatch:
 
@@ -23,4 +24,4 @@ jobs:
         with:
           node-version: '24'
       - name: Testar regras de anexo e envio sem disparar emails
-        run: node --test tests/email-spg.test.cjs
+        run: node --test tests/*.test.cjs

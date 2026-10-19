@@ -96,13 +96,13 @@
     <div class="pf-grid">
       <div class="pf-field">
         <label class="pf-label" for="inputChamado">Número do chamado</label>
-        <input id="inputChamado" type="text" inputmode="numeric" maxlength="12" placeholder="Ex.: 3100" autocomplete="off">
+        <input id="inputChamado" type="text" inputmode="numeric" maxlength="12" placeholder="Ex.: 3100" autocomplete="off" oninput="pfInvalidarConsulta()">
       </div>
       <div class="pf-field">
         <span class="pf-label">Tipo de formalização</span>
         <div class="pf-choices">
-          <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfAtualizarInfoTipo()"> Reentradas</label>
-          <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfAtualizarInfoTipo()"> Inclusivos (ampliados)</label>
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfAtualizarInfoTipo();pfInvalidarConsulta()"> Reentradas</label>
+          <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfAtualizarInfoTipo();pfInvalidarConsulta()"> Inclusivos (ampliados)</label>
         </div>
         <p id="pf-dica-tipo" class="pf-help" style="display:none">Inclusivos: o anexo continua vindo do fluxo antigo até a rota específica do SPG ser validada.</p>
       </div>
@@ -110,12 +110,12 @@
     <div class="pf-field">
       <span class="pf-label">Versão da PPG</span>
       <div class="pf-choices">
-        <label class="pf-choice"><input type="radio" name="opcaoVersao" value="ultima" checked onchange="alternarCampoVersao()"> Última versão</label>
-        <label class="pf-choice"><input type="radio" name="opcaoVersao" value="manual" onchange="alternarCampoVersao()"> Escolher versão</label>
+        <label class="pf-choice"><input type="radio" name="pfEmailVersao" value="ultima" checked onchange="alternarCampoVersao();pfInvalidarConsulta()"> Última versão</label>
+        <label class="pf-choice"><input type="radio" name="pfEmailVersao" value="manual" onchange="alternarCampoVersao();pfInvalidarConsulta()"> Escolher versão</label>
       </div>
-      <div id="blocoVersoesManuais" class="pf-field" style="display:none;max-width:260px;margin-top:12px">
+      <div id="pfEmailBlocoVersoesManuais" class="pf-field" style="display:none;max-width:260px;margin-top:12px">
         <label class="pf-label" for="inputNumVersao">Número da versão</label>
-        <input id="inputNumVersao" type="number" min="1" step="1" placeholder="Ex.: 1">
+        <input id="inputNumVersao" type="number" min="1" step="1" placeholder="Ex.: 1" oninput="pfInvalidarConsulta()">
       </div>
     </div>
     <div class="pf-divider"></div>
@@ -209,6 +209,11 @@ var pfSalvandoCadastro = false;
 var pfTipoAtual = 'reentrada';
 var pfGruposSelecionados = [];
 var pfUltimaOrigem = '';
+var pfConsultaAtual = null;
+var pfGeracaoTela = 0;
+var pfTokenCadastro = 0;
+var pfSessaoCadastro = 0;
+var pfCadastroConflito = false;
 
 function pfEl(id) { return document.getElementById(id); }
 function pfErro(mensagem) {
@@ -245,21 +250,27 @@ function pfAtualizarInfoTipo() {
     document.querySelector('input[name="tipoEmail"]:checked').value === 'inclusivo' ? 'block' : 'none';
 }
 function alternarCampoVersao() {
-  pfEl('blocoVersoesManuais').style.display =
-    document.querySelector('input[name="opcaoVersao"]:checked').value === 'manual' ? 'block' : 'none';
+  pfEl('pfEmailBlocoVersoesManuais').style.display =
+    document.querySelector('input[name="pfEmailVersao"]:checked').value === 'manual' ? 'block' : 'none';
 }
-function pfCarregarCadastro(selecionados) {
+function pfCarregarCadastro(selecionados, sucesso, falha) {
+  var ticket = ++pfTokenCadastro;
+  var geracao = pfGeracaoTela;
   google.script.run.withSuccessHandler(function(resultado) {
+    if (ticket !== pfTokenCadastro) return;
     listaGraficas = (resultado && resultado.graficas) || {};
     pfVersaoCadastro = (resultado && resultado.versao) || '';
-    pfRenderGraficas(selecionados || []);
+    pfRenderGraficas(geracao === pfGeracaoTela ? (selecionados || pfSelecionadas()) : []);
+    if (geracao === pfGeracaoTela && sucesso) sucesso(resultado);
   }).withFailureHandler(function(erro) {
+    if (ticket !== pfTokenCadastro || geracao !== pfGeracaoTela) return;
     pfEl('containerGraficas').textContent = 'Erro ao carregar gráficas: ' + (erro.message || erro);
     pfErro('O cadastro não pôde ser carregado. Não é seguro continuar sem revisar os destinatários.');
+    if (falha) falha(erro);
   }).obterCadastroEmailsSPG();
 }
 function pfRenderGraficas(manter) {
-  var selecionadas = manter || Array.prototype.map.call(document.querySelectorAll('.chk-grafica:checked'),function(x){return x.value;});
+  var selecionadas = manter || pfSelecionadas();
   var box = pfEl('containerGraficas');
   box.textContent = '';
   var nomes = Object.keys(listaGraficas).sort(function(a,b){return a.localeCompare(b,'pt-BR');});
@@ -270,8 +281,10 @@ function pfRenderGraficas(manter) {
   nomes.forEach(function(nome) {
     var label = pfHtmlNode('label','pf-choice-row');
     var check = document.createElement('input');
-    check.type = 'checkbox'; check.className = 'chk-grafica'; check.value = nome;
+    check.type = 'checkbox'; check.className = 'pf-email-grafica'; check.value = nome;
     check.checked = selecionadas.indexOf(nome) !== -1;
+    check.disabled = pfCarregando;
+    check.onchange = pfInvalidarConsulta;
     label.appendChild(check);
     label.appendChild(pfHtmlNode('strong','',nome));
     label.appendChild(pfHtmlNode('span','pf-count',(listaGraficas[nome] || []).length + ' e-mail(s)'));
@@ -279,22 +292,40 @@ function pfRenderGraficas(manter) {
   });
 }
 function pfSelecionadas() {
-  return Array.prototype.map.call(document.querySelectorAll('.chk-grafica:checked'),function(x){return x.value;});
+  return Array.prototype.map.call(document.querySelectorAll('#pf-email .pf-email-grafica:checked'),function(x){return x.value;});
+}
+function pfBloquearBusca(ativo) {
+  pfCarregando = ativo;
+  pfEl('pf-avancar').disabled = ativo;
+  pfEl('loader1').style.display = ativo ? 'block' : 'none';
+  Array.prototype.forEach.call(document.querySelectorAll('#pf-email #passo1 input'),function(el){el.disabled=ativo;});
+}
+function pfInvalidarConsulta() {
+  pfTokenBusca++;
+  pfConsultaAtual = null;
+  pfBloquearBusca(false);
+  pfGruposSelecionados = [];
+  dadosGlobais = {};
+  pfUltimaOrigem = '';
+  pfVoltarBusca();
+  pfErro('');
+}
+function pfConsultaVigente(consulta) {
+  return !!consulta && consulta === pfConsultaAtual && consulta.ticket === pfTokenBusca;
 }
 function pfResetar() {
   if (pfEnviando) { alert('O envio já está em andamento. Aguarde a confirmação antes de iniciar outro.'); return; }
-  pfTokenBusca++;
-  pfCarregando = false;
-  pfEl('pf-avancar').disabled = false;
+  pfGeracaoTela++;
+  pfInvalidarConsulta();
   pfFecharCadastro(true);
   pfRascunhoCadastro = null;
   pfEl('inputChamado').value = '';
   pfEl('inputNumVersao').value = '';
   document.querySelector('input[name="tipoEmail"][value="reentrada"]').checked = true;
   pfAtualizarInfoTipo();
-  document.querySelector('input[name="opcaoVersao"][value="ultima"]').checked = true;
+  document.querySelector('input[name="pfEmailVersao"][value="ultima"]').checked = true;
   alternarCampoVersao();
-  Array.prototype.forEach.call(document.querySelectorAll('.chk-grafica'),function(c){c.checked=false;});
+  Array.prototype.forEach.call(document.querySelectorAll('#pf-email .pf-email-grafica'),function(c){c.checked=false;});
   pfGruposSelecionados = [];
   dadosGlobais = {};
   pfTipoAtual = 'reentrada';
@@ -316,7 +347,7 @@ function pfResetar() {
 function enviarNovoEmail() { pfResetar(); }
 function voltar() {
   if (pfEnviando) { alert('O envio está em andamento.'); return; }
-  pfTokenBusca++;
+  pfInvalidarConsulta();
   pfMostrarPasso(1);
   pfErro('');
 }
@@ -357,21 +388,23 @@ function pfTextoEmail(tipo,coleta) {
 function pfRenderDestinatarios() {
   var area = pfEl('containerDestinatarios');
   var antes = {};
-  Array.prototype.forEach.call(area.querySelectorAll('.pf-rec-email input'),function(el){antes[el.value]=el.checked;});
+  Array.prototype.forEach.call(area.querySelectorAll('.pf-rec-email input'),function(el){
+    antes[el.dataset.grafica + '|' + el.value.toLowerCase()] = el.checked;
+  });
   area.textContent = '';
-  var vistos = {};
   pfGruposSelecionados.forEach(function(grafica) {
     var card = pfHtmlNode('div','pf-rec-card');
     var head = pfHtmlNode('div','pf-rec-head',grafica);
     card.appendChild(head);
     var emails = (listaGraficas[grafica] || []);
+    var vistos = {};
     emails.forEach(function(email) {
       var chave = email.toLowerCase();
       if (vistos[chave]) return;
       vistos[chave] = true;
       var label = pfHtmlNode('label','pf-rec-email');
       var chk = document.createElement('input');
-      chk.type = 'checkbox'; chk.checked = antes[email] !== false;
+      chk.type = 'checkbox'; chk.checked = antes[grafica + '|' + chave] !== false;
       chk.value = email; chk.dataset.grafica = grafica;
       label.appendChild(chk);
       label.appendChild(pfHtmlNode('span','',email));
@@ -382,9 +415,9 @@ function pfRenderDestinatarios() {
   if (!area.children.length) area.appendChild(pfHtmlNode('div','pf-empty','Nenhum destinatário. Revise o cadastro.'));
 }
 function pfDestinatariosGrupos() {
-  var grupos = [], usados = {};
+  var grupos = [];
   pfGruposSelecionados.forEach(function(grafica) {
-    var emails = [];
+    var emails = [], usados = {};
     Array.prototype.forEach.call(pfEl('containerDestinatarios').querySelectorAll('.pf-rec-email input'),function(chk) {
       var email = chk.value.trim().toLowerCase();
       if (chk.checked && chk.dataset.grafica === grafica && pfEmailValido(email) && !usados[email]) {
@@ -395,8 +428,15 @@ function pfDestinatariosGrupos() {
   });
   return grupos;
 }
-function pfPrepararRevisao(tipoFonte,resp,manual) {
-  var id = pfEl('inputChamado').value.trim();
+function pfPrepararRevisao(tipoFonte,resp,manual,consulta) {
+  if (!pfConsultaVigente(consulta)) return;
+  var id = consulta.id;
+  if (resp.idChamado && String(resp.idChamado) !== id) {
+    pfErro('O chamado retornado não corresponde ao solicitado. Consulte novamente antes de enviar.');
+    return;
+  }
+  pfTipoAtual = consulta.tipo;
+  pfGruposSelecionados = consulta.graficas.slice();
   var r = manual || {};
   var descricao = tipoFonte === 'spg' ? (resp.descricao || r.descricao || '') : (resp.valorF || '');
   var coleta = tipoFonte === 'spg' ? pfColeta(resp.dataDesejada || r.dataDesejada || '') : (resp.dataColeta || '');
@@ -420,33 +460,29 @@ function pfPrepararRevisao(tipoFonte,resp,manual) {
   pfErro('');
   pfMostrarPasso(2);
 }
-function pfCarregarLegado(nota) {
-  var ticket = ++pfTokenBusca;
-  pfCarregando = true;
-  pfEl('pf-avancar').disabled = true;
-  pfEl('loader1').style.display='block';
-  var id = pfEl('inputChamado').value.trim();
-  var versao = document.querySelector('input[name="opcaoVersao"]:checked').value;
-  var numero = pfEl('inputNumVersao').value;
+function pfCarregarLegado(consulta) {
+  if (!pfConsultaVigente(consulta) || pfCarregando) return;
+  pfBloquearBusca(true);
   google.script.run.withSuccessHandler(function(resp) {
-    if (ticket !== pfTokenBusca) return;
-    pfCarregando=false; pfEl('pf-avancar').disabled=false; pfEl('loader1').style.display='none';
+    if (!pfConsultaVigente(consulta)) return;
+    pfBloquearBusca(false);
     if (!resp || resp.erro || !resp.idExcel) {
       pfErro('Fluxo antigo: ' + ((resp && resp.erro) || 'PPG não encontrada.'));
       return;
     }
-    pfPrepararRevisao('antigo',resp,{});
+    pfPrepararRevisao('antigo',resp,{},consulta);
   }).withFailureHandler(function(erro) {
-    if (ticket !== pfTokenBusca) return;
-    pfCarregando=false; pfEl('pf-avancar').disabled=false; pfEl('loader1').style.display='none';
+    if (!pfConsultaVigente(consulta)) return;
+    pfBloquearBusca(false);
     pfErro('Falha no fluxo antigo: ' + (erro.message || erro));
-  }).obterDadosChamado(id,versao,numero);
+  }).obterDadosChamado(consulta.id,consulta.versao,consulta.numero);
 }
 function pfBotao(texto,func,cls) {
   var b = pfHtmlNode('button',cls||'pf-secondary',texto);
   b.type='button'; b.onclick=func; return b;
 }
-function pfPerguntarOrigem(resp) {
+function pfPerguntarOrigem(resp,consulta) {
+  if (!pfConsultaVigente(consulta)) return;
   var box = pfEl('pgflowOrigemSPG');
   box.textContent='';
   box.style.display='block';
@@ -457,18 +493,23 @@ function pfPerguntarOrigem(resp) {
   }
   var div=pfHtmlNode('div','pf-actions');
   div.style.marginTop='10px';
-  div.appendChild(pfBotao('Sim, fluxo antigo',function(){pfVoltarBusca();pfCarregarLegado();},'pf-primary'));
+  div.appendChild(pfBotao('Sim, fluxo antigo',function(){
+    if (!pfConsultaVigente(consulta)) return;
+    pfVoltarBusca();pfCarregarLegado(consulta);
+  },'pf-primary'));
   div.appendChild(pfBotao('Não, continuar no SPG',function(){
+    if (!pfConsultaVigente(consulta)) return;
     if (!resp.anexoValido) {
       box.textContent='A PPG do chamado não está completa no SPG. Não é seguro enviar sem um anexo validado. Complete as informações no SPG.';
       return;
     }
-    pfCamposPendentes(resp);
+    pfCamposPendentes(resp,consulta);
   }));
   div.appendChild(pfBotao('Cancelar e limpar',pfResetar,'pf-secondary'));
   box.appendChild(div);
 }
-function pfCamposPendentes(resp) {
+function pfCamposPendentes(resp,consulta) {
+  if (!pfConsultaVigente(consulta)) return;
   var box=pfEl('pgflowOrigemSPG');
   box.textContent='';
   box.style.display='block';
@@ -491,6 +532,7 @@ function pfCamposPendentes(resp) {
   });
   var acoes=pfHtmlNode('div','pf-actions');
   acoes.appendChild(pfBotao('Continuar para revisão',function() {
+    if (!pfConsultaVigente(consulta)) return;
     var dados={};
     for(var nome in campos) {
       var c=campos[nome];
@@ -500,7 +542,7 @@ function pfCamposPendentes(resp) {
     if (dados.dataDesejada && !pfColeta(dados.dataDesejada)) {
       alert('Informe uma data válida no formato DD/MM/AAAA.');return;
     }
-    pfPrepararRevisao('spg',resp,dados);
+    pfPrepararRevisao('spg',resp,dados,consulta);
   },'pf-primary'));
   acoes.appendChild(pfBotao('Cancelar e limpar',pfResetar));
   box.appendChild(acoes);
@@ -508,33 +550,35 @@ function pfCamposPendentes(resp) {
 function avancarParaRevisao() {
   if (pfCarregando || pfEnviando) return;
   var id=pfEl('inputChamado').value.trim();
-  var versao=document.querySelector('input[name="opcaoVersao"]:checked').value;
+  var versao=document.querySelector('input[name="pfEmailVersao"]:checked').value;
   var numero=pfEl('inputNumVersao').value.trim();
   pfErro('');pfVoltarBusca();
   if (!/^\d{1,12}$/.test(id)) {pfErro('Informe um número de chamado válido.');return;}
   if (versao==='manual' && (!/^\d+$/.test(numero) || Number(numero)<1)) {
     pfErro('Informe um número de versão válido.');return;
   }
-  pfGruposSelecionados=pfSelecionadas();
-  if (!pfGruposSelecionados.length) {pfErro('Selecione ao menos uma gráfica.');return;}
+  var grupos=pfSelecionadas();
+  if (!grupos.length) {pfErro('Selecione ao menos uma gráfica.');return;}
   if (!pfVersaoCadastro) {pfErro('Cadastro de destinatários ainda não carregado.');return;}
   pfTipoAtual=document.querySelector('input[name="tipoEmail"]:checked').value;
+  var consulta=Object.freeze({ticket:++pfTokenBusca,id:id,tipo:pfTipoAtual,
+    versao:versao,numero:numero,graficas:Object.freeze(grupos.slice())});
+  pfConsultaAtual=consulta;
   if (pfTipoAtual==='inclusivo') {
     // Nunca tratar inclusivo como reentrada: a rota SPG de inclusivos nao foi homologada.
-    pfCarregarLegado();return;
+    pfCarregarLegado(consulta);return;
   }
-  var ticket=++pfTokenBusca;
-  pfCarregando=true;pfEl('pf-avancar').disabled=true;pfEl('loader1').style.display='block';
+  pfBloquearBusca(true);
   google.script.run.withSuccessHandler(function(resp) {
-    if(ticket!==pfTokenBusca)return;
-    pfCarregando=false;pfEl('pf-avancar').disabled=false;pfEl('loader1').style.display='none';
-    if(resp && resp.status==='ok' && resp.anexoValido) pfPrepararRevisao('spg',resp,{});
-    else pfPerguntarOrigem(resp||{erro:'Resposta vazia do SPG.',anexoValido:false});
+    if(!pfConsultaVigente(consulta))return;
+    pfBloquearBusca(false);
+    if(resp && resp.status==='ok' && resp.anexoValido) pfPrepararRevisao('spg',resp,{},consulta);
+    else pfPerguntarOrigem(resp||{erro:'Resposta vazia do SPG.',anexoValido:false},consulta);
   }).withFailureHandler(function(erro) {
-    if(ticket!==pfTokenBusca)return;
-    pfCarregando=false;pfEl('pf-avancar').disabled=false;pfEl('loader1').style.display='none';
+    if(!pfConsultaVigente(consulta))return;
+    pfBloquearBusca(false);
     pfErro('Falha na consulta ao SPG: '+(erro.message||erro));
-  }).consultarPacoteEmailSPG(id,versao,pfTipoAtual);
+  }).consultarPacoteEmailSPG(consulta.id,consulta.versao,consulta.tipo);
 }
 function enviarEmail() {
   if (pfEnviando) return;
@@ -566,21 +610,41 @@ function enviarEmail() {
 }
 function pfAbrirCadastro() {
   if (pfEnviando) {alert('Aguarde a conclusão do envio.');return;}
-  if (!pfVersaoCadastro) {pfCarregarCadastro(pfSelecionadas());alert('Carregando cadastro. Abra novamente quando as gráficas aparecerem.');return;}
-  pfRascunhoCadastro=pfClone(listaGraficas);
+  if (pfSalvandoCadastro) {alert('Aguarde a conclusão do cadastro em andamento.');return;}
+  var sessao=++pfSessaoCadastro;
+  var geracao=pfGeracaoTela;
+  pfRascunhoCadastro=null;
   pfEl('pf-busca').value='';
   pfEl('pf-nova-grafica').value='';
   pfErroCadastro('');
-  pfRenderCadastro();
+  pfEl('pf-lista-cadastro').textContent='Carregando cadastro atualizado…';
+  pfEl('pf-salvar-cadastro').disabled=true;
   pfEl('pf-modal').hidden=false;
+  // Cada abertura le o cadastro e sua versao; nunca reaproveita uma versao em conflito.
+  pfCarregarCadastro(pfSelecionadas(),function() {
+    if(sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
+    pfRascunhoCadastro=pfClone(listaGraficas);
+    pfEl('pf-salvar-cadastro').disabled=false;
+    pfRenderCadastro();
+    if(pfCadastroConflito) {
+      pfErroCadastro('O cadastro foi atualizado com os dados atuais. As alterações anteriores não foram salvas; revise e aplique novamente as que desejar.');
+      pfCadastroConflito=false;
+    }
+  },function(e) {
+    if(sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
+    pfEl('pf-lista-cadastro').textContent='Não foi possível carregar o cadastro.';
+    pfErroCadastro('Não foi possível atualizar: '+(e.message||e)+'. Feche e tente abrir novamente.');
+  });
 }
 function pfFecharCadastro(forcar) {
   if (pfSalvandoCadastro && !forcar) return;
+  pfSessaoCadastro++;
   pfEl('pf-modal').hidden=true;
   pfRascunhoCadastro=null;
   pfErroCadastro('');
 }
 function pfAdicionarGrafica() {
+  if (!pfRascunhoCadastro || pfSalvandoCadastro) return;
   var nome=pfEl('pf-nova-grafica').value.trim();
   if (!nome) {pfErroCadastro('Informe o nome da gráfica.');return;}
   if (nome.length>100) {pfErroCadastro('Nome da gráfica muito longo.');return;}
@@ -605,6 +669,7 @@ function pfRenderCadastro() {
     var cab=pfHtmlNode('div','pf-manage-head');
     cab.appendChild(pfHtmlNode('strong','',nome));
     cab.appendChild(pfBotao('Excluir gráfica',function(){
+      if (pfSalvandoCadastro) return;
       if (!confirm('Excluir '+nome+' e todos os e-mails cadastrados para esta gráfica?')) return;
       delete pfRascunhoCadastro[nome];
       pfRenderCadastro();
@@ -613,22 +678,28 @@ function pfRenderCadastro() {
     (pfRascunhoCadastro[nome]||[]).forEach(function(email,idx){
       var linha=pfHtmlNode('div','pf-manage-line');
       var input=pfHtmlNode('input');input.type='email';input.value=email;
+      input.disabled=pfSalvandoCadastro;
       input.placeholder='nome@empresa.com.br';
       input.setAttribute('aria-label','E-mail '+(idx+1)+' da gráfica '+nome);
-      input.oninput=function(){pfRascunhoCadastro[nome][idx]=input.value;};
+      input.oninput=function(){if(!pfSalvandoCadastro && pfRascunhoCadastro)pfRascunhoCadastro[nome][idx]=input.value;};
       linha.appendChild(input);
       linha.appendChild(pfBotao('Excluir',function(){
+        if (pfSalvandoCadastro) return;
         pfRascunhoCadastro[nome].splice(idx,1);
         pfRenderCadastro();
       },'pf-danger'));
       card.appendChild(linha);
     });
     card.appendChild(pfBotao('+ Adicionar e-mail',function(){
+      if (pfSalvandoCadastro) return;
       pfRascunhoCadastro[nome].push('');
       pfRenderCadastro();
     },'pf-secondary'));
     box.appendChild(card);
   });
+  if(pfSalvandoCadastro) {
+    Array.prototype.forEach.call(box.querySelectorAll('input,button'),function(el){el.disabled=true;});
+  }
 }
 function pfSalvarCadastro() {
   if (pfSalvandoCadastro || !pfRascunhoCadastro) return;
@@ -647,18 +718,30 @@ function pfSalvarCadastro() {
   }
   pfErroCadastro('');
   pfSalvandoCadastro=true;pfEl('pf-salvar-cadastro').disabled=true;
-  var selecionadas=pfSelecionadas();
+  var sessao=pfSessaoCadastro,geracao=pfGeracaoTela;
+  var ticket=++pfTokenCadastro;
+  Array.prototype.forEach.call(pfEl('pf-lista-cadastro').querySelectorAll('input,button'),function(el){el.disabled=true;});
   google.script.run.withSuccessHandler(function(resultado) {
     pfSalvandoCadastro=false;pfEl('pf-salvar-cadastro').disabled=false;
-    if(!resultado || !resultado.versao) {pfErroCadastro('Resposta inesperada ao salvar cadastro.');return;}
+    if(ticket!==pfTokenCadastro)return;
+    var ativo=sessao===pfSessaoCadastro && geracao===pfGeracaoTela;
+    if(!resultado || !resultado.versao) {
+      if(ativo){pfRenderCadastro();pfErroCadastro('Resposta inesperada ao salvar cadastro.');}
+      return;
+    }
     listaGraficas=resultado.graficas||{};
     pfVersaoCadastro=resultado.versao;
-    pfFecharCadastro(true);
+    // Usa a selecao atual: um Cancelar ocorrido durante o pedido nao pode ser desfeito.
+    var selecionadas=pfSelecionadas();
+    if(ativo)pfFecharCadastro(true);
     pfRenderGraficas(selecionadas);
     if(pfEl('passo2').classList.contains('ativo')) pfRenderDestinatarios();
   }).withFailureHandler(function(e) {
     pfSalvandoCadastro=false;pfEl('pf-salvar-cadastro').disabled=false;
-    pfErroCadastro('Não foi possível salvar: '+(e.message||e)+'. Confira se outra pessoa alterou a lista.');
+    if(ticket!==pfTokenCadastro || sessao!==pfSessaoCadastro || geracao!==pfGeracaoTela)return;
+    pfCadastroConflito=/alterad|vers[aã]o|outra pessoa/i.test(e.message||String(e));
+    pfRenderCadastro();
+    pfErroCadastro('Não foi possível salvar: '+(e.message||e)+'. Seu rascunho foi mantido nesta tela. Para carregar o cadastro atualizado, feche e abra novamente.');
   }).salvarCadastroEmailsSPG(novo,pfVersaoCadastro);
 }
 if (typeof google !== 'undefined' && google.script && google.script.run) {

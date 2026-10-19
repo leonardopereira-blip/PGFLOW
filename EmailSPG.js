@@ -5,7 +5,7 @@ var EMAIL_SPG_DESTINATARIOS_PROP = 'EMAIL_SPG_DESTINATARIOS_GRAFICAS';
 
 function _emailSpgId_(id) {
   var valor = String(id == null ? '' : id).trim();
-  if (!/^\d{1,12}$/.test(valor)) throw new Error('Informe um numero de chamado valido.');
+  if (!/^\d{1,12}$/.test(valor) || Number(valor) < 1) throw new Error('Informe um numero de chamado valido.');
   return valor;
 }
 
@@ -119,74 +119,144 @@ function _emailSpgHex_(bytes) {
 }
 
 function _emailSpgHash_(blob) {
-  // O endpoint pode reconstruir o ZIP com timestamps diferentes a cada GET.
-  // Comparamos o conteudo das planilhas, nao os metadados do arquivo ZIP.
-  var partes = Utilities.unzip(blob).filter(function(p) {
-    return /^xl\/worksheets\/[^\/]+\.xml$/i.test(p.getName());
-  }).sort(function(a, b) { return a.getName().localeCompare(b.getName()); })
+  // O ZIP pode ter timestamps diferentes. Inclui textos e relacionamentos que
+  // determinam o conteudo do Excel, excluindo apenas docProps dinamicos.
+  var partes = Utilities.unzip(blob.copyBlob().setContentType('application/zip'))
+    .filter(function(p) { return /^(?:xl\/.*\.(?:xml|rels)|\[Content_Types\]\.xml|_rels\/\.rels)$/i.test(p.getName()); })
+    .sort(function(a, b) { return a.getName().localeCompare(b.getName()); })
     .map(function(p) { return p.getName() + ':' + p.getDataAsString('UTF-8'); });
   if (!partes.length) throw new Error('Excel sem planilhas para validar.');
   return _emailSpgHex_(Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256, partes.join('\n')));
 }
 
-function _emailSpgXmlAtributo_(trecho, nome) {
-  var re = new RegExp('(?:^|\\s)' + nome.replace(':', '\\:') + '\\s*=\\s*["\\x27]([^"\\x27]*)["\\x27]', 'i');
-  var m = re.exec(trecho);
-  return m ? m[1] : '';
-}
+function _emailSpgErroAnexo_(mensagem) { return new Error(mensagem); }
 
-function _emailSpgChecarXlsx_(blob) {
-  var bytes = blob.getBytes();
-  if (bytes.length < 100 || bytes.length > 20 * 1024 * 1024 ||
-      ((bytes[0] + 256) % 256) !== 80 || ((bytes[1] + 256) % 256) !== 75) {
-    throw new Error('O SPG nao retornou um arquivo Excel valido.');
-  }
-  var entradas;
-  try { entradas = Utilities.unzip(blob); }
-  catch (e) { throw new Error('Nao foi possivel abrir o Excel retornado pelo SPG.'); }
+function _emailSpgChecarXlsx_(arquivo, versaoId) {
+  var bytes = arquivo.getBytes();
+  if (bytes.length < 4 || (bytes[0] & 255) !== 80 || (bytes[1] & 255) !== 75) throw _emailSpgErroAnexo_('O SPG não retornou um Excel válido para este chamado.', 'anexo', 'Excel de produção');
+  if (bytes.length > 18 * 1024 * 1024) throw new Error('O Excel retornado pelo SPG é grande demais para este envio.');
+  var partes;
+  try { partes = Utilities.unzip(arquivo.copyBlob().setContentType('application/zip')); }
+  catch (e) { throw _emailSpgErroAnexo_('O SPG não retornou um Excel válido para este chamado.', 'anexo', 'Excel de produção'); }
   var arquivos = {};
-  entradas.forEach(function(b) { arquivos[b.getName().replace(/^\/+/, '')] = b; });
-  if (!arquivos['xl/workbook.xml'] || !arquivos['xl/_rels/workbook.xml.rels']) {
-    throw new Error('Excel do SPG sem estrutura de planilha reconhecida.');
-  }
-  var livro = arquivos['xl/workbook.xml'].getDataAsString('UTF-8');
-  var rels = arquivos['xl/_rels/workbook.xml.rels'].getDataAsString('UTF-8');
-  var caminhoPorId = {};
-  var relTag = /<Relationship\b[^>]*\/?>/gi, achou;
-  while ((achou = relTag.exec(rels))) {
-    var rid = _emailSpgXmlAtributo_(achou[0], 'Id');
-    var alvo = _emailSpgXmlAtributo_(achou[0], 'Target').replace(/\\/g, '/');
-    if (alvo.indexOf('../') !== -1 || alvo.indexOf('://') !== -1) continue;
-    caminhoPorId[rid] = alvo.charAt(0) === '/' ? alvo.substring(1) :
-      (alvo.indexOf('xl/') === 0 ? alvo : 'xl/' + alvo);
-  }
-  var presentes = {tiragem: false, arvore: false, especificacao: false};
-  var sheetTag = /<sheet\b[^>]*\/?>/gi;
-  while ((achou = sheetTag.exec(livro))) {
-    var nome = _emailSpgNormalizar_(_emailSpgXmlAtributo_(achou[0], 'name'));
-    var tipo = nome.indexOf('tiragem') >= 0 ? 'tiragem' :
-      nome.indexOf('arvore') >= 0 ? 'arvore' :
-      (nome.indexOf('espec') >= 0 ? 'especificacao' : '');
-    if (!tipo) continue;
-    var ridSheet = _emailSpgXmlAtributo_(achou[0], 'r:id');
-    var alvoSheet = caminhoPorId[ridSheet];
-    if (!alvoSheet || !arquivos[alvoSheet]) continue;
-    var xml = arquivos[alvoSheet].getDataAsString('UTF-8');
-    // A aba precisa conter ao menos uma linha de dados alem do cabecalho.
-    var linhas = xml.match(/<row\b[^>]*>[\s\S]*?<\/row>/gi) || [];
-    if (linhas.length > 1 && linhas.slice(1).some(function(l) {
-      return /<(?:v|t)\b[^>]*>[^<]+<\/(?:v|t)>/i.test(l);
-    })) presentes[tipo] = true;
-  }
-  var faltando = Object.keys(presentes).filter(function(k) { return !presentes[k]; });
-  if (faltando.length) {
-    throw new Error('Anexo do SPG sem dados nas abas: ' + faltando.join(', ') + '.');
-  }
+  var corresponde = false;
+  partes.forEach(function (parte) {
+    if (/\.(xml|rels)$/.test(parte.getName())) {
+      var xml = parte.getDataAsString();
+      arquivos[parte.getName()] = xml;
+      if (versaoId && new RegExp('https://spg\\.prod\\.arcocv\\.co/(?:op|tiragem)/' + versaoId + '(?:[?/#\\x22&]|$)', 'i').test(xml)) corresponde = true;
+    }
+  });
+  if (!arquivos['xl/workbook.xml'] || !arquivos['xl/_rels/workbook.xml.rels']) throw _emailSpgErroAnexo_('O Excel de produção está incompleto no SPG.', 'anexo', 'Excel de produção');
+  if (versaoId && !corresponde) throw new Error('Não foi possível confirmar que o anexo corresponde à versão deste chamado.');
+  var raiz = _emailSpgXlsxRaiz_(arquivos['xl/workbook.xml']);
+  var ns = raiz.getNamespace();
+  var folhas = raiz.getChild('sheets', ns);
+  var relacoes = _emailSpgXlsxRaiz_(arquivos['xl/_rels/workbook.xml.rels']);
+  var caminhos = {};
+  var textos = [];
+  relacoes.getChildren('Relationship', relacoes.getNamespace()).forEach(function (relacao) {
+    var modo = relacao.getAttribute('TargetMode');
+    if (modo && modo.getValue() === 'External') return;
+    var id = relacao.getAttribute('Id');
+    var alvo = relacao.getAttribute('Target');
+    var tipo = relacao.getAttribute('Type');
+    if (!id || !alvo || !tipo) return;
+    var caminho = _emailSpgXlsxCaminho_(alvo.getValue());
+    if (/\/worksheet$/.test(tipo.getValue())) caminhos[id.getValue()] = caminho;
+    if (/\/sharedStrings$/.test(tipo.getValue()) && arquivos[caminho]) {
+      var strings = _emailSpgXlsxRaiz_(arquivos[caminho]);
+      textos = strings.getChildren('si', strings.getNamespace()).map(_emailSpgXlsxTexto_);
+    }
+  });
+  var abas = {};
+  var nsRelacao = XmlService.getNamespace('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
+  (folhas ? folhas.getChildren('sheet', ns) : []).forEach(function (folha) {
+    var nome = folha.getAttribute('name');
+    var id = folha.getAttribute('id', nsRelacao);
+    if (nome && id) abas[nome.getValue()] = caminhos[id.getValue()];
+  });
+  var sku = '1. ID_Código SKU';
+  var kit = '1. ID_Código Kit';
+  var prioridades = [
+    { nome: 'Tiragem (legado)', colunas: [sku, kit, '15. DES_CD envio', '16. TIR_SKU'], quantidade: true },
+    { nome: 'Esp. Técnica (legado)', colunas: [sku] },
+    { nome: 'Árvore (legado)', colunas: [sku, kit] }
+  ];
+  prioridades.forEach(function (aba) {
+    var xml = arquivos[abas[aba.nome]];
+    if (!xml || !_emailSpgXlsxTemDados_(xml, textos, aba.colunas, aba.quantidade)) {
+      throw _emailSpgErroAnexo_('O Excel do SPG não contém dados de produção na aba necessária: ' + aba.nome + '.', 'anexo', 'Dados da aba ' + aba.nome);
+    }
+  });
   return true;
 }
 
-function _emailSpgBlobDeResposta_(resposta, id) {
+function _emailSpgXlsxRaiz_(xml) {
+  try { return XmlService.parse(xml).getRootElement(); }
+  catch (e) { throw _emailSpgErroAnexo_('A estrutura do Excel de produção está incompleta ou inválida no SPG.', 'anexo', 'Excel de produção'); }
+}
+
+function _emailSpgXlsxCaminho_(alvo) {
+  var partes = (alvo.charAt(0) === '/' ? alvo.substring(1) : 'xl/' + alvo).split('/');
+  var caminho = [];
+  partes.forEach(function (parte) {
+    if (parte === '..') caminho.pop();
+    else if (parte && parte !== '.') caminho.push(parte);
+  });
+  return caminho.join('/');
+}
+
+function _emailSpgXlsxTexto_(elemento) {
+  var ns = elemento.getNamespace();
+  var texto = elemento.getChild('t', ns);
+  if (texto) return texto.getText();
+  return elemento.getChildren('r', ns).map(function (trecho) {
+    var t = trecho.getChild('t', ns);
+    return t ? t.getText() : '';
+  }).join('');
+}
+
+function _emailSpgXlsxTemDados_(xml, textos, colunas, temQuantidade) {
+  var raiz = _emailSpgXlsxRaiz_(xml);
+  var ns = raiz.getNamespace();
+  var dados = raiz.getChild('sheetData', ns);
+  if (!dados) return false;
+  var cabecalho = null;
+  return dados.getChildren('row', ns).some(function (linha) {
+    var valores = {};
+    linha.getChildren('c', ns).forEach(function (celula) {
+      var referencia = celula.getAttribute('r');
+      var coluna = referencia && /^([A-Z]+)\d+$/.exec(referencia.getValue());
+      if (!coluna) return;
+      var tipo = celula.getAttribute('t');
+      tipo = tipo ? tipo.getValue() : '';
+      var v = celula.getChild('v', ns);
+      var valor = v ? v.getText() : '';
+      if (tipo === 's') valor = /^\d+$/.test(valor) ? textos[Number(valor)] || '' : '';
+      else if (tipo === 'inlineStr') {
+        var inline = celula.getChild('is', ns);
+        valor = inline ? _emailSpgXlsxTexto_(inline) : '';
+      } else if (tipo === 'e') valor = '';
+      valores[coluna[1]] = String(valor).trim();
+    });
+    if (!cabecalho) {
+      var encontradas = colunas.map(function (nome) {
+        return Object.keys(valores).filter(function (coluna) { return valores[coluna] === nome; })[0];
+      });
+      if (encontradas.every(function (coluna) { return !!coluna; })) cabecalho = encontradas;
+      return false;
+    }
+    return cabecalho.every(function (coluna, indice) {
+      var valor = valores[coluna] || '';
+      if (temQuantidade && indice === cabecalho.length - 1) return valor !== '' && isFinite(Number(valor)) && Number(valor) >= 0;
+      return /^[a-z0-9][a-z0-9._\/-]*$/i.test(valor);
+    });
+  });
+}
+
+function _emailSpgBlobDeResposta_(resposta, id, versaoId) {
   if (resposta.getResponseCode() !== 200) {
     throw new Error('PPG nao encontrada no SPG (HTTP ' + resposta.getResponseCode() + ').');
   }
@@ -208,30 +278,79 @@ function _emailSpgBlobDeResposta_(resposta, id) {
     } catch (e) { throw new Error('O Excel retornado pelo SPG esta corrompido.'); }
   }
   blob.setName('Chamado ' + id + '.xlsx');
-  _emailSpgChecarXlsx_(blob);
+  _emailSpgChecarXlsx_(blob, versaoId);
   return blob;
 }
 
-function _emailSpgPacote_(idChamado) {
-  var id = _emailSpgId_(idChamado), token = _spgLogin_();
-  if (!token) throw new Error('Autenticacao do SPG indisponivel.');
-  var respostaDados = _emailSpgApi_('/api/reentradas/' + encodeURIComponent(id), token);
-  var json = _emailSpgJson_(respostaDados);
-  var responseOp = _emailSpgApi_('/api/reentradas/' + encodeURIComponent(id) + '/op', token);
-  var blob = _emailSpgBlobDeResposta_(responseOp, id);
-  var numeroApi = json ? _emailSpgCampo_(json, [
-    'numeroChamado', 'numeroDoChamado', 'idChamado', 'chamadoNumero']) : '';
-  if (numeroApi && numeroApi !== id) {
-    throw new Error('O numero do chamado devolvido pelo SPG nao corresponde ao solicitado.');
+function _emailSpgUuid_(valor) {
+  var id = String(valor || '');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('O SPG nao retornou uma identificacao valida para o chamado ou sua producao.');
   }
-  var data = json ? _emailSpgCampo_(json, [
-    'dataDesejada', 'dataDesejadaEntrega', 'dataDesejadaDeEntrega',
-    'dataEntregaDesejada', 'dataDesejadaCD']) : '';
-  var descricao = json ? _emailSpgDescricao_(json) : '';
-  return {
-    id: id, dataDesejada: _emailSpgData_(data), descricao: descricao,
-    hash: _emailSpgHash_(blob), blob: blob
-  };
+  return id;
+}
+
+function _emailSpgLerJson_(path, token) {
+  var resposta = _emailSpgApi_(path, token);
+  var dados = _emailSpgJson_(resposta);
+  if (!dados) throw new Error('Nao foi possivel consultar os dados do SPG (HTTP ' + resposta.getResponseCode() + ').');
+  return dados;
+}
+
+function _emailSpgResolverId_(numero, token) {
+  var ids = [], paginas = 1;
+  // O nome da rota e "sheets", mas esta consulta e diretamente na API.
+  // O relatorio so resolve a identidade; dados do email vem do detalhe do chamado.
+  for (var pagina = 1; pagina <= paginas; pagina++) {
+    var r = _emailSpgLerJson_('/api/reentradas/sheets/relatorio?page=' + pagina + '&limit=100', token);
+    var totalPaginas = Number(r.totalPages);
+    if (!Array.isArray(r.rows) || !isFinite(totalPaginas) || totalPaginas < 1 ||
+        totalPaginas % 1 !== 0 || totalPaginas > 1000 || Number(r.page) !== pagina ||
+        (pagina > 1 && totalPaginas !== paginas)) {
+      throw new Error('O SPG retornou um relatorio ou paginacao invalidos.');
+    }
+    paginas = totalPaginas;
+    r.rows.forEach(function(linha) {
+      if (String(linha.Chamado) !== numero) return;
+      var id = _emailSpgUuid_(linha['ID Chamado']);
+      if (ids.indexOf(id) === -1) ids.push(id);
+    });
+    if (ids.length > 1) throw new Error('O SPG retornou identificacoes diferentes para o mesmo chamado.');
+  }
+  if (!ids.length) throw new Error('As informacoes do chamado nao foram encontradas no SPG.');
+  return ids[0];
+}
+
+function _emailSpgPacote_(idChamado) {
+  var numero = _emailSpgId_(idChamado), token = _spgLogin_();
+  if (!token) throw new Error('Autenticacao do SPG indisponivel.');
+  var id = _emailSpgResolverId_(numero, token);
+  var detalhe = _emailSpgLerJson_('/api/reentradas/' + id, token).reentrada;
+  if (!detalhe || detalhe.id !== id || String(detalhe.numero) !== numero) {
+    throw new Error('Nao foi possivel confirmar a identificacao do chamado no SPG.');
+  }
+  if (detalhe.status === 'CANCELADO') throw new Error('Este chamado esta cancelado no SPG.');
+  var versaoId = _emailSpgUuid_(detalhe.versaoId);
+  if (!detalhe.versao || detalhe.versao.id !== versaoId) {
+    throw new Error('A versao de producao do chamado esta incompleta ou inconsistente no SPG.');
+  }
+  var versao = _emailSpgLerJson_('/api/tiragem/' + versaoId, token).versao;
+  if (!versao || versao.id !== versaoId) throw new Error('Nao foi possivel confirmar a versao da producao no SPG.');
+  if (versao.status === 'CANCELADO' || versao.status === 'CANCELADA') {
+    throw new Error('A versao de producao esta cancelada no SPG.');
+  }
+  var respostaOp = _emailSpgApi_('/api/reentradas/' + id + '/op', token);
+  var blob = _emailSpgBlobDeResposta_(respostaOp, numero, versaoId);
+  // Le somente os campos do chamado e da versao confirmada, nunca de seus SKUs.
+  var data = _emailSpgData_(detalhe.dataDesejadaEntrega);
+  var descricao = String(versao.descricao || '').trim();
+  var op = String(versao.opCode || '').trim();
+  var opParcial = versao.opParcial === true;
+  // O mesmo marcador protege o anexo e os dados usados ao montar a revisao.
+  var hash = _emailSpgHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+    JSON.stringify([id, numero, versaoId, data, descricao, op, opParcial, _emailSpgHash_(blob)])));
+  return {id: numero, idSpg: id, versaoId: versaoId, dataDesejada: data,
+    descricao: descricao, op: op, opParcial: opParcial, hash: hash, blob: blob};
 }
 
 function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
@@ -260,7 +379,7 @@ function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
     return {status: faltantes.length ? 'incompleto' : 'ok',
       idChamado: p.id, anexoValido: true, anexoHash: p.hash,
       dataDesejada: p.dataDesejada, dataColeta: _emailSpgColeta_(p.dataDesejada),
-      descricao: p.descricao, faltantes: faltantes};
+      descricao: p.descricao, op: p.op, opParcial: p.opParcial, versaoId: p.versaoId, faltantes: faltantes};
   } catch (e) {
     return {status: 'incompleto', idChamado: id || '',
       anexoValido: false, erro: e.message, faltantes: []};
@@ -268,9 +387,10 @@ function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
 }
 
 function _emailSpgDestinos_(raw) {
-  if (!Array.isArray(raw)) throw new Error('Destinatarios invalidos.');
-  var emails = [], vistos = {};
+  if (!Array.isArray(raw) || !raw.length || raw.length > 80) throw new Error('Destinatarios invalidos.');
+  var grupos = [], total = 0;
   raw.forEach(function(grupo) {
+    var emails = [], vistos = {};
     String(grupo || '').split(/[;,]/).forEach(function(email) {
       var e = email.trim().toLowerCase();
       if (!e) return;
@@ -279,9 +399,13 @@ function _emailSpgDestinos_(raw) {
       }
       if (!vistos[e]) { vistos[e] = true; emails.push(e); }
     });
+    if (!emails.length) throw new Error('Informe os destinatarios de cada grafica.');
+    // Cada grupo representa uma grafica, mesmo com destinatarios iguais.
+    total += emails.length;
+    grupos.push(emails.join(', '));
   });
-  if (!emails.length || emails.length > 80) throw new Error('Informe de 1 a 80 destinatarios.');
-  return emails;
+  if (!grupos.length || total > 80) throw new Error('Informe de 1 a 80 destinatarios.');
+  return grupos;
 }
 
 function _emailSpgSobrescrita_(pacote, dados) {
@@ -320,7 +444,7 @@ function dispararEmailPacoteSPG(dados) {
       // Refaz consulta e validacao: nunca confia no ID de arquivo ou origem informados pelo navegador.
       var p = _emailSpgPacote_(id);
       if (p.hash !== String(dados.anexoHash || '')) {
-        throw new Error('A PPG foi alterada no SPG. Retorne para a revisao antes de enviar.');
+        throw new Error('A PPG ou os dados do chamado foram alterados no SPG. Retorne para a revisao antes de enviar.');
       }
       _emailSpgSobrescrita_(p, dados);
       var cache = CacheService.getUserCache();
@@ -346,7 +470,7 @@ function dispararEmailPacoteSPG(dados) {
       } catch (err) {
         // Nao liberar a chave: uma repeticao automatica duplicaria envios parciais.
         throw new Error('Falha no envio. ' + enviados + ' de ' + emails.length +
-          ' destinatarios concluidos. Confira os enviados antes de tentar novamente. Detalhe: ' + err.message);
+          ' grupos de destinatarios concluidos. Confira os enviados antes de tentar novamente. Detalhe: ' + err.message);
       }
       return {sucesso: true, mensagem: 'Enviado com sucesso!', enviados: enviados};
     } finally { lock.releaseLock(); }
@@ -385,7 +509,7 @@ function obterDadosGraficasEmailSPG() {
 function salvarDestinatariosEmailSPG(nome, emails) {
   var grafica = String(nome || '').trim();
   if (!grafica || grafica.length > 100) throw new Error('Informe o nome da grafica.');
-  var lista = _emailSpgDestinos_([emails]);
+  var lista = _emailSpgDestinos_([emails])[0].split(', ');
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {

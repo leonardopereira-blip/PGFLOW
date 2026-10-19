@@ -251,8 +251,15 @@
       if (!resumosArr || resumosArr.length === 0) {
         document.getElementById('conteudoResumoLoader').innerHTML = '<span style="color:#b5341f">Nenhum dado encontrado para esses chamados. Verifique a PPG.</span>';
         document.getElementById('botoesResumo').style.display = 'flex';
+        document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
         return;
       }
+      // O backend pode devolver erro + zeros para um chamado. Nao ocultar a falha.
+      var resumoComFalha = resumosArr.some(function(r) {
+        return !!r.erro || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
+      });
+      document.querySelector('#botoesResumo .btn-continuar').style.display =
+        resumoComFalha ? 'none' : '';
       document.getElementById('conteudoResumoLoader').style.display = 'none';
       document.getElementById('conteudoResumoData').style.display = 'block';
      
@@ -264,7 +271,14 @@
      
       resumosArr.forEach(function(resumo) {
         html += '<div class="vc-resumo-card">';
-        html += '  <h4>Chamado ' + resumo.chamado + '</h4>';
+        html += '  <h4>Chamado ' + escHtml(resumo.chamado) + '</h4>';
+        if (resumo.erro || !(Number(resumo.totalSkus) > 0) || !(Number(resumo.tiragemTotal) > 0)) {
+          html += '<div role="alert" style="color:#b5341f; font-size:13px; line-height:1.6;">' +
+            '<strong>Falha ao carregar dados do SPG.</strong> ' +
+            escHtml(resumo.erro || 'O SPG nao retornou SKUs e tiragem validos para este chamado.') +
+            '</div></div>';
+          return;
+        }
         html += '  <div class="vc-summary-box">';
         html += '    <div class="vc-summary-group"><strong>Qtd. SKU\'s Únicos:</strong> ' + resumo.totalSkus + '</div>';
         html += '    <div class="vc-summary-group"><strong>Tiragem Válida:</strong> ' + resumo.tiragemTotal.toLocaleString('pt-BR') + '</div>';
@@ -283,7 +297,10 @@
      
     }).withFailureHandler(function(err) {
       document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
-      document.getElementById('conteudoResumoLoader').innerHTML = '<span style="color:#b5341f">Erro ao processar dados na PPG.</span>';
+      document.getElementById('conteudoResumoLoader').innerHTML =
+        '<span role="alert" style="color:#b5341f">Erro ao consultar o SPG: ' +
+        escHtml(err && (err.message || err) || 'Falha desconhecida') + '</span>';
+      document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
       document.getElementById('botoesResumo').style.display = 'flex';
     }).buscarResumoReentradasSPG(chamados);
   }
@@ -292,6 +309,7 @@
     document.getElementById('txtChamados').disabled = false;
     document.getElementById('selectGraficas').disabled = false;
     document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+    document.querySelector('#botoesResumo .btn-continuar').style.display = '';
     verificarLiberacaoBotao();
    
     setTimeout(function() {
@@ -299,6 +317,7 @@
     }, 400);
   }
   function continuarPosResumo() {
+    if (document.querySelector('#botoesResumo .btn-continuar').style.display === 'none') return;
     document.getElementById('painelResumo').classList.remove('active');
     executarFase1();
   }

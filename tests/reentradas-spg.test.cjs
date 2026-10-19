@@ -105,3 +105,13 @@ test('NC especificacoes replica regras do exemplo real 2740: 0 numerico onde nao
  assert.equal(result[30-3],'LAMINAÇÃO BRILHO');
  assert.equal(result[44-3],'OFFSET 70G');
 });
+
+test('resumo nao oculta falhas de API como chamado com tiragem zero',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
+  assert.match(ui,/var resumoComFalha = resumosArr\.some/);
+  assert.match(ui,/!!r\.erro/);
+  assert.match(ui,/escHtml\(resumo\.erro/);
+  assert.match(ui,/#botoesResumo \.btn-continuar/);
+  assert.match(ui,/Falha ao carregar dados do SPG/);
+  assert.match(ui,/Erro ao consultar o SPG/);
+});

@@ -93,7 +93,10 @@ function _reSpMatriz_(partes,nome) {
   }).filter(function(a){return a.some(function(v){return v!=='';});});
   return {headers:headers,linhas:linhas};
 }
-function _reSpNormal_(s){return String(s||'').trim().replace(/\s+/g,' ').toUpperCase();}
+function _reSpNormal_(s){
+  return String(s||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+}
 function _reSpMapearCab_(dest,cab,linhas) {
   var mapa={};cab.forEach(function(c,i){if(c)mapa[_reSpNormal_(c)]=i;});
   var idx=dest.map(function(h){var n=_reSpNormal_(h);return mapa[n]===undefined?-1:mapa[n];});

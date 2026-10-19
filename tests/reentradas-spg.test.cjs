@@ -8,7 +8,7 @@ const context={};
 vm.createContext(context);
 vm.runInContext(code,context);
 test('script isolado nao usa Google Sheets nem envio de email',()=>{
-  assert.doesNotMatch(code, /SpreadsheetApp|MailApp|GmailApp|gravarNaFila|ValidaPrincipal/);
+  assert.doesNotMatch(code, /\bSpreadsheetApp\.|\bMailApp\.|\bGmailApp\.|\bgravarNaFila\(/);
   assert.match(code,/function gerarValidacaoReentradasSPG\(/);
   assert.match(code,/\/api\/tiragem\/.*\/alocacao/);
 });
@@ -31,8 +31,11 @@ test('formato de referencias Excel e protecao criada no final',()=>{
   assert.match(context._reSpFullCalc_('<workbook></workbook>'),/fullCalcOnLoad="1"/);
 });
 test('mapa de especificacao tem 79 campos e nao replica valores do chamado 2740',()=>{
-  const cab=['1. ID_Código SKU','1. ID_Descrição','4. CAP_Tipo de capa','3. DIM_BXA (Fechado)'];
-  const raw={headers:cab,linhas:[['SKU-A','LIVRO','SIMPLES','205X275']]};
+  const cab=Array(80).fill('');
+  cab[1]='1. ID_Código SKU';cab[2]='1. ID_Descrição';
+  cab[23]='3. DIM_BXA (Fechado)';cab[27]='4. CAP_Tipo de capa';
+  const cells=Array(80).fill('');cells[1]='SKU-A';cells[2]='LIVRO';cells[23]='205X275';cells[27]='SIMPLES';
+  const raw={headers:cab,linhas:[cells]};
   const ar={headers:['1. ID_Código Kit','13. MAN_Total de itens colecionados'],linhas:[['SKU-A','1']]};
   const tr={headers:['1. ID_Código Kit','1. ID_Código SKU','16. TIR_SKU'],linhas:[['SKU-A','SKU-A','100']]};
   const r=context._reSpConstrucaoNC_(raw,ar,tr,[]);

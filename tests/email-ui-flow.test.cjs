@@ -141,14 +141,14 @@ const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
   anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
   statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
 
-test('digitar chamado SPOT com ampliados seleciona inclusivo e mantem seu fluxo antigo', () => {
+test('digitar chamado SPOT ampliados seleciona inclusivo e consulta API', () => {
   const s=makeScreen();s.dispatch('inputChamado','input');
   assert.equal(s.el('pf-avancar').disabled,true);s.runTimers();
   s.reply('identificarTipoEmailSPG',{encontrado:true,idChamado:'3100',tipoSolicitacao:'SPOT',tipoEmail:'inclusivo'});
   assert.equal(s.doc.querySelector('input[name="tipoEmail"]:checked').value,'inclusivo');
   s.context.avancarParaRevisao();
-  assert.equal(s.pending('obterDadosChamado').args[0],'3100');
-  assert.equal(s.requests.some(r=>r.method==='consultarPacoteEmailSPG'),false);
+  assert.equal(s.pending('consultarPacoteEmailSPG').args.join('|'),'3100|ultima|inclusivo');
+  assert.equal(s.requests.some(r=>r.method==='obterDadosChamado'),false);
 });
 
 test('outro SPOT exige escolha manual e resposta atrasada nao altera outro chamado', () => {
@@ -251,7 +251,7 @@ test('status desconhecido é exibido como texto seguro e ausente não é inventa
   assert.equal(s.el('pf-status-spg').textContent, '');
   assert.equal(s.el('pf-status-spg').style.display, 'none');
   s.choose(['Teste'], 'inclusivo'); s.context.avancarParaRevisao();
-  s.reply('obterDadosChamado', { idExcel: 'excel3100', valorF: '3100', dataColeta: '12/11/2026' });
+  s.reply('consultarPacoteEmailSPG', { ...complete,statusChamado:'',statusProducao:'' });
   assert.equal(s.el('pf-status-spg').style.display, 'none');
 });
 
@@ -309,14 +309,14 @@ test('consulta bloqueia os campos e mantém snapshot do chamado, tipo, versão e
   assert.equal(s.el('passo2').classList.contains('ativo'), true);
 });
 
-test('inclusivo mantém arquivo e identificação da consulta antiga capturada', () => {
+test('inclusivo mantém anexo API e identificação capturada', () => {
   const s = makeScreen(); s.choose(['Teste'], 'inclusivo'); s.context.avancarParaRevisao();
-  assert.equal(s.requests.some(r => r.method === 'consultarPacoteEmailSPG'), false);
-  assert.equal(s.pending('obterDadosChamado').args[0], '3100');
+  assert.equal(s.requests.some(r => r.method === 'obterDadosChamado'), false);
+  assert.equal(s.pending('consultarPacoteEmailSPG').args[0], '3100');
   s.el('inputChamado').value = '2961';
-  s.reply('obterDadosChamado', { idExcel: 'excel3100', valorF: '3100', dataColeta: '12/11/2026' });
+  s.reply('consultarPacoteEmailSPG', complete);
   assert.equal(s.context.dadosGlobais.idChamado, '3100');
-  assert.equal(s.context.dadosGlobais.idArquivo, 'excel3100');
+  assert.equal(s.context.dadosGlobais.anexoHash, 'hash3100');
   assert.equal(s.context.dadosGlobais.tipoEmail, 'inclusivo');
 });
 

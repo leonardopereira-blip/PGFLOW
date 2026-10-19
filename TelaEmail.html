@@ -106,7 +106,6 @@
           <label class="pf-choice"><input type="radio" name="tipoEmail" value="reentrada" checked onchange="pfEscolherTipoManual()"> Reentradas</label>
           <label class="pf-choice"><input type="radio" name="tipoEmail" value="inclusivo" onchange="pfEscolherTipoManual()"> Inclusivos (ampliados)</label>
         </div>
-        <p id="pf-dica-tipo" class="pf-help" style="display:none">Inclusivos: o anexo continua vindo do fluxo antigo até a rota específica do SPG ser validada.</p>
       </div>
     </div>
     <div class="pf-field">
@@ -285,11 +284,6 @@ function pfMostrarPasso(n) {
     pfEl('pf-ind' + i).classList.toggle('pf-current', i === n);
   }
 }
-function pfAtualizarInfoTipo() {
-  var selecionado = document.querySelector('input[name="tipoEmail"]:checked');
-  pfEl('pf-dica-tipo').style.display =
-    selecionado && selecionado.value === 'inclusivo' ? 'block' : 'none';
-}
 function pfCancelarIdentificacaoTipo() {
   pfTokenTipo++;
   if (pfTimerTipo !== null) clearTimeout(pfTimerTipo);
@@ -297,12 +291,12 @@ function pfCancelarIdentificacaoTipo() {
   pfEl('pf-avancar').disabled = pfCarregando || pfEnviando;
 }
 function pfEscolherTipoManual() {
-  pfCancelarIdentificacaoTipo(); pfAtualizarInfoTipo(); pfInvalidarConsulta();
+  pfCancelarIdentificacaoTipo();  pfInvalidarConsulta();
 }
 function pfAoDigitarChamado() {
   pfCancelarIdentificacaoTipo(); pfStatusTipo = null; pfInvalidarConsulta();
   Array.prototype.forEach.call(document.querySelectorAll('#pf-email input[name="tipoEmail"]'),function(el){el.checked=false;});
-  pfAtualizarInfoTipo();
+
   var id = pfEl('inputChamado').value.trim(), ticket = pfTokenTipo;
   if (!/^\d{1,12}$/.test(id) || Number(id) < 1) return;
   pfTipoPendente = true; pfEl('pf-avancar').disabled = true;
@@ -313,7 +307,7 @@ function pfAoDigitarChamado() {
       pfStatusTipo = resp;
       if (resp.tipoEmail === 'inclusivo' || resp.tipoEmail === 'reentrada') {
         document.querySelector('input[name="tipoEmail"][value="'+resp.tipoEmail+'"]').checked = true;
-        pfAtualizarInfoTipo();
+
       } else pfErro('Tipo no SPG: '+(resp.tipoSolicitacao || 'não identificado')+'. Selecione o tipo de formalização.');
       pfMostrarStatusSPG(resp);
     } else pfErro('Não foi possível identificar o tipo automaticamente. Selecione o tipo de formalização.');
@@ -390,7 +384,7 @@ function pfResetar() {
   pfEl('inputChamado').value = '';
   pfEl('inputNumVersao').value = '';
   document.querySelector('input[name="tipoEmail"][value="reentrada"]').checked = true;
-  pfAtualizarInfoTipo();
+
   document.querySelector('input[name="pfEmailVersao"][value="ultima"]').checked = true;
   alternarCampoVersao();
   Array.prototype.forEach.call(document.querySelectorAll('#pf-email .pf-email-grafica'),function(c){c.checked=false;});
@@ -642,10 +636,6 @@ function avancarParaRevisao() {
   var consulta=Object.freeze({ticket:++pfTokenBusca,id:id,tipo:pfTipoAtual,
     versao:versao,numero:numero,graficas:Object.freeze(grupos.slice())});
   pfConsultaAtual=consulta;
-  if (pfTipoAtual==='inclusivo') {
-    // Nunca tratar inclusivo como reentrada: a rota SPG de inclusivos nao foi homologada.
-    pfCarregarLegado(consulta);return;
-  }
   pfBloquearBusca(true);
   google.script.run.withSuccessHandler(function(resp) {
     if(!pfConsultaVigente(consulta))return;

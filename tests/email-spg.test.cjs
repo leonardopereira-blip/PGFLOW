@@ -139,20 +139,8 @@ test('dados opcionais so podem ser omitidos por escolha explicita', () => {
 });
 
 
-test('Inclusivos nao sao consultados pela rota de reentradas', () => {
-  const resultado = ctx.consultarPacoteEmailSPG('3100','ultima','inclusivo');
-  assert.equal(resultado.anexoValido,false);
-  assert.equal(resultado.status,'incompleto');
-  assert.match(resultado.erro,/inclusivos/i);
-});
-test('Bloqueia disparo de inclusivos com o anexo de reentradas', () => {
-  const resultado = ctx.dispararEmailPacoteSPG({
-    idChamado:'3100',tipoEmail:'inclusivo',
-    assunto:'Teste',corpo:'Teste',arrayDestinos:['a@example.com']
-  });
-  assert.equal(resultado.sucesso,false);
-  assert.match(resultado.erro,/somente reentradas/i);
-});
+
+
 test('Cadastro valida e-mails, nomes e permite excluir entradas', () => {
   const original = ctx._emailSpgValidarCadastro_({
     Alpha:['A@example.com','a@example.com','b@example.com'],
@@ -320,16 +308,16 @@ test('Cancelar limpa identificacao, selecoes, origem, assunto, corpo e volta ao 
   assert.equal(el('passo1').classList.active.ativo,true);
   assert.equal(el('passo2').classList.active.ativo,false);
   assert.equal(el('pf-modal').hidden,true);
-  assert.equal(el('pf-dica-tipo').style.display,'none');
+
 });
-test('Inclusivos ficam no fluxo legado sem tentativa de usar rota de reentradas', () => {
+test('Inclusivos usam pacote API sem desvio automatico para legado', () => {
   const html=fs.readFileSync(path.join(__dirname,'..','TelaEmail.html'),'utf8');
   const source=html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const vals={inputChamado:{value:'3100',style:{}},
     inputNumVersao:{value:'',style:{}},
     'mensagem-erro':{style:{},textContent:''},
     'pgflowOrigemSPG':{style:{},textContent:''}};
-  let legado=0;
+  let legado=0,api=0;
   const context={
     document:{
       getElementById:id=>vals[id]||(vals[id]={value:'',style:{},textContent:'',setAttribute(){}}),
@@ -337,12 +325,14 @@ test('Inclusivos ficam no fluxo legado sem tentativa de usar rota de reentradas'
       querySelectorAll:q=>q.includes('.pf-email-grafica:checked')?[{value:'Grafica A'}]:[]
     }
   };
+  const runner={withSuccessHandler(){return this;},withFailureHandler(){return this;},consultarPacoteEmailSPG(id,versao,tipo){api++;assert.equal(tipo,'inclusivo');}};
+  context.google={script:{run:runner}};
   vm.createContext(context);
   vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
   context.pfVersaoCadastro='versao';
   context.pfCarregarLegado=()=>{legado++;};
   context.avancarParaRevisao();
-  assert.equal(legado,1);
+  assert.equal(legado,0);assert.equal(api,1);
   assert.equal(context.pfTipoAtual,'inclusivo');
 });
 
@@ -704,4 +694,19 @@ test('duas graficas com mesmos contatos ainda geram dois emails',()=>{
   const result=h.send(p,{arrayDestinos:['a@example.com, A@example.com','a@example.com']});
   assert.equal(result.sucesso,true);assert.equal(result.enviados,2);
   assert.deepEqual(h.state.emails.map(args=>args[0]),['a@example.com','a@example.com']);
+});
+
+
+test('inclusivo SPOT ampliados consulta e envia com Excel vinculado da API',()=>{
+  const h=apiHarness({mutate(d){d.detalhe.tipoSolicitacao='SPOT';d.detalhe.justificativa='Tiragem V1 Ampliados';}});
+  const p=h.c.consultarPacoteEmailSPG('3100','ultima','inclusivo');
+  assert.equal(p.status,'ok');assert.equal(p.anexoValido,true);
+  assert.equal(h.send(p,{tipoEmail:'inclusivo'}).sucesso,true);assert.equal(h.state.emails.length,2);
+});
+test('modelo inclusivo recusa outro tipo antes de baixar ou enviar anexo',()=>{
+  const h=apiHarness({mutate(d){d.detalhe.tipoSolicitacao='REENTRADA';}});
+  const p=h.c.consultarPacoteEmailSPG('3100','ultima','inclusivo');
+  assert.equal(p.anexoValido,false);assert.match(p.erro,/não está identificado como inclusivo/);
+  assert.equal(h.send(p,{tipoEmail:'inclusivo'}).sucesso,false);
+  assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);assert.equal(h.state.emails.length,0);
 });

@@ -330,6 +330,15 @@ function _emailSpgCancelado_(status) {
   return /^CANCELAD[OA]$/.test(_emailSpgStatus_(status).toUpperCase());
 }
 
+function _emailSpgTipoFormalizacao_(detalhe) {
+  var tipo = _emailSpgNormalizar_(detalhe.tipoSolicitacao);
+  var motivo = _emailSpgStatus_(detalhe.justificativa).normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (tipo === 'reentrada') return 'reentrada';
+  if (tipo === 'inclusivos' || (tipo === 'spot' && /(^|[^a-z0-9])ampliad[oa]s?($|[^a-z0-9])/.test(motivo))) return 'inclusivo';
+  return '';
+}
+
 function identificarTipoEmailSPG(idChamado) {
   var numero = String(idChamado == null ? '' : idChamado).trim();
   try {
@@ -344,15 +353,7 @@ function identificarTipoEmailSPG(idChamado) {
     // A selecao usa apenas o tipo e a justificativa do chamado confirmado.
     // Dados de produtos, descricao da producao e anexo nao identificam o modelo.
     var tipoSolicitacao = _emailSpgStatus_(detalhe.tipoSolicitacao);
-    var tipoNormalizado = _emailSpgNormalizar_(tipoSolicitacao);
-    var justificativa = _emailSpgStatus_(detalhe.justificativa).normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    var tipoEmail = '';
-    if (tipoNormalizado === 'reentrada') tipoEmail = 'reentrada';
-    else if (tipoNormalizado === 'inclusivos' ||
-        (tipoNormalizado === 'spot' && /(^|[^a-z0-9])ampliad[oa]s?($|[^a-z0-9])/.test(justificativa))) {
-      tipoEmail = 'inclusivo';
-    }
+    var tipoEmail = _emailSpgTipoFormalizacao_(detalhe);
     var statusChamado = _emailSpgStatus_(detalhe.status);
     var statusProducao = '';
     var versaoId = String(detalhe.versaoId || '');
@@ -369,7 +370,7 @@ function identificarTipoEmailSPG(idChamado) {
   }
 }
 
-function _emailSpgPacote_(idChamado, apenasMetadados) {
+function _emailSpgPacote_(idChamado, apenasMetadados, tipoEmail) {
   var statusChamado = '', statusProducao = '';
   try {
     var numero = _emailSpgId_(idChamado), token = _spgLogin_();
@@ -394,6 +395,9 @@ function _emailSpgPacote_(idChamado, apenasMetadados) {
     if (_emailSpgCancelado_(statusProducao)) {
       throw new Error('A versão de produção deste chamado está cancelada no SPG. O envio de formalização está bloqueado.');
     }
+    if (tipoEmail === 'inclusivo' && _emailSpgTipoFormalizacao_(detalhe) !== 'inclusivo') {
+      throw new Error('O chamado não está identificado como inclusivo no SPG. Confira o tipo e a justificativa.');
+    }
     // Mesmo a escolha de historico precisa confirmar a situacao atual no SPG.
     // O Excel atual nao e necessario quando o usuario pediu uma versao antiga.
     if (apenasMetadados) return {id: numero, statusChamado: statusChamado, statusProducao: statusProducao};
@@ -407,7 +411,7 @@ function _emailSpgPacote_(idChamado, apenasMetadados) {
     // O mesmo marcador protege o anexo, os dados e a situacao mostrada na revisao.
     var hash = _emailSpgHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
       JSON.stringify([id, numero, versaoId, data, descricao, op, opParcial,
-        statusChamado, statusProducao, _emailSpgHash_(blob)])));
+        statusChamado, statusProducao, detalhe.tipoSolicitacao, detalhe.justificativa, _emailSpgHash_(blob)])));
     return {id: numero, idSpg: id, versaoId: versaoId, dataDesejada: data,
       descricao: descricao, op: op, opParcial: opParcial, hash: hash, blob: blob,
       statusChamado: statusChamado, statusProducao: statusProducao};
@@ -421,20 +425,14 @@ function _emailSpgPacote_(idChamado, apenasMetadados) {
 }
 
 function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
-  if (tipoEmail === 'inclusivo') {
-    // Rota especifica de inclusivos ainda nao homologada.
-    // Nunca consultar /reentradas para obter um anexo inclusivo.
-    return {status: 'incompleto', anexoValido: false,
-      erro: 'O anexo de inclusivos deve ser obtido pelo fluxo antigo ate a rota especifica do SPG ser validada.'};
-  }
-  if (tipoEmail && tipoEmail !== 'reentrada') {
+  if (tipoEmail && tipoEmail !== 'reentrada' && tipoEmail !== 'inclusivo') {
     return {status: 'incompleto', anexoValido: false,
       erro: 'Tipo de formalizacao nao reconhecido.'};
   }
   var id;
   try {
     id = _emailSpgId_(idChamado);
-    var p = _emailSpgPacote_(id, opcaoVersao === 'manual');
+    var p = _emailSpgPacote_(id, opcaoVersao === 'manual', tipoEmail);
     // Historico por versao somente quando o SPG expuser selecao inequívoca.
     if (opcaoVersao === 'manual') return {
       status: 'incompleto', idChamado: p.id, anexoValido: false,
@@ -501,9 +499,8 @@ function _emailSpgSobrescrita_(pacote, dados) {
 function dispararEmailPacoteSPG(dados) {
   try {
     if (!dados || typeof dados !== 'object') throw new Error('Dados do envio invalidos.');
-    if (dados.tipoEmail === 'inclusivo' ||
-        (dados.tipoEmail && dados.tipoEmail !== 'reentrada')) {
-      throw new Error('Esta rota de PPG atende somente reentradas. Inclusivos devem usar o fluxo antigo.');
+    if (dados.tipoEmail && dados.tipoEmail !== 'reentrada' && dados.tipoEmail !== 'inclusivo') {
+      throw new Error('Tipo de formalização não reconhecido.');
     }
     var id = _emailSpgId_(dados.idChamado), emails = _emailSpgDestinos_(dados.arrayDestinos);
     var assunto = String(dados.assunto || '').trim(), corpo = String(dados.corpo || '').trim();
@@ -512,7 +509,7 @@ function dispararEmailPacoteSPG(dados) {
     if (!lock.tryLock(20000)) throw new Error('Ha outro envio em andamento. Tente novamente.');
     try {
       // Refaz consulta e validacao: nunca confia no ID de arquivo ou origem informados pelo navegador.
-      var p = _emailSpgPacote_(id);
+      var p = _emailSpgPacote_(id, false, dados.tipoEmail);
       if (p.hash !== String(dados.anexoHash || '')) {
         throw new Error('A PPG ou os dados do chamado foram alterados no SPG. Retorne para a revisao antes de enviar.');
       }

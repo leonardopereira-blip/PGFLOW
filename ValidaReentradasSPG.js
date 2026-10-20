@@ -1,13 +1,28 @@
 // Gerador nativo XLSX - somente VALIDACAO DE CUSTOS REENTRADAS.
 // Sem SpreadsheetApp, sem fila de e-mail, sem alteracao na Validacao Principal.
-// Excel original e mantido: formulas, tabelas, estilos e 12 abas.
+// Calculadora e De-Para sao criados do zero a partir dos moldes mapeados
+// (MoldeXlsx.js + Molde*.js): formulas, tabelas, estilos e abas do modelo,
+// sem ler planilhas no Drive.
 var RE_SP_CONFIG = {
-  deparaModelo: '1TU5fAYIAznMlva10vvElmD-icFuygbws',
-  calculadoraLogprint: '1cb3GthAbz9yPtILBMMfk_du8gGNyI9i6',
   pastaDestino: '1DKie1AHE7EFHa6roJY2XxE2ZlFhC_lCy',
   senhaProtecao: 'PGFLOW2026',
   limiteSkus: 300
 };
+// Moldes por grafica. Nova grafica: mapear o Excel com tools/mapear-molde.cjs e registrar aqui.
+var RE_SP_MOLDES = {
+  LOGPRINT: {
+    calc: function(){return _moldeLogprintCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
+  }
+};
+var _reSpMoldesCache_ = {};
+function _reSpMolde_(grafica,tipo) {
+  var g=RE_SP_MOLDES[_reSpNormal_(grafica)];
+  if(!g||!g[tipo])throw Error('Sem molde '+tipo+' para a grafica '+grafica);
+  var chave=_reSpNormal_(grafica)+'|'+tipo;
+  if(!_reSpMoldesCache_[chave])_reSpMoldesCache_[chave]=g[tipo]();
+  return _mxPartes_(_reSpMoldesCache_[chave]);
+}
 
 function _reSpEscape_(v) {
   return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -448,8 +463,8 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento){
 function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
   if(!/^\d{2,8}$/.test(chamado))throw Error('Numero do chamado invalido');
   var api=_reSpPrepararDados_(chamado,grafica);
-  var deparaOrig=_reSpPartes_(DriveApp.getFileById(RE_SP_CONFIG.deparaModelo).getBlob());
-  var calcOrig=_reSpPartes_(DriveApp.getFileById(RE_SP_CONFIG.calculadoraLogprint).getBlob());
+  var deparaOrig=_reSpMolde_(grafica,'depara');
+  var calcOrig=_reSpMolde_(grafica,'calc');
   var dnomes=['PPG - Especificações','PPG - Arvore de Produto','PPG - Tiragem',
     'NC - PPG Especificações','NC - CALC Geral','TAB - Ajustes de Nomes'];
   var cnomes=['PPG Especificações','CALC Geral','CALC Digital','CALC Plana',

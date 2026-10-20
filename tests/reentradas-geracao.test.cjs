@@ -124,7 +124,7 @@ for(const g of GRAFICAS){
       const t=app._reSpMatriz_(depara,'PPG - Tiragem');
       assert.equal(t.linhas.length,qtd+2);
       assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'1. ID_Código SKU'),skus[0]);
-      assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'16. TIR_SKU'),'100');
+      assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'16. TIR_SKU'),100);
       if(forma){
         for(const ref of ['I6','Y6','AB6'])assert.match(primeira.get(ref),/<f(?:\s|>)/,ref+' perdeu formula');
         const imput=ler(calc,'IMPUT Forma Certa'),ultima=qtd+2;

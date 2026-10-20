@@ -5,11 +5,15 @@ on:
     paths:
       - ValidaReentradasSPG.js
       - ValidaInterface.html
+      - EmailSPG.js
+      - LegadoAlocacaoReentradas.js
+      - ReentradasFormaCerta.js
+      - ReentradasRecentes.js
       - MoldeXlsx.js
       - Molde*.js
       - tools/**
-      - tests/reentradas-spg.test.cjs
-      - tests/molde-xlsx.test.cjs
+      - tests/reentradas-*.test.cjs
+      - tests/molde*.test.cjs
       - .github/workflows/testar-reentradas-spg.yml
   workflow_dispatch:
 permissions:
@@ -23,4 +27,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test tests/reentradas-spg.test.cjs tests/molde-xlsx.test.cjs
+      - run: node --test --test-concurrency=1 tests/reentradas-*.test.cjs tests/molde*.test.cjs

@@ -1,5 +1,5 @@
 // Gerador nativo XLSX - somente VALIDACAO DE CUSTOS REENTRADAS.
-// Sem SpreadsheetApp, sem fila de e-mail, sem alteracao na Validacao Principal.
+// Sem fila de e-mail, sem alteracao na Validacao Principal.
 // Calculadora e De-Para sao criados do zero a partir dos moldes mapeados
 // (MoldeXlsx.js + Molde*.js): formulas, tabelas, estilos e abas do modelo,
 // sem ler planilhas no Drive.
@@ -11,7 +11,28 @@ var RE_SP_CONFIG = {
 // Moldes por grafica. Nova grafica: mapear o Excel com tools/mapear-molde.cjs e registrar aqui.
 var RE_SP_MOLDES = {
   LOGPRINT: {
+    nome: 'Logprint',
     calc: function(){return _moldeLogprintCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
+  },
+  CASADAGRAFICA: {
+    nome: 'Casa da Gráfica',
+    calc: function(){return _moldeCasaDaGraficaCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
+  },
+  FORMACERTA: {
+    nome: 'Forma Certa',
+    calc: function(){return _moldeFormaCertaCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
+  },
+  META: {
+    nome: 'Meta',
+    calc: function(){return _moldeMetaCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
+  },
+  REPROSET: {
+    nome: 'Reproset',
+    calc: function(){return _moldeReprosetCalc_();},
     depara: function(){return _moldeLogprintDepara_();}
   }
 };
@@ -191,7 +212,7 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
   return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
 }
 function _reSpPrepararDados_(numero,grafica) {
-  if(_reSpNormal_(grafica)!=='LOGPRINT')throw Error('Modelo ainda nao homologado para esta grafica.');
+  if(!RE_SP_MOLDES[_reSpNormal_(grafica)])throw Error('Modelo ainda nao disponivel para esta grafica.');
   var pacote=_emailSpgPacote_(numero,false,'reentrada');
   if(pacote.id!==numero||!pacote.versaoId||!pacote.blob)throw Error('Chamado ou versao inconsistentes na API');
   if(/CANCELAD/i.test(pacote.statusChamado+' '+pacote.statusProducao))throw Error('Chamado cancelado');
@@ -305,8 +326,21 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
   return {especificacoes:ret,calc:matCalc,porSku:porSku};
 }
 function listarPastasGraficasReentradasSPG(){
-  // Disponibilidade de modelos: por ora somente Logprint homologada.
-  return [{nome:'Logprint',id:'LOGPRINT'}];
+  return Object.keys(RE_SP_MOLDES).map(function(id){return {nome:RE_SP_MOLDES[id].nome,id:id};});
+}
+// Unico ponto de troca de fonte. Remover junto com LegadoAlocacaoReentradas.js
+// quando a transicao dos chamados antigos terminar.
+function _reSpDadosChamado_(numero,grafica,origensLegado){
+  var legado=Array.isArray(origensLegado)&&origensLegado.some(function(id){return String(id).trim()===numero;});
+  if(!legado)return _reSpPrepararDados_(numero,grafica);
+  // A confirmacao da tela nao pode trocar um chamado existente/cancelado por Sheets.
+  try{
+    _emailSpgPacote_(numero,true,'reentrada');
+  }catch(err){
+    if(err.codigo==='CHAMADO_NAO_ENCONTRADO')return _reSpPrepararDadosLegado_(numero,grafica);
+    throw err;
+  }
+  throw Error('Este chamado existe no SPG. Consulte novamente os dados da API.');
 }
 function _reSpValoresResumo_(dados,campos) {
   var unicos={},valores=[];
@@ -324,10 +358,10 @@ function _reSpValoresResumo_(dados,campos) {
   });
   return valores.join(', ');
 }
-function buscarResumoReentradasSPG(chamados){
+function buscarResumoReentradasSPG(chamados,origensLegado){
   return String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean).map(function(id){
     try{
-      var p=_reSpPrepararDados_(id,'LOGPRINT');
+      var p=_reSpDadosChamado_(id,'LOGPRINT',origensLegado);
       var skus={};
       p.espec.linhas.forEach(function(r){
         var sku=_reSpBuscar_(r,p.espec.headers,'1. ID_Código SKU');
@@ -339,6 +373,8 @@ function buscarResumoReentradasSPG(chamados){
       });
       return {
         chamado:id,
+        origem:p.pacote&&p.pacote.origem==='legado'?'legado':'spg',
+        legadoTemporario:!!(p.pacote&&p.pacote.origem==='legado'),
         totalSkus:Object.keys(skus).length,
         tiragemTotal:total,
         marcas:_reSpValoresResumo_(p.espec,['2. INF_Marca']),
@@ -348,17 +384,17 @@ function buscarResumoReentradasSPG(chamados){
         cdsDestino:_reSpValoresResumo_(p.tiragem,['15. DES_CD envio'])
       };
     }catch(err){
-      return {chamado:id,erro:err.message,totalSkus:0,tiragemTotal:0,
+      return {chamado:id,erro:err.message,naoEncontrado:err.codigo==='CHAMADO_NAO_ENCONTRADO',totalSkus:0,tiragemTotal:0,
         marcas:'',series:'',papeisCapa:'',papeisMiolo:'',cdsDestino:''};
     }
   });
 }
-function validarReentradasSPG(grafica,chamados) {
-  if(_reSpNormal_(grafica)!=='LOGPRINT')return {erro:'Apenas calculadora Logprint esta disponivel.'};
+function validarReentradasSPG(grafica,chamados,origensLegado) {
+  if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Calculadora indisponivel para esta grafica.'};
   var ids=String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
   if(!ids.length)return {erro:'Informe os chamados.'};
   var validos=[],invalidos=[];
-  ids.forEach(function(id){try{_reSpPrepararDados_(id,grafica);validos.push(id);}catch(err){invalidos.push(id+': '+err.message);}});
+  ids.forEach(function(id){try{_reSpDadosChamado_(id,grafica,origensLegado);validos.push(id);}catch(err){invalidos.push(id+': '+err.message);}});
   if(!validos.length)return {erro:'Nenhum chamado validado: '+invalidos.join(' | ')};
   var manuais=[
     [32,'RELEVO','Sim / Não'],[33,'RELEVO - ÁREA','cm²'],[34,'UV LOCALIZADO','Sim / Não'],
@@ -370,15 +406,15 @@ function validarReentradasSPG(grafica,chamados) {
     opcoes:/Sim/.test(r[2])?['Não','Sim']:null};});
   return {bundle:true,sucesso:true,validos:validos,invalidos:invalidos,colunasManuais:manuais};
 }
-function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento) {
-  if(_reSpNormal_(grafica)!=='LOGPRINT')return {erro:'Modelo ainda nao homologado para esta grafica.'};
+function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento,origensLegado) {
+  if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Modelo ainda nao disponivel para esta grafica.'};
   if ((opcaoVersao && opcaoVersao !== 'spg' && opcaoVersao !== 'ultima') || String(versoesManuais || '').trim()) {
     return {sucesso:false,erro:'A validação usa somente a versão vinculada ao chamado no SPG. Atualize a página.'};
   }
   try{
     var result=[],failed=[];
     (chamados||[]).forEach(function(chamado){
-      try{result.push(_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{}));}
+      try{result.push(_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{},origensLegado));}
       catch(e){failed.push(chamado+': '+e.message);}
     });
     return {sucesso:!!result.length,erro:result.length?undefined:failed.join(' | '),resumo:result,arquivos:result,avisos:failed,jobs:[]};
@@ -386,14 +422,17 @@ function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais
 }
 // Edita SOMENTE as entradas da CALC Geral mantendo intactas as formulas em
 // todas as linhas e colunas, inclusive as mais de 100 colunas de precificacao.
-function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento){
+function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
   var parte=/<sheetData(?:\s[^>]*)?>[\s\S]*?<\/sheetData>/.exec(xml);
   if(!parte)throw Error('CALC Geral sem sheetData');
   var original=parte[0],linhas=/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
   var f=fornecimento||{},elements=f.elementos||{},tec=_reSpNormal_(f.tecnologia||'DIGITAL');
   var forn=f.fornecedor||'GRÁFICA';
   if(['DIGITAL','PLANA','ROTATIVA'].indexOf(tec)<0)throw Error('Tecnologia invalida: '+tec);
-  var inputs=['C','D','F','G','H','I','Y','AB','AE',
+  var formaCerta=_reSpNormal_(grafica)==='FORMACERTA';
+  var inputs=formaCerta?['C','D','F','G','H','X','AA',
+    'CA','CE','CI','CM','CQ','CU','CY','DC','DG','DK','DO','DS','DW','EA','EE','EI','EM','EQ']:
+    ['C','D','F','G','H','I','Y','AB','AE',
     'CF','CK','CP','CU','CZ','DE','DI',
     'DN','DS','DX','EC','EH','EM','EQ',
     'EV','FA','FF','FK','FP','FU','FY',
@@ -413,12 +452,16 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento){
       v[_reSpIdx_('C')]='Chamado '+chamado;
       v[_reSpIdx_('D')]=sku;
       v[_reSpIdx_('F')]=x.avulso;
-      v[_reSpIdx_('G')]=0;
-      v[_reSpIdx_('H')]=x.kit;
-      v[_reSpIdx_('I')]=x.maleta;
-      v[_reSpIdx_('Y')]=tec;
-      v[_reSpIdx_('AB')]=forn;
-      var blocos={
+      v[_reSpIdx_('G')]=formaCerta?x.kit:0;
+      v[_reSpIdx_('H')]=formaCerta?x.maleta:x.kit;
+      if(!formaCerta)v[_reSpIdx_('I')]=x.maleta;
+      v[_reSpIdx_(formaCerta?'X':'Y')]=tec;
+      v[_reSpIdx_(formaCerta?'AA':'AB')]=forn;
+      var blocos=formaCerta?{
+        DIGITAL:['CA','CE','CI','CM','CQ','CU'],
+        PLANA:['CY','DC','DG','DK','DO','DS'],
+        ROTATIVA:['DW','EA','EE','EI','EM','EQ']
+      }:{
         DIGITAL:['CF','CK','CP','CU','CZ','DE','DI'],
         PLANA:['DN','DS','DX','EC','EH','EM','EQ'],
         ROTATIVA:['EV','FA','FF','FK','FP','FU','FY']
@@ -460,9 +503,9 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento){
   return xml.replace(original,rewritten);
 }
 
-function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
+function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado) {
   if(!/^\d{2,8}$/.test(chamado))throw Error('Numero do chamado invalido');
-  var api=_reSpPrepararDados_(chamado,grafica);
+  var api=_reSpDadosChamado_(chamado,grafica,origensLegado);
   var deparaOrig=_reSpMolde_(grafica,'depara');
   var calcOrig=_reSpMolde_(grafica,'calc');
   var dnomes=['PPG - Especificações','PPG - Arvore de Produto','PPG - Tiragem',
@@ -470,6 +513,7 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
   var cnomes=['PPG Especificações','CALC Geral','CALC Digital','CALC Plana',
     'CALC Rotativa','CALC Acabamento','TAB Regras','TAB Formatos',
     'TAB Papel','TAB Impressão','TAB Acabamento','TAB Versões'];
+  if(_reSpNormal_(grafica)==='FORMACERTA')cnomes.push('IMPUT Forma Certa');
   dnomes.forEach(function(n){_reSpAbaPorNome_(deparaOrig,n);});
   cnomes.forEach(function(n){_reSpAbaPorNome_(calcOrig,n);});
   var listas=[api.espec,api.arvore,api.tiragem],bases=[],alterDepara={};
@@ -515,7 +559,11 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
   var cr=nc.especificacoes.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+5,o,cpstyle);});
   var alterCalc={};alterCalc[cp]=_reSpTrocarLinhas_(cpx,5,cr);
   var geral=_reSpAbaPorNome_(calcOrig,'CALC Geral'),gx=calcOrig.mapa[geral].getDataAsString('UTF-8');
-  alterCalc[geral]=_reSpPreencherCalcGeral_(gx,bySku,nc.porSku,chamado,fornecimento);
+  alterCalc[geral]=_reSpPreencherCalcGeral_(gx,bySku,nc.porSku,chamado,fornecimento,grafica);
+  if(_reSpNormal_(grafica)==='FORMACERTA'){
+    var imput=_reSpAbaPorNome_(calcOrig,'IMPUT Forma Certa');
+    alterCalc[imput]=_reFcExpandirImput_(calcOrig.mapa[imput].getDataAsString('UTF-8'),bySku.length);
+  }
   // Marcar todas as formulas para recalculo integral, sem substituir tarifas da Logprint.
   alterDepara['xl/workbook.xml']=_reSpFullCalc_(deparaOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
   alterCalc['xl/workbook.xml']=_reSpFullCalc_(calcOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
@@ -524,12 +572,13 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento) {
     // A senha definida neste gerador e aplicada somente apos todos os dados.
     names.forEach(function(n){var p=_reSpAbaPorNome_(w,n);alter[p]=_reSpProteger_(alter[p]===undefined?w.mapa[p].getDataAsString('UTF-8'):alter[p]);});
   });
-  var nomeD='PLANILHA DE PARA PPG LOGPRINT - CHAMADO '+chamado+'.xlsx';
-  var nomeC='CALCULADORA FORNECEDOR LOGPRINT - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsx';
+  var nomeGrafica=RE_SP_MOLDES[_reSpNormal_(grafica)].nome;
+  var nomeD='PLANILHA DE PARA PPG '+nomeGrafica.toUpperCase()+' - CHAMADO '+chamado+'.xlsx';
+  var nomeC='CALCULADORA FORNECEDOR '+nomeGrafica.toUpperCase()+' - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsx';
   // Somente aqui os arquivos sao criados, depois de validar todas as matrizes.
   var fd=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
   var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC);
-  return {chamado:chamado,grafica:'LOGPRINT',skus:bySku.length,
+  return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',skus:bySku.length,
     tiragem:Object.keys(nc.porSku).reduce(function(s,k){return s+nc.porSku[k].total;},0),
     depara:fd.getUrl(),calculadora:fc.getUrl(),arquivo:nomeC,
     aviso:'O Excel recalcula custos ao abrir; precos nao homologados sem abrir e validar.'};

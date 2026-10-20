@@ -19,6 +19,11 @@
           <input type="text" id="txtChamados" placeholder="Ex: 2465, 2466" oninput="verificarLiberacaoBotao()">
           <button id="btnAvancar" class="vc-btn-primary" onclick="abrirResumoAntesDeAvancar()" disabled>Iniciar validação</button>
         </div>
+        <div class="vc-card vc-recentes">
+          <div class="vc-section-head"><h3>Últimas solicitações de reentrada</h3></div>
+          <div id="reentradasRecentesStatus" class="vc-recentes-status" role="status">Carregando últimas reentradas...</div>
+          <div id="reentradasRecentesLista" class="vc-recentes-lista"></div>
+        </div>
       </div>
       <div id="telaFase2" style="display:none">
         <div class="vc-card">
@@ -185,6 +190,18 @@
   .btn-cancelar:hover { filter: brightness(0.95); }
   .btn-continuar { background: #F04E37; color: #fff; border: none; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; flex: 1; transition: filter .15s; }
   .btn-continuar:hover { filter: brightness(0.95); }
+  .vc-origem-legado{display:inline-block;margin-bottom:10px;padding:3px 8px;border-radius:5px;background:#fff4dd;color:#795719;font-size:11px;font-weight:600;}
+  .vc-legado-pergunta{margin-top:12px;padding-top:10px;border-top:1px dashed #e6e8ef;font-size:13px;line-height:1.6;}
+  .vc-legado-opcoes{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+  .vc-legado-opcoes button{padding:8px 10px;border:1px solid #d3d9e6;border-radius:7px;background:#f7f9fd;color:#284081;font:inherit;font-size:12px;cursor:pointer;}
+  .vc-legado-opcoes button:first-child{background:#284081;color:#fff;border-color:#284081;}
+  .vc-recentes .vc-section-head{margin:0 0 10px;}
+  .vc-recentes-status{font-size:12px;color:#6b7280;line-height:1.5;}
+  .vc-recentes-lista{overflow:auto;max-height:350px;}
+  .vc-recentes-lista table{width:100%;border-collapse:collapse;font-size:12px;text-align:left;}
+  .vc-recentes-lista th,.vc-recentes-lista td{padding:8px;border-bottom:1px solid #e6e8ef;white-space:nowrap;}
+  .vc-recentes-lista th{background:#f7f9fd;color:#54607d;position:sticky;top:0;}
+  .vc-recentes-lista button{border:0;padding:0;background:transparent;color:#284081;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;}
 </style>
 <script>
   var FORNECEDORES = ["GRÁFICA", "ATHOS", "FELK", "HR"];
@@ -201,7 +218,49 @@
   ];
   var ICONES_ACAB = {RELEVO:"🔲","UV LOCALIZADO":"✨","HOT STAMPING":"🥇",ORELHA:"📑","CORTE / VINCO":"✂️",SERRILHA:"〰️",SHRINK:"📦",MALETA:"🧳"};
   var cacheChamadosValidos = [];
-  setTimeout(function(){ google.script.run.withSuccessHandler(preencherPastasGraficasApp).listarPastasGraficasReentradasSPG(); }, 100);
+  // A origem alternativa é temporária e só vale para os chamados confirmados nesta tela.
+  var origensLegadoReentradas = [];
+  var _legadoRecusadoReentradas = [];
+  var _chamadosOrigemKey = '';
+  var _resumosReentradas = [];
+  var _resumoProntoReentradas = false;
+  var _reentradasConsultaSeq = 0;
+  var _reentradasRecentes = [];
+  setTimeout(function(){
+    google.script.run.withSuccessHandler(preencherPastasGraficasApp).listarPastasGraficasReentradasSPG();
+    google.script.run.withSuccessHandler(renderizarUltimasReentradasSPG).withFailureHandler(function() {
+      renderizarUltimasReentradasSPG({erro:'Falha ao carregar as últimas reentradas.'});
+    }).listarUltimasReentradasSPG();
+  }, 100);
+  function renderizarUltimasReentradasSPG(res) {
+    var status = document.getElementById('reentradasRecentesStatus');
+    var lista = document.getElementById('reentradasRecentesLista');
+    lista.innerHTML = '';
+    _reentradasRecentes = [];
+    if (!res || res.erro || !Array.isArray(res.chamados)) {
+      status.textContent = 'Não foi possível carregar as últimas reentradas. Você pode informar o chamado acima.';
+      return;
+    }
+    _reentradasRecentes = res.chamados.slice(0, 30);
+    if (!_reentradasRecentes.length) {
+      status.textContent = 'Nenhuma solicitação de reentrada encontrada.';
+      return;
+    }
+    status.textContent = _reentradasRecentes.length + ' chamado(s). Clique no número para selecionar.';
+    function campo(valor) { return escHtml(valor == null || String(valor).trim() === '' ? '—' : valor); }
+    lista.innerHTML = '<table><thead><tr><th scope="col">Chamado</th><th scope="col">Status</th><th scope="col">Marca</th><th scope="col">Envio</th><th scope="col">Alocado em</th></tr></thead><tbody>' +
+      _reentradasRecentes.map(function(r, indice) {
+        return '<tr><td>' + (r.chamado ? '<button type="button" onclick="selecionarReentradaRecente(' + indice + ')">' + campo(r.chamado) + '</button>' : '—') +
+          '</td><td>' + campo(r.status) + '</td><td>' + campo(r.marca) + '</td><td>' + campo(r.envio) + '</td><td>' + campo(r.alocadoEm) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  function selecionarReentradaRecente(indice) {
+    var item = _reentradasRecentes[indice];
+    var input = document.getElementById('txtChamados');
+    if (!item || !item.chamado || input.disabled) return;
+    input.value = String(item.chamado);
+    verificarLiberacaoBotao();
+  }
   function preencherPastasGraficasApp(dados){
     var s = document.getElementById('selectGraficas'); s.innerHTML='';
     if(!dados || dados.length===0){ s.innerHTML='<option value="">Nenhuma calculadora cadastrada</option>'; return; }
@@ -213,21 +272,65 @@
   function verificarLiberacaoBotao(){
     var g=document.getElementById('selectGraficas').value;
     var c=document.getElementById('txtChamados').value.trim();
+    sincronizarOrigensReentradas();
     document.getElementById('btnAvancar').disabled = !(g!=="" && c!=="");
+  }
+
+  function chaveChamadosReentradas() {
+    return document.getElementById('txtChamados').value.split(',').map(function(id) {
+      return id.trim();
+    }).filter(Boolean).join(',');
+  }
+  function sincronizarOrigensReentradas() {
+    var chave = chaveChamadosReentradas();
+    if (chave !== _chamadosOrigemKey) {
+      _chamadosOrigemKey = chave;
+      origensLegadoReentradas = [];
+      _legadoRecusadoReentradas = [];
+      _resumosReentradas = [];
+      _resumoProntoReentradas = false;
+      _reentradasConsultaSeq++;
+      document.getElementById('painelResumo').classList.remove('active');
+    }
+    return chave;
+  }
+  function consultaReentradasAtual(seq, chave) {
+    return seq === _reentradasConsultaSeq && chave === chaveChamadosReentradas();
+  }
+  function selecionarLegadoTemporarioReentradas(indice, usarLegado) {
+    var resumo = _resumosReentradas[indice];
+    if (!resumo || resumo.naoEncontrado !== true || resumo.origem === 'legado' ||
+        _chamadosOrigemKey !== chaveChamadosReentradas()) return;
+    var id = String(resumo.chamado);
+    if (origensLegadoReentradas.indexOf(id) !== -1) return;
+    if (!usarLegado) {
+      if (_legadoRecusadoReentradas.indexOf(id) === -1) _legadoRecusadoReentradas.push(id);
+      renderResumosReentradas(_resumosReentradas);
+      return;
+    }
+    origensLegadoReentradas.push(id);
+    _legadoRecusadoReentradas = _legadoRecusadoReentradas.filter(function(v) { return v !== id; });
+    abrirResumoAntesDeAvancar();
   }
  
   function abrirResumoAntesDeAvancar() {
     var chamados = document.getElementById('txtChamados').value;
     if (!chamados) return;
+    var chave = sincronizarOrigensReentradas();
+    var seq = ++_reentradasConsultaSeq;
+    _resumoProntoReentradas = false;
+    _resumosReentradas = [];
     document.getElementById('btnAvancar').disabled = true;
     document.getElementById('btnAvancar').innerHTML = '<span class="vc-loader"></span> Carregando Resumo...';
     document.getElementById('txtChamados').disabled = true;
     document.getElementById('selectGraficas').disabled = true;
     document.getElementById('painelResumo').classList.add('active');
+    document.getElementById('conteudoResumoLoader').innerHTML = '<span class="vc-loader"></span> Consultando dados dos chamados...';
     document.getElementById('conteudoResumoLoader').style.display = 'block';
     document.getElementById('conteudoResumoData').style.display = 'none';
     document.getElementById('botoesResumo').style.display = 'none';
     google.script.run.withSuccessHandler(function(resumosArr) {
+      if (!consultaReentradasAtual(seq, chave)) return;
       document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
      
       if (!resumosArr || resumosArr.length === 0) {
@@ -236,10 +339,24 @@
         document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
         return;
       }
+      renderResumosReentradas(resumosArr);
+    }).withFailureHandler(function(err) {
+      if (!consultaReentradasAtual(seq, chave)) return;
+      document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+      document.getElementById('conteudoResumoLoader').innerHTML =
+        '<span role="alert" style="color:#b5341f">Erro ao consultar o SPG: ' +
+        escHtml(err && (err.message || err) || 'Falha desconhecida') + '</span>';
+      document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
+      document.getElementById('botoesResumo').style.display = 'flex';
+    }).buscarResumoReentradasSPG(chamados, origensLegadoReentradas.slice());
+  }
+  function renderResumosReentradas(resumosArr) {
+      _resumosReentradas = resumosArr;
       // O backend pode devolver erro + zeros para um chamado. Nao ocultar a falha.
       var resumoComFalha = resumosArr.some(function(r) {
-        return !!r.erro || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
+        return !!r.erro || r.naoEncontrado === true || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
       });
+      _resumoProntoReentradas = !resumoComFalha;
       document.querySelector('#botoesResumo .btn-continuar').style.display =
         resumoComFalha ? 'none' : '';
       document.getElementById('conteudoResumoLoader').style.display = 'none';
@@ -247,16 +364,32 @@
      
       function formatarTags(texto) {
         if(!texto || texto === "") return '<span class="vc-summary-tags">Nenhum</span>';
-        return texto.split(", ").map(function(k) { return '<span class="vc-summary-tags">' + k.trim() + '</span>'; }).join('');
+        return texto.split(", ").map(function(k) { return '<span class="vc-summary-tags">' + escHtml(k.trim()) + '</span>'; }).join('');
       }
       var html = '<div class="vc-resumos-container">';
      
-      resumosArr.forEach(function(resumo) {
+      resumosArr.forEach(function(resumo, indice) {
         html += '<div class="vc-resumo-card">';
         html += '  <h4>Chamado ' + escHtml(resumo.chamado) + '</h4>';
-        if (resumo.erro || !(Number(resumo.totalSkus) > 0) || !(Number(resumo.tiragemTotal) > 0)) {
+        if (resumo.origem === 'legado') {
+          html += '<span class="vc-origem-legado">Legado temporário</span>';
+        }
+        if (resumo.naoEncontrado === true && resumo.origem !== 'legado' &&
+            origensLegadoReentradas.indexOf(String(resumo.chamado)) === -1) {
+          html += '<div role="status">Chamado não encontrado no SPG.</div>' +
+            '<div class="vc-legado-pergunta"><strong>Esse chamado está na versão antiga de solicitação?</strong>' +
+            '<div>Se confirmar, somente as especificações, a tiragem e a árvore serão consultadas na alocação antiga. As próximas etapas continuam iguais.</div>' +
+            '<div class="vc-legado-opcoes"><button type="button" onclick="selecionarLegadoTemporarioReentradas(' + indice + ',true)">Sim, usar legado temporário</button>' +
+            '<button type="button" onclick="selecionarLegadoTemporarioReentradas(' + indice + ',false)">Não, continuar no SPG</button></div>';
+          if (_legadoRecusadoReentradas.indexOf(String(resumo.chamado)) !== -1) {
+            html += '<div role="status" style="margin-top:9px">Mantido no SPG. Use Voltar para conferir o ID do chamado ou tente a consulta novamente.</div>';
+          }
+          html += '</div></div>';
+          return;
+        }
+        if (resumo.erro || resumo.naoEncontrado === true || !(Number(resumo.totalSkus) > 0) || !(Number(resumo.tiragemTotal) > 0)) {
           html += '<div role="alert" style="color:#b5341f; font-size:13px; line-height:1.6;">' +
-            '<strong>Falha ao carregar dados do SPG.</strong> ' +
+            '<strong>' + (resumo.origem === 'legado' ? 'Falha ao carregar dados da alocação antiga.' : 'Falha ao carregar dados do SPG.') + '</strong> ' +
             escHtml(resumo.erro || 'O SPG nao retornou SKUs e tiragem validos para este chamado.') +
             '</div></div>';
           return;
@@ -277,38 +410,36 @@
       document.getElementById('conteudoResumoData').innerHTML = html;
       document.getElementById('botoesResumo').style.display = 'flex';
      
-    }).withFailureHandler(function(err) {
-      document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
-      document.getElementById('conteudoResumoLoader').innerHTML =
-        '<span role="alert" style="color:#b5341f">Erro ao consultar o SPG: ' +
-        escHtml(err && (err.message || err) || 'Falha desconhecida') + '</span>';
-      document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
-      document.getElementById('botoesResumo').style.display = 'flex';
-    }).buscarResumoReentradasSPG(chamados);
   }
   function cancelarResumo() {
+    _reentradasConsultaSeq++;
+    _resumoProntoReentradas = false;
+    _resumosReentradas = [];
     document.getElementById('painelResumo').classList.remove('active');
     document.getElementById('txtChamados').disabled = false;
     document.getElementById('selectGraficas').disabled = false;
     document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
     document.querySelector('#botoesResumo .btn-continuar').style.display = '';
     verificarLiberacaoBotao();
-   
-    setTimeout(function() {
-       document.getElementById('conteudoResumoLoader').innerHTML = '<span class="vc-loader" style="border-color:#f3f3f3; border-top-color:#F04E37;"></span> Processando dados da PPG...';
-    }, 400);
   }
   function continuarPosResumo() {
-    if (document.querySelector('#botoesResumo .btn-continuar').style.display === 'none') return;
+    if (!_resumoProntoReentradas || _chamadosOrigemKey !== chaveChamadosReentradas() ||
+        document.querySelector('#botoesResumo .btn-continuar').style.display === 'none') return;
     document.getElementById('painelResumo').classList.remove('active');
     executarFase1();
   }
   function executarFase1(){
     var g=document.getElementById('selectGraficas').value;
     var c=document.getElementById('txtChamados').value;
+    var chave = chaveChamadosReentradas();
+    var seq = ++_reentradasConsultaSeq;
     document.getElementById('btnAvancar').disabled=true;
     setMsg('mensagemFase1','<span class="vc-loader"></span> Validando chamados...', '#333');
-    google.script.run.withSuccessHandler(processarResultadoFase1App).withFailureHandler(mostrarErroCustos).validarReentradasSPG(g,c);
+    google.script.run.withSuccessHandler(function(res) {
+      if (consultaReentradasAtual(seq, chave)) processarResultadoFase1App(res);
+    }).withFailureHandler(function(err) {
+      if (consultaReentradasAtual(seq, chave)) mostrarErroCustos(err);
+    }).validarReentradasSPG(g,c,origensLegadoReentradas.slice());
   }
   function processarResultadoFase1App(res){
     if(res.erro){ setMsg('mensagemFase1', res.erro, '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
@@ -316,7 +447,7 @@
     setMsg('mensagemFase1','', '#333');
     document.getElementById('telaFase1').style.display='none';
     document.getElementById('telaFase2').style.display='block';
-    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+v+'</span>';}).join('');
+    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+escHtml(v)+(origensLegadoReentradas.indexOf(String(v)) !== -1 ? ' · Legado temporário' : '')+'</span>';}).join('');
     document.getElementById('painelInvalidos').innerHTML =
       (res.invalidos && res.invalidos.length) ? '<b>Ignorados:</b> '+res.invalidos.join(', ')+' (não encontrados)' : '';
     document.getElementById('ctaHint').textContent = res.validos.length+' chamado(s) pronto(s)';
@@ -377,7 +508,9 @@
     var host=document.getElementById('containerTecGroups');
     host.innerHTML=ordem.map(function(tec,idx){
       var ativo = (escolheria!=='AUTO' && idx===0);
-      var campos = ELEMENTOS.map(function(e) {
+      var campos = ELEMENTOS.filter(function(e) {
+        return e.key !== 'ajuste_papel' || document.getElementById('selectGraficas').value !== 'FORMACERTA';
+      }).map(function(e) {
         var optionsHtml = '<option value=""></option>';
         FORNECIMENTOS.forEach(function(o) {
           
@@ -454,7 +587,7 @@
       if (r.depara && r.calculadora && /^https:\/\/drive.google.com\//.test(r.depara) && /^https:\/\/drive.google.com\//.test(r.calculadora)) {
         html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:8px;">' +
           '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.depara) + '">Abrir De-Para</a> · ' +
-          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.calculadora) + '">Abrir calculadora Logprint</a></td></tr>';
+          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.calculadora) + '">Abrir calculadora</a></td></tr>';
       }
     });
 
@@ -479,7 +612,9 @@
     var el = document.getElementById('step1');
     el.className = 'tracker-row active';
     el.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
-    el.querySelector('.lbl').textContent = 'Gerando De-Para e calculadora com dados do SPG...';
+    el.querySelector('.lbl').textContent = origensLegadoReentradas.length ?
+      'Gerando De-Para e calculadora com as origens de dados confirmadas...' :
+      'Gerando De-Para e calculadora com dados do SPG...';
     el.querySelector('.time').textContent = '';
     _timers.tTotal = Date.now();
     if (_timers.interval) clearInterval(_timers.interval);
@@ -525,7 +660,7 @@
       }
     }).withFailureHandler(function(err) {
       mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
-    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI);
+    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice());
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }

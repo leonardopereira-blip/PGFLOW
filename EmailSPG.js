@@ -318,7 +318,11 @@ function _emailSpgResolverId_(numero, token) {
     });
     if (ids.length > 1) throw new Error('O SPG retornou identificacoes diferentes para o mesmo chamado.');
   }
-  if (!ids.length) throw new Error('As informacoes do chamado nao foram encontradas no SPG.');
+  if (!ids.length) {
+    var ausente = new Error('As informacoes do chamado nao foram encontradas no SPG.');
+    ausente.codigo = 'CHAMADO_NAO_ENCONTRADO';
+    throw ausente;
+  }
   return ids[0];
 }
 

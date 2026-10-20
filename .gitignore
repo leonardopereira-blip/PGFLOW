@@ -1,3 +1,4 @@
 .clasprc.json
 .clasprc.*.json
 *.log
+/work/

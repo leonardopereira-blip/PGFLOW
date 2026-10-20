@@ -69,6 +69,8 @@ test('ausencia na API pergunta pelo legado sem consultar a planilha automaticame
   const {context,planilhas}=fixture();
   const r=context.buscarResumoReentradasSPG('2567');
   assert.equal(r[0].naoEncontrado,true);
+  assert.equal(r[0].origem,'');
+  assert.ok(Object.values(r[0]).every(v=>v!==undefined),'Resumo de ausencia retorna somente valores serializaveis pelo RPC');
   assert.match(r[0].erro,/não encontrado/);
   assert.equal(planilhas.length,0);
   for(const selecao of [undefined,null,true,'2567',{2567:true},['9999']]){

@@ -114,7 +114,32 @@ function _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais) {
   // A grafica seleciona apenas o molde de custos, como no caminho da API.
   // A OP inteira e preservada, inclusive antes da alocacao de uma grafica.
   var skus=Object.create(null),kits=Object.create(null),pares=Object.create(null),destinos=Object.create(null);
-  var linhasSku=t.linhas.filter(function(r){return !_reLegSemCodigo_(_reSpBuscar_(r,t.headers,'1. ID_Código SKU'));});
+  var paisArvore=Object.create(null),filhosArvore=Object.create(null),filhosDestino=Object.create(null);
+  a.linhas.forEach(function(r){
+    var kit=String(_reSpBuscar_(r,a.headers,'1. ID_Código Kit')).trim();
+    var sku=String(_reSpBuscar_(r,a.headers,'1. ID_Código SKU')).trim();
+    if(_reLegSemCodigo_(sku))paisArvore[kit]=true;
+    else filhosArvore[JSON.stringify([kit,sku])]=true;
+  });
+  t.linhas.forEach(function(r){
+    var kit=String(_reSpBuscar_(r,t.headers,'1. ID_Código Kit')).trim();
+    var sku=String(_reSpBuscar_(r,t.headers,'1. ID_Código SKU')).trim();
+    var cd=_reSpBuscar_(r,t.headers,'15. DES_CD envio');
+    if(!_reLegSemCodigo_(sku)&&sku!==kit&&filhosArvore[JSON.stringify([kit,sku])]){
+      filhosDestino[JSON.stringify([kit,cd])]=true;
+    }
+  });
+  function linhaPai(r){
+    var kit=String(_reSpBuscar_(r,t.headers,'1. ID_Código Kit')).trim();
+    var sku=String(_reSpBuscar_(r,t.headers,'1. ID_Código SKU')).trim();
+    var cd=_reSpBuscar_(r,t.headers,'15. DES_CD envio');
+    if(_reLegSemCodigo_(sku))return true;
+    // Algumas PPGs antigas repetem o codigo do kit na coluna SKU do pai.
+    // A arvore comprova que ele e estrutura, com filhos reais no mesmo CD.
+    return sku===kit&&!!paisArvore[kit]&&!filhosArvore[JSON.stringify([kit,sku])]&&
+      !!filhosDestino[JSON.stringify([kit,cd])];
+  }
+  var linhasSku=t.linhas.filter(function(r){return !linhaPai(r);});
   if(!linhasSku.length)throw Error('Tiragem da alocação antiga sem linhas de SKU.');
   linhasSku.forEach(function(r){
     var sku=_reSpBuscar_(r,t.headers,'1. ID_Código SKU'),kit=_reSpBuscar_(r,t.headers,'1. ID_Código Kit');
@@ -124,10 +149,10 @@ function _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais) {
     skus[sku]=true;kits[kit]=true;pares[JSON.stringify([kit,sku])]=true;
     destinos[JSON.stringify([kit,cd])]=true;
   });
-  // O legado repete a tiragem no pai do kit (SKU '-' ou vazio) e nos filhos.
+  // O legado repete a tiragem no pai do kit e nos filhos.
   // O pai e estrutural: nao e outro SKU e nao pode duplicar os exemplares.
   t.linhas.forEach(function(r){
-    if(!_reLegSemCodigo_(_reSpBuscar_(r,t.headers,'1. ID_Código SKU')))return;
+    if(!linhaPai(r))return;
     var kit=_reSpBuscar_(r,t.headers,'1. ID_Código Kit'),cd=_reSpBuscar_(r,t.headers,'15. DES_CD envio');
     if(!destinos[JSON.stringify([kit,cd])])throw Error('Tiragem da alocação antiga: kit sem SKU no CD de destino: '+kit+' / '+cd);
   });

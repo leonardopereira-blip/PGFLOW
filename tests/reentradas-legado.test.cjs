@@ -222,6 +222,39 @@ test('kit sem componentes incluidos e removido e chamado totalmente sem SKUs fic
   assert.deepEqual(Array.from(r.skusIgnorados),['SKU-A','SKU-B']);
 });
 
+test('pai que repete o codigo do kit na coluna SKU nao consulta geral nem duplica tiragem',()=>{
+  const {context,data}=fixture();
+  data.Tiragem.push([2567,link,'KIT-A','KIT-A','CITA',1200,'',2,'PAI']);
+  context._reEspecGeralConsultar_=()=>{throw Error('Pai estrutural nao pode consultar especificacao geral');};
+  const r=context._reSpPrepararDadosLegado_('2567','META');
+  assert.equal(r.espec.linhas.length,2);assert.equal(r.tiragem.linhas.length,3);
+  assert.equal(r.tiragem.linhas.reduce((n,row)=>n+context._reSpQuant_(context._reSpBuscar_(row,r.tiragem.headers,'16. TIR_SKU')),0),1300);
+  assert.deepEqual(Array.from(r.skusEspecificacaoGeral),[]);assert.deepEqual(Array.from(r.skusIgnorados),[]);
+});
+
+test('avulso SKU igual ao kit permanece quando arvore comprova esse produto, mesmo com outros filhos',()=>{
+  const {context,data}=fixture();
+  data.Tiragem.push([2567,link,'KIT-A','KIT-A','CITA',50,'',2,'AVULSO']);
+  data['Árvore de produto'].push([2567,link,'','KIT-A','KIT-A',1,'Caixa',2]);
+  data['Especificação Técnica'].push([2567,link,'KIT-A','SAS','',2,50]);
+  const r=context._reSpPrepararDadosLegado_('2567','META');
+  assert.equal(r.espec.linhas.length,3);assert.equal(r.tiragem.linhas.length,4);
+  assert.equal(context._reSpBuscar_(r.tiragem.linhas.at(-1),r.tiragem.headers,'1. ID_Código SKU'),'KIT-A');
+});
+
+test('codigo igual ao kit so e considerado pai quando arvore e CD comprovam a estrutura',()=>{
+  const outroCD=fixture();outroCD.data.Tiragem.push([2567,link,'KIT-A','KIT-A','CD-SEM-FILHO',50,'',2,'CD']);
+  assert.throws(()=>outroCD.context._reSpPrepararDadosLegado_('2567','META'),err=>{
+    assert.equal(err.codigo,'ESPECIFICACAO_LEGADO_AUSENTE');
+    assert.ok(Array.from(err.especificacoesAusentes).includes('KIT-A'));return true;
+  });
+  const semPai=fixture();semPai.data['Árvore de produto'].splice(3,1);
+  semPai.data.Tiragem.push([2567,link,'KIT-A','KIT-A','CITA',50,'',2,'SEM-PAI']);
+  assert.throws(()=>semPai.context._reSpPrepararDadosLegado_('2567','META'),err=>{
+    assert.equal(err.codigo,'ESPECIFICACAO_LEGADO_AUSENTE');return true;
+  });
+});
+
 test('numeros invalidos sao recusados antes de ler a planilha',()=>{
   const {context,opens}=fixture();
   ['2567,2448','2567 OR 1','',null].forEach(id=>assert.throws(()=>context._reSpPrepararDadosLegado_(id,'LOGPRINT'),/Número do chamado inválido/));

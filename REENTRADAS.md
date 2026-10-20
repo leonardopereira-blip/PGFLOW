@@ -6,7 +6,7 @@ As calculadoras de Logprint, Casa da Grafica, Forma Certa, Meta e Reproset usam 
 
 O caminho normal usa o chamado e sua versao na API do SPG. Apenas a ausencia comprovada do chamado permite a pergunta sobre solicitacao antiga. A escolha e individual e explicita. Falhas de acesso, timeout, cancelamento e dados incompletos nao habilitam o legado.
 
-O modulo temporario `LegadoAlocacaoReentradas.js` le somente as abas Especificacao Tecnica, Arvore de produto e Tiragem da alocacao antiga configurada. Usa a maior Versao da PPG e exige o mesmo link nas tres matrizes; nao abre o link nem grava na planilha. Pais estruturais sem SKU nao duplicam a tiragem dos filhos. A origem escolhida muda apenas essas matrizes: acabamento, fornecimento, modelos e geracao continuam iguais.
+O modulo temporario `LegadoAlocacaoReentradas.js` le somente as abas Especificacao Tecnica, Arvore de produto e Tiragem da alocacao antiga configurada. Usa a maior Versao da PPG e exige o mesmo link nas tres matrizes; nao abre o link nem grava na planilha. Pais estruturais nao duplicam a tiragem dos filhos. Isso inclui SKU vazio, traco ou o codigo do proprio kit: neste ultimo caso, a arvore precisa comprovar o pai, sem filho com aquele SKU, e outro componente real precisa estar na tiragem do mesmo kit e CD. Um avulso verdadeiro com SKU igual ao kit continua sendo produto. A origem escolhida muda apenas essas matrizes: acabamento, fornecimento, modelos e geracao continuam iguais.
 
 Ao encerrar a transicao, remover o modulo temporario e a selecao de origem da interface e de `_reSpDadosChamado_`.
 
@@ -31,3 +31,5 @@ O arquivo recebido tinha a formula da coluna AH repetida ate a linha 1.048.576. 
 Os testes conferem a fidelidade dos moldes, layouts de entrada, isolamento da origem antiga, datas, ausencia comprovada na API, especificacao geral, interface e lista recente. Executar `node --test --test-concurrency=1 tests/reentradas-*.test.cjs tests/molde*.test.cjs tests/spg-espec-normalizacao.test.cjs`.
 
 Antes de editar ou enviar, sincronizar GitHub e Apps Script conforme AGENTS.md. O workflow de testes confere a base lida antes do envio e rele todos os arquivos depois. Implantacoes versionadas de producao continuam sendo atualizadas somente por pedido explicito.
+
+Falhas de transporte HTTP 0 ou NetworkError nas consultas de resumo e validacao permitem uma repeticao automatica e depois nova tentativa manual, preservando as escolhas e descartando respostas antigas. Nao comprovam ausencia na API e nao habilitam o legado por si. A geracao de arquivos nao e repetida automaticamente. Falhas de consulta da fase inicial permanecem nessa fase.

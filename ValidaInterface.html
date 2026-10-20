@@ -98,6 +98,7 @@
      
       <div class="vc-buttons-resumo" id="botoesResumo" style="display:none;">
         <button class="btn-cancelar" onclick="cancelarResumo()">Voltar</button>
+        <button id="btnTentarResumo" class="btn-cancelar" onclick="abrirResumoAntesDeAvancar()" style="display:none;">Tentar novamente</button>
         <button class="btn-continuar" onclick="continuarPosResumo()">Avançar</button>
       </div>
     </div>
@@ -304,6 +305,57 @@
   function consultaReentradasAtual(seq, chave) {
     return seq === _reentradasConsultaSeq && chave === chaveChamadosReentradas();
   }
+  function falhaTransporteReentradas(err) {
+    return /\bHTTP\s*0\b|NetworkError/i.test(String(err && (err.message || err) || ''));
+  }
+  // Somente consultas de leitura usam esta repetição; a geração de arquivos não a utiliza.
+  function consultarReentradasComRecuperacao(seq, chave, executar, sucesso, falha, aguardando) {
+    var tentativa = 0;
+    function consultar() {
+      if (!consultaReentradasAtual(seq, chave)) return;
+      var numero = ++tentativa;
+      var respondida = false;
+      function atual() {
+        return !respondida && numero === tentativa && consultaReentradasAtual(seq, chave);
+      }
+      executar(function(res) {
+        if (!atual()) return;
+        respondida = true;
+        sucesso(res);
+      }, function(err) {
+        if (!atual()) return;
+        respondida = true;
+        if (numero === 1 && falhaTransporteReentradas(err)) {
+          aguardando();
+          setTimeout(consultar, 1500);
+        } else {
+          falha(err);
+        }
+      });
+    }
+    consultar();
+  }
+  function mostrarFalhaConsultaReentradas(err, seq, chave, emValidacao) {
+    if (!consultaReentradasAtual(seq, chave)) return;
+    _resumoProntoReentradas = false;
+    _resumosReentradas = [];
+    var mensagem = falhaTransporteReentradas(err) ?
+      'A comunicação com o portal foi interrompida. Tente consultar novamente.' :
+      'Erro ao consultar o SPG: ' + String(err && (err.message || err) || 'Falha desconhecida');
+    document.getElementById('txtChamados').disabled = false;
+    document.getElementById('selectGraficas').disabled = false;
+    document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+    document.getElementById('painelResumo').classList.add('active');
+    document.getElementById('conteudoResumoLoader').innerHTML =
+      '<span role="alert" style="color:#b5341f">' + escHtml(mensagem) + '</span>';
+    document.getElementById('conteudoResumoLoader').style.display = 'block';
+    document.getElementById('conteudoResumoData').style.display = 'none';
+    document.getElementById('btnTentarResumo').style.display = '';
+    document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
+    document.getElementById('botoesResumo').style.display = 'flex';
+    if (emValidacao) setMsg('mensagemFase1', escHtml(mensagem), '#b5341f');
+    verificarLiberacaoBotao();
+  }
   function selecionarLegadoTemporarioReentradas(indice, usarLegado) {
     var resumo = _resumosReentradas[indice];
     if (!resumo || resumo.naoEncontrado !== true || resumo.origem === 'legado' ||
@@ -372,9 +424,16 @@
     document.getElementById('conteudoResumoLoader').innerHTML = '<span class="vc-loader"></span> Consultando dados dos chamados...';
     document.getElementById('conteudoResumoLoader').style.display = 'block';
     document.getElementById('conteudoResumoData').style.display = 'none';
-    document.getElementById('botoesResumo').style.display = 'none';
-    google.script.run.withSuccessHandler(function(resumosArr) {
-      if (!consultaReentradasAtual(seq, chave)) return;
+    document.getElementById('btnTentarResumo').style.display = 'none';
+    document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
+    document.getElementById('botoesResumo').style.display = 'flex';
+    setMsg('mensagemFase1', '', '#333');
+    var origens = origensLegadoReentradas.slice();
+    var especificacoes = copiarEspecificacoesGeraisReentradas();
+    consultarReentradasComRecuperacao(seq, chave, function(sucesso, falha) {
+      google.script.run.withSuccessHandler(sucesso).withFailureHandler(falha)
+        .buscarResumoReentradasSPG(chamados, origens, especificacoes);
+    }, function(resumosArr) {
       document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
      
       if (!resumosArr || resumosArr.length === 0) {
@@ -384,15 +443,12 @@
         return;
       }
       renderResumosReentradas(resumosArr);
-    }).withFailureHandler(function(err) {
-      if (!consultaReentradasAtual(seq, chave)) return;
-      document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
-      document.getElementById('conteudoResumoLoader').innerHTML =
-        '<span role="alert" style="color:#b5341f">Erro ao consultar o SPG: ' +
-        escHtml(err && (err.message || err) || 'Falha desconhecida') + '</span>';
-      document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
-      document.getElementById('botoesResumo').style.display = 'flex';
-    }).buscarResumoReentradasSPG(chamados, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
+    }, function(err) {
+      mostrarFalhaConsultaReentradas(err, seq, chave, false);
+    }, function() {
+      document.getElementById('conteudoResumoLoader').textContent =
+        'A comunicação foi interrompida. Consultando novamente...';
+    });
   }
   function renderResumosReentradas(resumosArr) {
       _resumosReentradas = resumosArr;
@@ -508,6 +564,7 @@
     document.getElementById('txtChamados').disabled = false;
     document.getElementById('selectGraficas').disabled = false;
     document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
+    document.getElementById('btnTentarResumo').style.display = 'none';
     document.querySelector('#botoesResumo .btn-continuar').style.display = '';
     verificarLiberacaoBotao();
   }
@@ -523,15 +580,31 @@
     var chave = chaveChamadosReentradas();
     var seq = ++_reentradasConsultaSeq;
     document.getElementById('btnAvancar').disabled=true;
+    document.getElementById('txtChamados').disabled=true;
+    document.getElementById('selectGraficas').disabled=true;
     setMsg('mensagemFase1','<span class="vc-loader"></span> Validando chamados...', '#333');
-    google.script.run.withSuccessHandler(function(res) {
-      if (consultaReentradasAtual(seq, chave)) processarResultadoFase1App(res);
-    }).withFailureHandler(function(err) {
-      if (consultaReentradasAtual(seq, chave)) mostrarErroCustos(err);
-    }).validarReentradasSPG(g,c,origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
+    var origens = origensLegadoReentradas.slice();
+    var especificacoes = copiarEspecificacoesGeraisReentradas();
+    consultarReentradasComRecuperacao(seq, chave, function(sucesso, falha) {
+      google.script.run.withSuccessHandler(sucesso).withFailureHandler(falha)
+        .validarReentradasSPG(g,c,origens,especificacoes);
+    }, function(res) {
+      processarResultadoFase1App(res);
+    }, function(err) {
+      mostrarFalhaConsultaReentradas(err, seq, chave, true);
+    }, function() {
+      setMsg('mensagemFase1', 'A comunicação foi interrompida. Validando novamente...', '#333');
+    });
   }
   function processarResultadoFase1App(res){
-    if(!res || res.erro || !Array.isArray(res.validos) || !res.validos.length){ setMsg('mensagemFase1', escHtml(res && res.erro || 'Nenhum chamado possui SKUs para gerar. Nenhum arquivo será criado.'), '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
+    if(!res || res.erro || !Array.isArray(res.validos) || !res.validos.length){
+      _resumoProntoReentradas = false;
+      setMsg('mensagemFase1', escHtml(res && res.erro || 'Nenhum chamado possui SKUs para gerar. Nenhum arquivo será criado.'), '#b5341f');
+      document.getElementById('txtChamados').disabled=false;
+      document.getElementById('selectGraficas').disabled=false;
+      verificarLiberacaoBotao();
+      return;
+    }
     cacheChamadosValidos = res.validos;
     setMsg('mensagemFase1','', '#333');
     document.getElementById('telaFase1').style.display='none';

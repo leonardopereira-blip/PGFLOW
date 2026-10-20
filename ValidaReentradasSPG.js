@@ -392,7 +392,7 @@ function buscarResumoReentradasSPG(chamados,origensLegado,especificacoesGerais){
       };
     }catch(err){
       return {chamado:id,erro:err.message,naoEncontrado:err.codigo==='CHAMADO_NAO_ENCONTRADO',
-        origem:Array.isArray(origensLegado)&&origensLegado.some(function(n){return String(n).trim()===id;})?'legado':undefined,
+        origem:Array.isArray(origensLegado)&&origensLegado.some(function(n){return String(n).trim()===id;})?'legado':'',
         especificacoesAusentes:err.codigo==='ESPECIFICACAO_LEGADO_AUSENTE'?err.especificacoesAusentes:[],totalSkus:0,tiragemTotal:0,
         marcas:'',series:'',papeisCapa:'',papeisMiolo:'',cdsDestino:''};
     }

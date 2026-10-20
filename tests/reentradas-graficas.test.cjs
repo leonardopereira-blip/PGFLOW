@@ -39,13 +39,18 @@ test('Forma Certa preenche contrato real G/H, X/AA e seis fornecimentos, preserv
     assert.equal(depois.get(ref),antes.get(ref),ref+' preservada integralmente');
   }
   for(const [ref,celula] of antes){
-    if(/<f(?:\s|>)/.test(celula))assert.equal(depois.get(ref),celula,'formula alterada em '+ref);
+    if(ref.endsWith('6')&&/<f(?:\s|>)/.test(celula))assert.equal(depois.get(ref),celula,'formula alterada em '+ref);
   }
-  for(const bloco of [
-    ['CA','CE','CI','CM','CQ','CU'],
-    ['CY','DC','DG','DK','DO','DS'],
-    ['DW','EA','EE','EI','EM','EQ']
-  ])bloco.forEach((col,i)=>assert.equal(valor(depois,col+'6'),Object.values(elementos)[i],col));
+  assert.equal(depois.has('E7'),false,'formula nao utilizada permaneceu');
+  const tecnologia={
+    DIGITAL:['CA','CE','CI','CM','CQ','CU'],
+    PLANA:['CY','DC','DG','DK','DO','DS'],
+    ROTATIVA:['DW','EA','EE','EI','EM','EQ']
+  };
+  for(const [nome,bloco] of Object.entries(tecnologia)){
+    bloco.forEach((col,i)=>assert.equal(valor(depois,col+'6'),
+      nome==='PLANA'?Object.values(elementos)[i]:undefined,col));
+  }
   for(const ref of ['C7','D7','F7','G7','H7','X7','AA7','CA7','CE7'])assert.equal(valor(depois,ref),undefined,'entrada antiga em '+ref);
   assert.doesNotMatch(resultado,/Chamado 2896/);
 });
@@ -63,11 +68,15 @@ for(const grafica of ['Logprint','Casa da Gráfica','Meta','Reproset']){
     const antes=cells(xml),depois=cells(resultado);
     for(const [ref,v] of Object.entries({F6:'123',G6:'0',H6:'456',I6:'789',Y6:'PLANA',AB6:'ARCO'}))assert.equal(valor(depois,ref),v,ref);
     for(const ref of ['E6','X6','AA6'])assert.equal(depois.get(ref),antes.get(ref),ref);
-    for(const bloco of [
-      ['CF','CK','CP','CU','CZ','DE','DI'],
-      ['DN','DS','DX','EC','EH','EM','EQ'],
-      ['EV','FA','FF','FK','FP','FU','FY']
-    ])bloco.forEach((col,i)=>assert.equal(valor(depois,col+'6'),Object.values(elementos)[i],col));
+    const tecnologia={
+      DIGITAL:['CF','CK','CP','CU','CZ','DE','DI'],
+      PLANA:['DN','DS','DX','EC','EH','EM','EQ'],
+      ROTATIVA:['EV','FA','FF','FK','FP','FU','FY']
+    };
+    for(const [nome,bloco] of Object.entries(tecnologia)){
+      bloco.forEach((col,i)=>assert.equal(valor(depois,col+'6'),
+        nome==='PLANA'?Object.values(elementos)[i]:undefined,col));
+    }
     assert.doesNotMatch(resultado,/ANTIGO|SKU-ANTIGA/);
   });
 }

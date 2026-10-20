@@ -294,7 +294,9 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
     v(23,cap==='CAPA DURA'?String(g('AE')).charAt(0)+'x0':g('AE'));
     v(24,normPapel(cap==='CAPA DURA'?g('AF'):g('AD')));
     v(25,/personalizada/i.test(g('BU'))?'Sim':'Não');v(26,g('BW'));
-    v(27,g('AC')&&Number(g('AC'))!==0?'Sim':'Não');v(28,_reSpNormal_(g('F'))==='MARALTO'?g('AC'):0);
+    var orelha=_reSpBool_(g('AC')),larguraOrelha=Number(String(g('AC')).trim().replace(',','.'));
+    v(27,orelha==='Sim'||(isFinite(larguraOrelha)&&larguraOrelha>0)?'Sim':'Não');
+    v(28,_reSpNormal_(g('F'))==='MARALTO'&&isFinite(larguraOrelha)?larguraOrelha:0);
     v(29,_reSpBool_(g('AK')));v(30,normPapel(g('AH')));v(31,normPapel(g('AI')));
     for(var col=32;col<=37;col++)v(col,manual(col,0));
     v(38,g('BR'));v(39,cap==='CAPA DURA'&&enc(g('BM'))!=='ESPIRAL'?8:cap==='CAPA DURA'?4:0);
@@ -330,14 +332,14 @@ function listarPastasGraficasReentradasSPG(){
 }
 // Unico ponto de troca de fonte. Remover junto com LegadoAlocacaoReentradas.js
 // quando a transicao dos chamados antigos terminar.
-function _reSpDadosChamado_(numero,grafica,origensLegado){
+function _reSpDadosChamado_(numero,grafica,origensLegado,especificacoesGerais){
   var legado=Array.isArray(origensLegado)&&origensLegado.some(function(id){return String(id).trim()===numero;});
   if(!legado)return _reSpPrepararDados_(numero,grafica);
   // A confirmacao da tela nao pode trocar um chamado existente/cancelado por Sheets.
   try{
     _emailSpgPacote_(numero,true,'reentrada');
   }catch(err){
-    if(err.codigo==='CHAMADO_NAO_ENCONTRADO')return _reSpPrepararDadosLegado_(numero,grafica);
+    if(err.codigo==='CHAMADO_NAO_ENCONTRADO')return _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais);
     throw err;
   }
   throw Error('Este chamado existe no SPG. Consulte novamente os dados da API.');
@@ -358,10 +360,10 @@ function _reSpValoresResumo_(dados,campos) {
   });
   return valores.join(', ');
 }
-function buscarResumoReentradasSPG(chamados,origensLegado){
+function buscarResumoReentradasSPG(chamados,origensLegado,especificacoesGerais){
   return String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean).map(function(id){
     try{
-      var p=_reSpDadosChamado_(id,'LOGPRINT',origensLegado);
+      var p=_reSpDadosChamado_(id,'LOGPRINT',origensLegado,especificacoesGerais);
       var skus={};
       p.espec.linhas.forEach(function(r){
         var sku=_reSpBuscar_(r,p.espec.headers,'1. ID_Código SKU');
@@ -375,6 +377,8 @@ function buscarResumoReentradasSPG(chamados,origensLegado){
         chamado:id,
         origem:p.pacote&&p.pacote.origem==='legado'?'legado':'spg',
         legadoTemporario:!!(p.pacote&&p.pacote.origem==='legado'),
+        skusEspecificacaoGeral:p.skusEspecificacaoGeral||[],
+        avisos:p.avisos||[],
         totalSkus:Object.keys(skus).length,
         tiragemTotal:total,
         marcas:_reSpValoresResumo_(p.espec,['2. INF_Marca']),
@@ -384,17 +388,19 @@ function buscarResumoReentradasSPG(chamados,origensLegado){
         cdsDestino:_reSpValoresResumo_(p.tiragem,['15. DES_CD envio'])
       };
     }catch(err){
-      return {chamado:id,erro:err.message,naoEncontrado:err.codigo==='CHAMADO_NAO_ENCONTRADO',totalSkus:0,tiragemTotal:0,
+      return {chamado:id,erro:err.message,naoEncontrado:err.codigo==='CHAMADO_NAO_ENCONTRADO',
+        origem:Array.isArray(origensLegado)&&origensLegado.some(function(n){return String(n).trim()===id;})?'legado':undefined,
+        especificacoesAusentes:err.codigo==='ESPECIFICACAO_LEGADO_AUSENTE'?err.especificacoesAusentes:[],totalSkus:0,tiragemTotal:0,
         marcas:'',series:'',papeisCapa:'',papeisMiolo:'',cdsDestino:''};
     }
   });
 }
-function validarReentradasSPG(grafica,chamados,origensLegado) {
+function validarReentradasSPG(grafica,chamados,origensLegado,especificacoesGerais) {
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Calculadora indisponivel para esta grafica.'};
   var ids=String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
   if(!ids.length)return {erro:'Informe os chamados.'};
   var validos=[],invalidos=[];
-  ids.forEach(function(id){try{_reSpDadosChamado_(id,grafica,origensLegado);validos.push(id);}catch(err){invalidos.push(id+': '+err.message);}});
+  ids.forEach(function(id){try{_reSpDadosChamado_(id,grafica,origensLegado,especificacoesGerais);validos.push(id);}catch(err){invalidos.push(id+': '+err.message);}});
   if(!validos.length)return {erro:'Nenhum chamado validado: '+invalidos.join(' | ')};
   var manuais=[
     [32,'RELEVO','Sim / Não'],[33,'RELEVO - ÁREA','cm²'],[34,'UV LOCALIZADO','Sim / Não'],
@@ -406,7 +412,7 @@ function validarReentradasSPG(grafica,chamados,origensLegado) {
     opcoes:/Sim/.test(r[2])?['Não','Sim']:null};});
   return {bundle:true,sucesso:true,validos:validos,invalidos:invalidos,colunasManuais:manuais};
 }
-function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento,origensLegado) {
+function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento,origensLegado,especificacoesGerais) {
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Modelo ainda nao disponivel para esta grafica.'};
   if ((opcaoVersao && opcaoVersao !== 'spg' && opcaoVersao !== 'ultima') || String(versoesManuais || '').trim()) {
     return {sucesso:false,erro:'A validação usa somente a versão vinculada ao chamado no SPG. Atualize a página.'};
@@ -414,10 +420,12 @@ function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais
   try{
     var result=[],failed=[];
     (chamados||[]).forEach(function(chamado){
-      try{result.push(_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{},origensLegado));}
+      try{result.push(_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{},origensLegado,especificacoesGerais));}
       catch(e){failed.push(chamado+': '+e.message);}
     });
-    return {sucesso:!!result.length,erro:result.length?undefined:failed.join(' | '),resumo:result,arquivos:result,avisos:failed,jobs:[]};
+    var avisos=failed.slice();
+    result.forEach(function(item){(item.avisos||[]).forEach(function(aviso){avisos.push(aviso);});});
+    return {sucesso:!!result.length,erro:result.length?undefined:failed.join(' | '),resumo:result,arquivos:result,avisos:avisos,jobs:[]};
   }catch(e){return {erro:e.message};}
 }
 // Edita SOMENTE as entradas da CALC Geral mantendo intactas as formulas em
@@ -503,9 +511,9 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
   return xml.replace(original,rewritten);
 }
 
-function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado) {
+function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,especificacoesGerais) {
   if(!/^\d{2,8}$/.test(chamado))throw Error('Numero do chamado invalido');
-  var api=_reSpDadosChamado_(chamado,grafica,origensLegado);
+  var api=_reSpDadosChamado_(chamado,grafica,origensLegado,especificacoesGerais);
   var deparaOrig=_reSpMolde_(grafica,'depara');
   var calcOrig=_reSpMolde_(grafica,'calc');
   var dnomes=['PPG - Especificações','PPG - Arvore de Produto','PPG - Tiragem',
@@ -581,5 +589,6 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado) {
   return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',skus:bySku.length,
     tiragem:Object.keys(nc.porSku).reduce(function(s,k){return s+nc.porSku[k].total;},0),
     depara:fd.getUrl(),calculadora:fc.getUrl(),arquivo:nomeC,
+    skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],avisos:api.avisos||[],
     aviso:'O Excel recalcula custos ao abrir; precos nao homologados sem abrir e validar.'};
 }

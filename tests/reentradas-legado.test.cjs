@@ -5,6 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'..','LegadoAlocacaoReentradas.js'),'utf8');
 const motor=fs.readFileSync(path.join(__dirname,'..','ValidaReentradasSPG.js'),'utf8');
+const geral=fs.readFileSync(path.join(__dirname,'..','ReentradasEspecificacaoGeral.js'),'utf8');
 const idFonte='1pR9a5-oogD7ZYHxImsE9ABNpHeVyCJaTcIab7_U_bI0';
 const meta=['ID (Coluna A)','PPG utilizada (Último Link)'];
 const link='https://drive.google.com/file/d/PPG-2567-ATUAL/view';
@@ -77,7 +78,7 @@ function fixture(){
     }).formatToParts(date).map(p=>[p.type,p.value]));
     return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${String(date.getUTCMilliseconds()).padStart(3,'0')}`;
   }}};
-  vm.createContext(context);vm.runInContext(motor,context);vm.runInContext(code,context);
+  vm.createContext(context);vm.runInContext(motor,context);vm.runInContext(code,context);vm.runInContext(geral,context);
   return {context,data,reads,opens,dateFormats};
 }
 
@@ -169,7 +170,7 @@ test('chamado ausente e cabecalho alterado produzem erro explicito',()=>{
   assert.throws(()=>cabecalho.context._reSpPrepararDadosLegado_('2567','LOGPRINT'),/coluna ID \(Coluna A\) ausente/);
 });
 
-test('bloqueia matriz sem especificacao, par kit e SKU, CD ou tiragem valida',()=>{
+test('oferece especificacao geral para lacunas, mas exige arvore, CD e tiragem valida',()=>{
   const semEspec=fixture();semEspec.data['Especificação Técnica'].splice(3,1);
   assert.throws(()=>semEspec.context._reSpPrepararDadosLegado_('2567','LOGPRINT'),/SKU sem especificação.*SKU-A/);
   const semArvore=fixture();semArvore.data['Árvore de produto'].splice(4,1);
@@ -180,6 +181,16 @@ test('bloqueia matriz sem especificacao, par kit e SKU, CD ou tiragem valida',()
   assert.throws(()=>semTiragem.context._reSpPrepararDadosLegado_('2567','LOGPRINT'),/Tiragem vazia/);
   const negativa=fixture();negativa.data.Tiragem[3][5]=-10;
   assert.throws(()=>negativa.context._reSpPrepararDadosLegado_('2567','LOGPRINT'),/Tiragem invalida/);
+});
+
+test('falta de toda especificacao da ultima versao oferece cada SKU sem reutilizar versao antiga',()=>{
+  const {context,data}=fixture();
+  data['Especificação Técnica']=data['Especificação Técnica'].slice(0,3);
+  assert.throws(()=>context._reSpPrepararDadosLegado_('2567','LOGPRINT'),err=>{
+    assert.equal(err.codigo,'ESPECIFICACAO_LEGADO_AUSENTE');
+    assert.deepEqual(Array.from(err.especificacoesAusentes),['SKU-A','SKU-B']);
+    return true;
+  });
 });
 
 test('numeros invalidos sao recusados antes de ler a planilha',()=>{

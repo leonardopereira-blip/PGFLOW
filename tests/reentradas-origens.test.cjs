@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const fontes=['ValidaReentradasSPG.js','LegadoAlocacaoReentradas.js']
+const fontes=['SPG.js','ValidaReentradasSPG.js','LegadoAlocacaoReentradas.js','ReentradasEspecificacaoGeral.js']
   .map(nome=>fs.readFileSync(path.join(__dirname,'..',nome),'utf8'));
 
 function fixture(){
@@ -53,7 +53,7 @@ function fixture(){
   context._reSpMatriz_=(raw,nome)=>raw[nome];
   const erro=(mensagem,codigo)=>Object.assign(new Error(mensagem),codigo?{codigo}:{});
   falhas.set('2567',erro('Chamado não encontrado','CHAMADO_NAO_ENCONTRADO'));
-  return {context,api,planilhas,falhas,erro};
+  return {context,api,planilhas,falhas,erro,abas};
 }
 
 test('fonte padrao usa a API e nunca abre a planilha de alocacao',()=>{
@@ -139,4 +139,49 @@ test('resumo, validacao e geracao encaminham fontes por chamado em um lote misto
   assert.equal(planilhas.length,3);
   assert.equal(api.length,6);
   assert.ok(api.every(r=>r.tipo==='reentrada'&&r.soMetadados===(r.id==='2567')));
+});
+
+test('lacuna legada pergunta por SKU e usa somente a API geral sem mudar tiragem e arvore',()=>{
+  const {context,abas}=fixture(),escolhas=[{chamado:'2567',sku:'SKU-2567'}];
+  abas['Especificação Técnica'][1][2]='OUTRO-SKU';
+  const leituras=[];
+  context._reEspecGeralConsultar_=skus=>{
+    leituras.push(Array.from(skus));
+    return {products:[{skuAtual:'SKU-2567',marca:'Pleno',capBaseMmAberto:410.9,
+      capAlturaMmAberto:275.8,baseMm:205.9,alturaMm:275.8,espessuraMm:2.78,
+      capTemCorteVinco:'FaLsE',miolos:[{serrilha:'TRUE'}]}],dividirPesoPor100000:false};
+  };
+  const faltante=context.buscarResumoReentradasSPG('2567',['2567'])[0];
+  assert.equal(faltante.origem,'legado');
+  assert.deepEqual(Array.from(faltante.especificacoesAusentes),['SKU-2567']);
+  assert.equal(leituras.length,0);
+  const resumo=context.buscarResumoReentradasSPG('2567',['2567'],escolhas)[0];
+  assert.equal(resumo.erro,undefined);assert.equal(resumo.origem,'legado');
+  assert.equal(resumo.totalSkus,1);assert.equal(resumo.tiragemTotal,300);
+  assert.deepEqual(Array.from(resumo.skusEspecificacaoGeral),['SKU-2567']);
+  assert.equal(resumo.avisos.length,1);
+  const validacao=context.validarReentradasSPG('META','2567',['2567'],escolhas);
+  assert.equal(validacao.sucesso,true);
+  context._reSpGerarUm_=(id,grafica,respostas,fornecimento,origens,aceites)=>{
+    assert.equal(aceites,escolhas);
+    const p=context._reSpDadosChamado_(id,grafica,origens,aceites);
+    assert.equal(context._reSpBuscar_(p.espec.linhas[0],p.espec.headers,'3.DIM_Dimensãoacabada(BxAxE)'),'205X275X2,7');
+    assert.equal(context._reSpBuscar_(p.espec.linhas[0],p.espec.headers,'4. CAP_Corte e vinco'),'Não');
+    assert.equal(context._reSpBuscar_(p.tiragem.linhas[0],p.tiragem.headers,'16. TIR_SKU'),300);
+    assert.equal(context._reSpBuscar_(p.arvore.linhas[0],p.arvore.headers,'1. ID_Código Kit'),'KIT-2567');
+    return {chamado:id,origem:p.pacote.origem,avisos:p.avisos};
+  };
+  const geracao=context.gerarValidacaoReentradasSPG('META',['2567'],'spg','',[],{},['2567'],escolhas);
+  assert.equal(geracao.sucesso,true);assert.equal(geracao.avisos.length,1);
+  assert.deepEqual(leituras,[['SKU-2567'],['SKU-2567'],['SKU-2567']]);
+});
+
+test('aceite de especificacao geral nunca completa lacuna da OP na API atual',()=>{
+  const {context}=fixture();
+  context._reSpMatriz_=(raw,nome)=>nome==='Esp. Técnica (legado)'?
+    {headers:['1. ID_Código SKU'],linhas:[['OUTRO']]}:raw[nome];
+  context._reEspecGeralConsultar_=()=>{throw Error('Nao deve consultar geral');};
+  const r=context.buscarResumoReentradasSPG('1234',[],[{chamado:'1234',sku:'SKU-1234'}])[0];
+  assert.match(r.erro,/SKU sem especificacao no SPG/);
+  assert.equal(r.especificacoesAusentes.length,0);
 });

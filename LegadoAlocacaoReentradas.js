@@ -75,9 +75,11 @@ function _reLegUltimaVersao_(matrizes,numero) {
     m.linhas.forEach(function(r){maxima=Math.max(maxima,_reLegVersao_(r[m.indiceVersao],m.nome));});
   });
   if(maxima<0)throw Error('Chamado '+numero+' não encontrado na alocação antiga.');
-  var filtradas=matrizes.map(function(m){
+  var filtradas=matrizes.map(function(m,indice){
     var linhas=m.linhas.filter(function(r){return _reLegVersao_(r[m.indiceVersao],m.nome)===maxima;});
-    if(!linhas.length)throw Error('Alocação antiga: versão '+maxima+' incompleta para o chamado '+numero+' (sem '+m.nome+').');
+    // Especificacao ausente pode ser completada pela API com aceite por SKU.
+    // Arvore e tiragem ainda precisam comprovar a mesma versao e o mesmo link.
+    if(!linhas.length&&indice!==0)throw Error('Alocação antiga: versão '+maxima+' incompleta para o chamado '+numero+' (sem '+m.nome+').');
     linhas.forEach(function(r){
       var link=String(r[m.indiceLink]==null?'':r[m.indiceLink]).trim();
       if(!link)throw Error('Alocação antiga: versão '+maxima+' sem link da PPG em '+m.nome+'.');
@@ -95,7 +97,7 @@ function _reLegSemCodigo_(valor) {
   return s===''||s==='-';
 }
 
-function _reSpPrepararDadosLegado_(numero,grafica) {
+function _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais) {
   numero=String(numero==null?'':numero).trim();
   if(!/^\d{2,8}$/.test(numero))throw Error('Número do chamado inválido.');
   var config=RE_LEGADO_ALOCACAO_CONFIG;
@@ -130,11 +132,7 @@ function _reSpPrepararDadosLegado_(numero,grafica) {
     if(!destinos[JSON.stringify([kit,cd])])throw Error('Tiragem da alocação antiga: kit sem SKU no CD de destino: '+kit+' / '+cd);
   });
   var espec=e.linhas.filter(function(r){return !!skus[_reSpBuscar_(r,e.headers,'1. ID_Código SKU')];});
-  var especSkus=Object.create(null),arvorePares=Object.create(null);
-  espec.forEach(function(r){especSkus[_reSpBuscar_(r,e.headers,'1. ID_Código SKU')]=true;});
-  Object.keys(skus).forEach(function(sku){
-    if(!especSkus[sku])throw Error('SKU sem especificação na alocação antiga: '+sku);
-  });
+  var arvorePares=Object.create(null);
   var arvore=a.linhas.filter(function(r){
     var kit=_reSpBuscar_(r,a.headers,'1. ID_Código Kit'),sku=_reSpBuscar_(r,a.headers,'1. ID_Código SKU');
     var par=JSON.stringify([kit,sku]),pai=_reLegSemCodigo_(sku);
@@ -144,10 +142,16 @@ function _reSpPrepararDadosLegado_(numero,grafica) {
   Object.keys(pares).forEach(function(par){
     if(!arvorePares[par])throw Error('Kit/SKU sem árvore na alocação antiga: '+JSON.parse(par).join(' / '));
   });
+  // A escolha individual so completa lacunas de especificacao. Arvore,
+  // tiragem, versao e link continuam sendo os do chamado antigo validado.
+  var complemento=_reSpCompletarEspecLegado_(numero,{headers:e.headers,linhas:espec},
+    {headers:t.headers,linhas:linhasSku},especificacoesGerais);
   return {
     pacote:{id:numero,versaoId:'legado:'+origem.versao,origem:'legado',
       versaoPpg:origem.versao,linkPpg:origem.link,fontePlanilha:config.idPlanilha},
-    espec:{headers:e.headers,linhas:espec},
+    espec:complemento.espec,
+    skusEspecificacaoGeral:complemento.skusEspecificacaoGeral,
+    avisos:complemento.avisos,
     arvore:{headers:a.headers,linhas:arvore},
     tiragem:{headers:t.headers,linhas:linhasSku}
   };

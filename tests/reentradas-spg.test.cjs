@@ -44,6 +44,18 @@ test('mapa de especificacao tem 79 campos e nao replica valores do chamado 2740'
   assert.equal(r.especificacoes[0][0],'SKU-A');
   assert.equal(r.calc[0].quant,100);
 });
+
+test('orelha aceita Sim/Nao sem caixa e preserva largura numerica sem interpretar Nao como largura',()=>{
+  const cab=Array(80).fill('');cab[1]='1. ID_Código SKU';
+  const ar={headers:['1. ID_Código Kit'],linhas:[['SKU-A']]};
+  const tr={headers:['1. ID_Código Kit','1. ID_Código SKU','16. TIR_SKU'],linhas:[['SKU-A','SKU-A',100]]};
+  for(const [entrada,esperado,largura] of [[false,'Não',0],['FALSE','Não',0],['nÃo','Não',0],
+    ['nao','Não',0],['Sim','Sim',0],['TrUe','Sim',0],[0,'Não',0],[80,'Sim',80],['80,5','Sim',80.5]]){
+    const row=Array(80).fill('');row[1]='SKU-A';row[5]='Maralto';row[28]=entrada;
+    const r=context._reSpConstrucaoNC_({headers:cab,linhas:[row]},ar,tr,[]).especificacoes[0];
+    assert.equal(r[27-3],esperado,String(entrada));assert.equal(r[28-3],largura,String(entrada));
+  }
+});
 test('interface usa fluxo separado e retorna arquivos',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
   assert.match(ui,/gerarValidacaoReentradasSPG/);

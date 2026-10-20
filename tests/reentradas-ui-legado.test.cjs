@@ -134,7 +134,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 test('oferta de legado é por chamado ausente e exige confirmação antes de consultar alocação', () => {
   const s = makeScreen(); s.dispatch('btnAvancar');
-  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100, 2567', []]);
+  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100, 2567', [], []]);
   s.reply('buscarResumoReentradasSPG', [ok('3100'), missing('2567')]);
   assert.match(s.el('conteudoResumoData').textContent, /Esse chamado está na versão antiga de solicitação\?/);
   assert.match(s.el('conteudoResumoData').textContent, /somente as especificações, a tiragem e a árvore/);
@@ -142,7 +142,7 @@ test('oferta de legado é por chamado ausente e exige confirmação antes de con
   s.context.continuarPosResumo();
   assert.equal(s.requests.some(r => r.method === 'validarReentradasSPG'), false);
   s.dispatch(s.button('Sim, usar legado temporário'));
-  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100, 2567', ['2567']]);
+  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100, 2567', ['2567'], []]);
 });
 
 test('escolher não mantém SPG, bloqueia avanço e não consulta legado', () => {
@@ -177,7 +177,7 @@ test('mistura SPG e legado preserva gráfica, campos manuais e fornecimento até
   s.reply('buscarResumoReentradasSPG', [ok('3100'), ok('2567', 'legado')]);
   assert.match(s.el('conteudoResumoData').textContent, /Legado temporário/);
   assert.equal(s.next().style.display, ''); s.dispatch(s.next());
-  assert.deepEqual(plain(s.pending('validarReentradasSPG').args), ['META', '3100, 2567', ['2567']]);
+  assert.deepEqual(plain(s.pending('validarReentradasSPG').args), ['META', '3100, 2567', ['2567'], []]);
   s.reply('validarReentradasSPG', { validos: ['3100', '2567'], invalidos: [],
     colunasManuais: [{ index: 51, titulo: 'SHRINK', opcoes: ['Não', 'Sim'] }] });
   assert.equal(s.el('telaFase2').style.display, 'block');
@@ -225,7 +225,7 @@ test('alterar chamados limpa escolhas e respostas atrasadas não reabrem nem tro
   assert.equal(s.el('conteudoResumoData').style.display, 'none');
   old.failure(new Error('HTTP 500 atrasado'));
   assert.doesNotMatch(s.el('conteudoResumoLoader').textContent, /atrasado/);
-  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100', []]);
+  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100', [], []]);
   s.reply('buscarResumoReentradasSPG', [ok('3100')]);
   assert.match(s.el('conteudoResumoData').textContent, /Chamado 3100/);
   assert.doesNotMatch(s.el('conteudoResumoData').textContent, /2567|Legado temporário/);
@@ -276,7 +276,7 @@ test('abertura consulta últimas reentradas uma vez sem bloquear entrada manual 
   assert.equal(s.el('txtChamados').value, '3201');
   assert.equal(s.el('btnAvancar').disabled, false);
   s.dispatch('btnAvancar');
-  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3201', []]);
+  assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3201', [], []]);
   s.dispatch(s.button('3200'));
   assert.equal(s.el('txtChamados').value, '3201', 'Lista não muda entrada durante consulta ativa');
 });

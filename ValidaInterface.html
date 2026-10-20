@@ -195,6 +195,8 @@
   .vc-legado-opcoes{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
   .vc-legado-opcoes button{padding:8px 10px;border:1px solid #d3d9e6;border-radius:7px;background:#f7f9fd;color:#284081;font:inherit;font-size:12px;cursor:pointer;}
   .vc-legado-opcoes button:first-child{background:#284081;color:#fff;border-color:#284081;}
+  .vc-espec-aviso{margin:8px 0 12px;padding:9px 11px;border:1px solid #efcf86;border-radius:7px;background:#fff8e9;color:#795719;font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
+  .vc-espec-opcao{margin-top:12px;padding-top:10px;border-top:1px dashed #e6e8ef;overflow-wrap:anywhere;}
   .vc-recentes .vc-section-head{margin:0 0 10px;}
   .vc-recentes-status{font-size:12px;color:#6b7280;line-height:1.5;}
   .vc-recentes-lista{overflow:auto;max-height:350px;}
@@ -220,6 +222,8 @@
   var cacheChamadosValidos = [];
   // A origem alternativa é temporária e só vale para os chamados confirmados nesta tela.
   var origensLegadoReentradas = [];
+  // Cada especificação geral exige aceite próprio para um SKU de chamado legado.
+  var especificacoesGeraisReentradas = [];
   var _legadoRecusadoReentradas = [];
   var _chamadosOrigemKey = '';
   var _resumosReentradas = [];
@@ -286,6 +290,7 @@
     if (chave !== _chamadosOrigemKey) {
       _chamadosOrigemKey = chave;
       origensLegadoReentradas = [];
+      especificacoesGeraisReentradas = [];
       _legadoRecusadoReentradas = [];
       _resumosReentradas = [];
       _resumoProntoReentradas = false;
@@ -310,6 +315,32 @@
     }
     origensLegadoReentradas.push(id);
     _legadoRecusadoReentradas = _legadoRecusadoReentradas.filter(function(v) { return v !== id; });
+    abrirResumoAntesDeAvancar();
+  }
+  function especificacoesAusentesReentradas(resumo) {
+    if (!resumo || resumo.origem !== 'legado' || !Array.isArray(resumo.especificacoesAusentes)) return [];
+    return resumo.especificacoesAusentes.filter(function(sku, indice, lista) {
+      return typeof sku === 'string' && sku.trim() !== '' && lista.indexOf(sku) === indice;
+    });
+  }
+  function copiarEspecificacoesGeraisReentradas() {
+    return especificacoesGeraisReentradas.map(function(item) {
+      return {chamado:item.chamado, sku:item.sku};
+    });
+  }
+  function especificacoesGeraisDoChamadoReentradas(chamado) {
+    return especificacoesGeraisReentradas.filter(function(item) {
+      return item.chamado === String(chamado);
+    }).map(function(item) { return item.sku; });
+  }
+  function selecionarEspecificacaoGeralReentradas(indice, indiceSku) {
+    var resumo = _resumosReentradas[indice];
+    var sku = especificacoesAusentesReentradas(resumo)[indiceSku];
+    if (!sku || _chamadosOrigemKey !== chaveChamadosReentradas() ||
+        origensLegadoReentradas.indexOf(String(resumo.chamado)) === -1) return;
+    var chamado = String(resumo.chamado);
+    if (especificacoesGeraisDoChamadoReentradas(chamado).indexOf(sku) !== -1) return;
+    especificacoesGeraisReentradas.push({chamado:chamado, sku:sku});
     abrirResumoAntesDeAvancar();
   }
  
@@ -348,13 +379,13 @@
         escHtml(err && (err.message || err) || 'Falha desconhecida') + '</span>';
       document.querySelector('#botoesResumo .btn-continuar').style.display = 'none';
       document.getElementById('botoesResumo').style.display = 'flex';
-    }).buscarResumoReentradasSPG(chamados, origensLegadoReentradas.slice());
+    }).buscarResumoReentradasSPG(chamados, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
   function renderResumosReentradas(resumosArr) {
       _resumosReentradas = resumosArr;
       // O backend pode devolver erro + zeros para um chamado. Nao ocultar a falha.
       var resumoComFalha = resumosArr.some(function(r) {
-        return !!r.erro || r.naoEncontrado === true || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
+        return !!r.erro || especificacoesAusentesReentradas(r).length > 0 || r.naoEncontrado === true || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
       });
       _resumoProntoReentradas = !resumoComFalha;
       document.querySelector('#botoesResumo .btn-continuar').style.display =
@@ -373,6 +404,32 @@
         html += '  <h4>Chamado ' + escHtml(resumo.chamado) + '</h4>';
         if (resumo.origem === 'legado') {
           html += '<span class="vc-origem-legado">Legado temporário</span>';
+        }
+        var geraisAutorizadas = especificacoesGeraisDoChamadoReentradas(resumo.chamado);
+        if (geraisAutorizadas.length) {
+          html += '<div role="status" class="vc-espec-aviso"><strong>Especificação técnica geral autorizada:</strong> ' +
+            geraisAutorizadas.map(escHtml).join(', ') + '</div>';
+        }
+        if (Array.isArray(resumo.avisos) && resumo.avisos.length) {
+          html += '<div role="status" class="vc-espec-aviso">' + resumo.avisos.map(escHtml).join('<br>') + '</div>';
+        }
+        var especificacoesAusentes = especificacoesAusentesReentradas(resumo);
+        if (especificacoesAusentes.length) {
+          html += '<div role="alert" style="color:#b5341f; font-size:13px; line-height:1.6;">' +
+            escHtml(resumo.erro || 'Há SKUs sem especificação na alocação antiga.') + '</div>' +
+            '<div class="vc-legado-pergunta"><strong>Usar a especificação técnica geral?</strong>' +
+            '<div>Somente a especificação técnica do SKU será consultada no cadastro geral. A tiragem e a árvore continuam na origem já confirmada.</div>';
+          especificacoesAusentes.forEach(function(sku, indiceSku) {
+            html += '<div class="vc-espec-opcao"><div>SKU <strong>' + escHtml(sku) + '</strong></div>';
+            if (geraisAutorizadas.indexOf(sku) === -1) {
+              html += '<div class="vc-legado-opcoes"><button type="button" onclick="selecionarEspecificacaoGeralReentradas(' + indice + ',' + indiceSku + ')">Usar especificação geral deste SKU</button></div>';
+            } else {
+              html += '<div role="status">Uso da especificação geral já autorizado. Confira o alerta ou volte para tentar novamente.</div>';
+            }
+            html += '</div>';
+          });
+          html += '</div></div>';
+          return;
         }
         if (resumo.naoEncontrado === true && resumo.origem !== 'legado' &&
             origensLegadoReentradas.indexOf(String(resumo.chamado)) === -1) {
@@ -439,7 +496,7 @@
       if (consultaReentradasAtual(seq, chave)) processarResultadoFase1App(res);
     }).withFailureHandler(function(err) {
       if (consultaReentradasAtual(seq, chave)) mostrarErroCustos(err);
-    }).validarReentradasSPG(g,c,origensLegadoReentradas.slice());
+    }).validarReentradasSPG(g,c,origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
   function processarResultadoFase1App(res){
     if(res.erro){ setMsg('mensagemFase1', res.erro, '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
@@ -447,7 +504,7 @@
     setMsg('mensagemFase1','', '#333');
     document.getElementById('telaFase1').style.display='none';
     document.getElementById('telaFase2').style.display='block';
-    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+escHtml(v)+(origensLegadoReentradas.indexOf(String(v)) !== -1 ? ' · Legado temporário' : '')+'</span>';}).join('');
+    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+escHtml(v)+(origensLegadoReentradas.indexOf(String(v)) !== -1 ? ' · Legado temporário' : '')+(especificacoesGeraisDoChamadoReentradas(v).length ? ' · Especificação geral' : '')+'</span>';}).join('');
     document.getElementById('painelInvalidos').innerHTML =
       (res.invalidos && res.invalidos.length) ? '<b>Ignorados:</b> '+res.invalidos.join(', ')+' (não encontrados)' : '';
     document.getElementById('ctaHint').textContent = res.validos.length+' chamado(s) pronto(s)';
@@ -612,7 +669,7 @@
     var el = document.getElementById('step1');
     el.className = 'tracker-row active';
     el.querySelector('.icon').innerHTML = '<span class="vc-spinner-small"></span>';
-    el.querySelector('.lbl').textContent = origensLegadoReentradas.length ?
+    el.querySelector('.lbl').textContent = origensLegadoReentradas.length || especificacoesGeraisReentradas.length ?
       'Gerando De-Para e calculadora com as origens de dados confirmadas...' :
       'Gerando De-Para e calculadora com dados do SPG...';
     el.querySelector('.time').textContent = '';
@@ -660,7 +717,7 @@
       }
     }).withFailureHandler(function(err) {
       mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
-    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice());
+    }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
   function resetarParaNovaCalculadora(){
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }

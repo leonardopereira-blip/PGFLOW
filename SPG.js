@@ -92,28 +92,28 @@ function gerarRelatoriosCompletos() {
   Logger.log('2. Baixando e processando CONSOLIDADO (Cérebro de Gráfica PCP, Marca e Tecnologia)...');
   var rawConsolidado = _emularDadosDaPlanilha(_fetchApiData(SPG_CONFIG.urlConsolidado, token, false));
   var motorConsolidado = _mapearConsolidadoECriarMotor(rawConsolidado, dicEspec);
-  _gravarAba(ss, SPG_CONFIG.abaConsolidado, motorConsolidado.matriz);
+  _spgGravarAba_(ss, SPG_CONFIG.abaConsolidado, motorConsolidado.matriz);
   rawConsolidado = null;
 
   // 3. TIRAGEM primeiro, pois as referências da ESPEC passam a usar esta aba como fonte
   Logger.log('3. Baixando e processando TIRAGEM...');
   var rawTiragem = _emularDadosDaPlanilha(_fetchApiData(SPG_CONFIG.urlTiragem, token, false));
   var matrizTiragem = _mapearTiragem(rawTiragem, dicEspec, CABECALHO_TIRAGEM, motorConsolidado);
-  _gravarAba(ss, SPG_CONFIG.abaTiragem, matrizTiragem);
+  _spgGravarAba_(ss, SPG_CONFIG.abaTiragem, matrizTiragem);
   var referenciasTiragem = _criarMapaReferenciasTiragem_(matrizTiragem);
   rawTiragem = null;
 
   // 4. ESPECIFICAÇÕES (Mapeamento com clonagem por Gráfica + Marca)
   Logger.log('4. Mapeando ESPECIFICAÇÕES por Gráfica PCP + Marca...');
   var matrizEspec = _mapearEspec(rawEspec, CABECALHO_ESPEC, motorConsolidado, referenciasTiragem);
-  _gravarAba(ss, SPG_CONFIG.abaEspec, matrizEspec);
+  _spgGravarAba_(ss, SPG_CONFIG.abaEspec, matrizEspec);
   rawEspec = null;
 
   // 5. ÁRVORE (Baixa, desaninha e aplica lógicas de Pai/Filho)
   Logger.log('5. Baixando e processando ÁRVORE...');
   var rawArvore = _emularDadosDaPlanilha(_fetchApiData(SPG_CONFIG.urlArvore, token, true));
   var matrizArvore = _mapearArvore(rawArvore, CABECALHO_ARVORE, dicEspec, motorConsolidado);
-  _gravarAba(ss, SPG_CONFIG.abaArvore, matrizArvore);
+  _spgGravarAba_(ss, SPG_CONFIG.abaArvore, matrizArvore);
   rawArvore = null;
 
   var segundos = Math.round((new Date().getTime() - inicio) / 1000);
@@ -199,11 +199,11 @@ function _mapearConsolidadoECriarMotor(rawConsolidado, dicEspec) {
     // SAS ADAPT já vem correto no Consolidado e é apenas preservado.
 
     var espec = dicEspec[sku] || {};
-    var isG = String(espec['isGraphic']).trim().toLowerCase();
-    var isE = String(espec['isEditorial']).trim().toLowerCase();
+    var isG = _spgBoolPT_(espec['isGraphic']);
+    var isE = _spgBoolPT_(espec['isEditorial']);
     
-    var txtGrafico = (isG === 'true') ? 'Grafico' : (isG === 'false' ? 'Não Grafico' : '');
-    var txtEditorial = (isE === 'true') ? 'Editorial' : (isE === 'false' ? 'Não Editorial' : '');
+    var txtGrafico = (isG === 'Sim') ? 'Grafico' : (isG === 'Não' ? 'Não Grafico' : '');
+    var txtEditorial = (isE === 'Sim') ? 'Editorial' : (isE === 'Não' ? 'Não Editorial' : '');
     
     registro['Grafico'] = txtGrafico;
     registro['Editorial'] = txtEditorial;
@@ -276,21 +276,21 @@ function _mapearConsolidadoECriarMotor(rawConsolidado, dicEspec) {
   };
 }
 
-function _mapearEspec(rawEspec, cabecalhos, motor, referenciasTiragem) {
+function _mapearEspec(rawEspec, cabecalhos, motor, referenciasTiragem, escalaPeso) {
   var linhas = [];
   var idxMarca = cabecalhos.indexOf('2. INF_Marca');
   var idxGrafica = cabecalhos.indexOf('GRAFICA');
   var idxTech = cabecalhos.indexOf('Tecnologia');
-  var dividirPesoPor100000 = _pesoEspecVemEmEscalaGrande_(rawEspec);
+  var dividirPesoPor100000 = typeof escalaPeso === 'boolean' ? escalaPeso : _pesoEspecVemEmEscalaGrande_(rawEspec);
 
   for (var i = 0; i < rawEspec.length; i++) {
     var r = rawEspec[i];
     var sku = String(r['skuAtual']).trim();
     
-    var isG = String(r['isGraphic']).trim().toLowerCase();
-    var isE = String(r['isEditorial']).trim().toLowerCase();
-    var txtGrafico = (isG === 'true') ? 'Grafico' : (isG === 'false' ? 'Não Grafico' : '');
-    var txtEditorial = (isE === 'true') ? 'Editorial' : (isE === 'false' ? 'Não Editorial' : '');
+    var isG = _spgBoolPT_(r['isGraphic']);
+    var isE = _spgBoolPT_(r['isEditorial']);
+    var txtGrafico = (isG === 'Sim') ? 'Grafico' : (isG === 'Não' ? 'Não Grafico' : '');
+    var txtEditorial = (isE === 'Sim') ? 'Editorial' : (isE === 'Não' ? 'Não Editorial' : '');
 
     var bAberto = _arredondarParaBaixoInteiro_(r['capBaseMmAberto']);
     var aAberto = _arredondarParaBaixoInteiro_(r['capAlturaMmAberto']);
@@ -305,12 +305,12 @@ function _mapearEspec(rawEspec, cabecalhos, motor, referenciasTiragem) {
 
     var refs = referenciasTiragem[sku] || {};
 
-    var m1 = _getArrItem(r['miolos'], 0);
-    var m2 = _getArrItem(r['miolos'], 1);
-    var enc = _getArrItem(r['encartes'], 0);
-    var ad = _getArrItem(r['adesivos'], 0);
+    var m1 = _spgGetArrItem_(r['miolos'], 0);
+    var m2 = _spgGetArrItem_(r['miolos'], 1);
+    var enc = _spgGetArrItem_(r['encartes'], 0);
+    var ad = _spgGetArrItem_(r['adesivos'], 0);
     
-    var isPers = String(r['isPersonalizado']).toLowerCase() === 'true';
+    var isPers = _spgBoolPT_(r['isPersonalizado']) === 'Sim';
     var tipoPersonalizacao = (isPers && r['skuMaterialPadrao']) ? 'Capa personalizada' : 'Capa Padrão';
 
     var linhaBase = [];
@@ -346,7 +346,7 @@ function _mapearEspec(rawEspec, cabecalhos, motor, referenciasTiragem) {
       else if (col === '3. DIM_Peso (Kg)') val = peso;
       else if (col === '3. DIM_Quantidade total de páginas') val = r['pgTotal'];
       else if (col === '4. CAP_Tipo de capa') val = r['capTipoCapa'];
-      else if (col === '4.Cap_orelha' || col === '4. CAP_Orelha') val = r['capLarguraOrelha'] || (String(r['capTemOrelhas']).toLowerCase() === 'true' ? 'Sim' : '');
+      else if (col === '4.Cap_orelha' || col === '4. CAP_Orelha') val = r['capLarguraOrelha'] || _spgBoolPT_(r['capTemOrelhas']);
       else if (col === '4. CAP_Papel da capa') val = r['capPapel'];
       else if (col === '4. CAP_Cor capa') val = r['capCor'];
       else if (col === '4. CAP_Papel revestimento') val = r['capRevestimentoPapel'];
@@ -354,33 +354,33 @@ function _mapearEspec(rawEspec, cabecalhos, motor, referenciasTiragem) {
       else if (col === '4. CAP_Acabamento da capa') val = r['capRevestimentoTipo'];
       else if (col === '4. CAP_Acabamento interno capa') val = r['capAcabamentoObs'] || r['capRevestimentoAplicacao'];
       else if (col === '4. CAP_Aproveitamento chapa capa (Cor)') val = r['capCorChapa'];
-      else if (col === '4. CAP_Corte e vinco') val = _boolPT(r['capTemCorteVinco']);
+      else if (col === '4. CAP_Corte e vinco') val = _spgBoolPT_(r['capTemCorteVinco']);
       else if (col === '5. MIO_PRIN_Quantidade de páginas') val = m1['paginacao'];
       else if (col === '5. MIO_PRIN_Papel') val = m1['papel'];
       else if (col === '5. MIO_PRIN_Cor') val = m1['cor'];
       else if (col === '5. MIO_PRIN_Aproveitamento chapa miolo (Cor)') val = m1['corChapa'];
-      else if (col === '5. MIO_PRIN_Corte e vinco') val = _boolPT(m1['corteVinco']);
-      else if (col === '5. MIO_PRIN_Serrilha') val = _boolPT(m1['serrilha']);
+      else if (col === '5. MIO_PRIN_Corte e vinco') val = _spgBoolPT_(m1['corteVinco']);
+      else if (col === '5. MIO_PRIN_Serrilha') val = _spgBoolPT_(m1['serrilha']);
       else if (col === '5. MIO_PRIN_Obs miolo') val = m1['observacoes'];
       else if (col === '6. MIO_PROF_Quantidade de páginas') val = m2['paginacao'];
       else if (col === '6. MIO_PROF_Papel') val = m2['papel'];
       else if (col === '6. MIO_PROF_Cor') val = m2['cor'];
       else if (col === '6. MIO_PROF_Aproveitamento chapa miolo (Cor)') val = m2['corChapa'];
-      else if (col === '6. MIO_PROF_Corte e vinco') val = _boolPT(m2['corteVinco']);
-      else if (col === '6. MIO_PROF_Serrilha') val = _boolPT(m2['serrilha']);
+      else if (col === '6. MIO_PROF_Corte e vinco') val = _spgBoolPT_(m2['corteVinco']);
+      else if (col === '6. MIO_PROF_Serrilha') val = _spgBoolPT_(m2['serrilha']);
       else if (col === '6. MIO_PROF_Obs miolo') val = m2['observacoes'];
       else if (col === '7. MIO_ENCA_Quantidade de páginas') val = enc['paginacao'];
       else if (col === '7. MIO_ENCA_Papel') val = enc['papel'];
       else if (col === '7. MIO_ENCA_Cor') val = enc['cor'];
       else if (col === '7. MIO_ENCA_Aproveitamento chapa encarte (Cor)') val = enc['corChapa'];
-      else if (col === '7. MIO_ENCA_Corte e vinco') val = _boolPT(enc['corteVinco']);
-      else if (col === '7. MIO_ENCA_Serrilha') val = _boolPT(enc['serrilha']);
+      else if (col === '7. MIO_ENCA_Corte e vinco') val = _spgBoolPT_(enc['corteVinco']);
+      else if (col === '7. MIO_ENCA_Serrilha') val = _spgBoolPT_(enc['serrilha']);
       else if (col === '7. MIO_ENCA_Obs encarte') val = enc['observacoes'];
       else if (col === '8. MIO_ADES_Quantidade de páginas') val = ad['paginacao'];
       else if (col === '8. MIO_ADES_Papel') val = ad['papel'];
       else if (col === '8. MIO_ADES_Cor') val = ad['cor'];
       else if (col === '8. MIO_ADES_Aproveitamento chapa adesivo (Cor)') val = ad['corChapa'];
-      else if (col === '8. MIO_ADES_Corte e vinco') val = _boolPT(ad['corteVinco']);
+      else if (col === '8. MIO_ADES_Corte e vinco') val = _spgBoolPT_(ad['corteVinco']);
       else if (col === '8. MIO_ADES_Obs adesivo') val = ad['observacoes'];
       else if (col === '9. ENC_Tipo acabamento') val = r['capAcabamento'];
       else if (col === '9. ENC_Posição') val = r['capPosicaoAcabamento'];
@@ -464,10 +464,10 @@ function _mapearTiragem(rawTiragem, dicEspec, cabecalhos, motor) {
       }];
     }
     
-    var isG = String(espec['isGraphic']).trim().toLowerCase();
-    var isE = String(espec['isEditorial']).trim().toLowerCase();
-    var txtGrafico = (isG === 'true') ? 'Grafico' : (isG === 'false' ? 'Não Grafico' : '');
-    var txtEditorial = (isE === 'true') ? 'Editorial' : (isE === 'false' ? 'Não Editorial' : '');
+    var isG = _spgBoolPT_(espec['isGraphic']);
+    var isE = _spgBoolPT_(espec['isEditorial']);
+    var txtGrafico = (isG === 'Sim') ? 'Grafico' : (isG === 'Não' ? 'Não Grafico' : '');
+    var txtEditorial = (isE === 'Sim') ? 'Editorial' : (isE === 'Não' ? 'Não Editorial' : '');
 
     for (var v = 0; v < variantes.length; v++) {
       var variante = variantes[v] || {};
@@ -519,11 +519,11 @@ function _mapearArvore(rawArvore, cabecalhos, dicEspec, motor) {
     var r = rawArvore[i];
     var kit = _obterValorSeguro(r, ['kitCode', 'kit', 'Kit']);
     
-    var itens = _parse(r['items'], []);
-    var boxType = _parse(r['boxType'], {});
-    var brand = _parse(r['brand'], {});
-    var segment = _parse(r['segment'], {});
-    var builder = _parse(r['builderData'], {});
+    var itens = _spgParse_(r['items'], []);
+    var boxType = _spgParse_(r['boxType'], {});
+    var brand = _spgParse_(r['brand'], {});
+    var segment = _spgParse_(r['segment'], {});
+    var builder = _spgParse_(r['builderData'], {});
     
     var metrics = builder['metrics'] || {};
     var embalagemDesc = boxType['description'] || '';
@@ -590,10 +590,10 @@ function _mapearArvore(rawArvore, cabecalhos, dicEspec, motor) {
         var marcaFilho = varianteFilho.marca || marcaKit || marcaNomeOriginal;
         
         var especFilho = dicEspec[skuFilho] || {};
-        var isG = String(especFilho['isGraphic']).trim().toLowerCase();
-        var isE = String(especFilho['isEditorial']).trim().toLowerCase();
-        var txtGrafico = (isG === 'true') ? 'Grafico' : (isG === 'false' ? 'Não Grafico' : '');
-        var txtEditorial = (isE === 'true') ? 'Editorial' : (isE === 'false' ? 'Não Editorial' : '');
+        var isG = _spgBoolPT_(especFilho['isGraphic']);
+        var isE = _spgBoolPT_(especFilho['isEditorial']);
+        var txtGrafico = (isG === 'Sim') ? 'Grafico' : (isG === 'Não' ? 'Não Grafico' : '');
+        var txtEditorial = (isE === 'Sim') ? 'Editorial' : (isE === 'Não' ? 'Não Editorial' : '');
 
         var linhaFilho = [];
         for (var c = 0; c < cabecalhos.length; c++) {
@@ -788,6 +788,8 @@ function _emularDadosDaPlanilha(dadosMatrizObj) {
       var val = original[k];
       if (val === null || val === undefined) {
         linhaEmulada[k] = '';
+      } else if (typeof val === 'boolean') {
+        linhaEmulada[k] = _spgBoolPT_(val);
       } else if (typeof val === 'object') {
         linhaEmulada[k] = JSON.stringify(val);
       } else {
@@ -825,7 +827,7 @@ function _spgExtrairLista_(json) {
   return [];
 }
 
-function _gravarAba(ss, nomeAba, dadosMatriz) {
+function _spgGravarAba_(ss, nomeAba, dadosMatriz) {
   var aba = ss.getSheetByName(nomeAba);
   if (!aba) aba = ss.insertSheet(nomeAba);
   else aba.clear();
@@ -849,20 +851,20 @@ function _gravarAba(ss, nomeAba, dadosMatriz) {
   SpreadsheetApp.flush();
 }
 
-function _boolPT(val) {
-  // A API pode devolver booleano real ou texto (inclusive com caixa variavel).
-  // Preservar numeros e campos nao booleanos: apenas true/false viram Sim/Nao.
+function _spgBoolPT_(val) {
+  // A API pode devolver booleano real ou texto em ingles/portugues e qualquer caixa.
+  // Preserva numeros e textos livres; os campos booleanos usam sempre Sim/Nao.
   if (val === true) return 'Sim';
   if (val === false) return 'Não';
   if (typeof val === 'string') {
     var normal = val.trim().toLowerCase();
-    if (normal === 'true') return 'Sim';
-    if (normal === 'false') return 'Não';
+    if (normal === 'true' || normal === 'sim') return 'Sim';
+    if (normal === 'false' || normal === 'não' || normal === 'nao') return 'Não';
   }
   return val;
 }
 
-function _getArrItem(data, index) {
+function _spgGetArrItem_(data, index) {
   if (!data) return {};
   var arr = data;
   if (typeof data === 'string') {
@@ -872,7 +874,7 @@ function _getArrItem(data, index) {
   return {};
 }
 
-function _parse(data, fallback) {
+function _spgParse_(data, fallback) {
   if (!data) return fallback;
   if (typeof data !== 'string') return data;
   try { return JSON.parse(data) || fallback; } catch(e) { return fallback; }

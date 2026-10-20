@@ -10,6 +10,10 @@ O modulo temporario `LegadoAlocacaoReentradas.js` le somente as abas Especificac
 
 Ao encerrar a transicao, remover o modulo temporario e a selecao de origem da interface e de `_reSpDadosChamado_`.
 
+Quando faltar especificacao de um SKU no chamado legado, a interface conserva o alerta e oferece o uso da especificacao tecnica geral, com aceite individual por chamado e SKU. `ReentradasEspecificacaoGeral.js` busca esses produtos diretamente na API do SPG e usa o mesmo mapeador do relatorio `SPG.js`: dimensoes, peso e referencias de troca de chapa e personalizacao da tiragem do proprio chamado. Nenhuma planilha externa e usada para completar a especificacao geral. As especificacoes existentes permanecem preservadas; arvore e tiragem continuam as do legado. O resumo e o resultado indicam os SKUs completados. A opcao nao se aplica aos chamados da API atual.
+
+Os indicadores booleanos do relatorio SPG usam Sim/Nao e aceitam true/false ou sim/nao sem diferenciar maiusculas de minusculas, preservando numeros e textos livres.
+
 ## Forma Certa
 
 O layout da CALC Geral tem entradas distintas e uma aba adicional IMPUT Forma Certa. A adaptacao preserva as formulas da calculadora e completa as formulas da IMPUT conforme os SKUs do chamado, ate 300.
@@ -22,6 +26,6 @@ O arquivo recebido tinha a formula da coluna AH repetida ate a linha 1.048.576. 
 
 ## Verificacao e envio
 
-Os testes conferem a fidelidade dos moldes, layouts de entrada, isolamento da origem antiga, datas, ausencia comprovada na API, interface e lista recente. Executar `node --test --test-concurrency=1 tests/reentradas-*.test.cjs tests/molde*.test.cjs`.
+Os testes conferem a fidelidade dos moldes, layouts de entrada, isolamento da origem antiga, datas, ausencia comprovada na API, especificacao geral, interface e lista recente. Executar `node --test --test-concurrency=1 tests/reentradas-*.test.cjs tests/molde*.test.cjs tests/spg-espec-normalizacao.test.cjs`.
 
 Antes de editar ou enviar, sincronizar GitHub e Apps Script conforme AGENTS.md. O workflow de testes confere a base lida antes do envio e rele todos os arquivos depois. Implantacoes versionadas de producao continuam sendo atualizadas somente por pedido explicito.

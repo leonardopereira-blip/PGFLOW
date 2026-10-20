@@ -35,3 +35,7 @@ Os testes conferem a fidelidade dos moldes, layouts de entrada, isolamento da or
 Antes de editar ou enviar, sincronizar GitHub e Apps Script conforme AGENTS.md. O workflow de testes confere a base lida antes do envio e rele todos os arquivos depois. Implantacoes versionadas de producao continuam sendo atualizadas somente por pedido explicito.
 
 Falhas de transporte HTTP 0 ou NetworkError nas consultas de resumo e validacao permitem uma repeticao automatica e depois nova tentativa manual, preservando as escolhas e descartando respostas antigas. Nao comprovam ausencia na API e nao habilitam o legado por si. A geracao de arquivos nao e repetida automaticamente. Falhas de consulta da fase inicial permanecem nessa fase.
+
+## Tecnologia exclusiva e formulas por SKU
+
+A tela inicia em DIGITAL e exibe somente os campos da tecnologia ativa. PLANA ou ROTATIVA podem ser escolhidas, mas nunca sao preenchidas em paralelo. O gerador recebe e utiliza somente o bloco escolhido, mesmo que haja dados antigos no payload. Na CALC Geral, as formulas originais permanecem apenas nas linhas dos SKUs presentes (a partir da linha 6); linhas excedentes do molde sao excluidas. As outras abas e formulas dos SKUs gerados permanecem inalteradas.

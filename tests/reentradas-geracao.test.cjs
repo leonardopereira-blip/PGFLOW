@@ -112,14 +112,17 @@ for(const g of GRAFICAS){
       for(const nome of ['xl/styles.xml','xl/sharedStrings.xml'])
         assert.equal(sha(calc.mapa[nome].getDataAsString()),molde.origem.hashes[nome],nome);
       const geral=ler(calc,'CALC Geral'),pGeral=caminho(calc,'CALC Geral');
-      assert.deepEqual(hashFormulas(geral),hashFormulas(app._mxGerarAba_(molde.abas[pGeral])),
-        'formulas da CALC Geral foram substituidas durante a geracao');
+      const modeloGeral=app._mxGerarAba_(molde.abas[pGeral]);
+      const linhasUsadas=modeloGeral.replace(/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g,
+        (row,n)=>Number(n)<=qtd+5?row:'');
+      assert.deepEqual(hashFormulas(geral),hashFormulas(linhasUsadas),
+        'formulas necessarias foram alteradas ou sobraram formulas apos o ultimo SKU');
       const primeira=celulas(linha(geral,6)),forma=g.id==='FORMACERTA';
       const valores=forma?{C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'111',H6:'222',X6:'PLANA',AA6:'ARCO'}:
         {C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'0',H6:'111',I6:'222',Y6:'PLANA',AB6:'ARCO'};
       for(const [ref,v] of Object.entries(valores))assert.equal(valor(app,primeira,ref),v,ref);
       assert.equal(valor(app,celulas(linha(geral,qtd+5)),'D'+(qtd+5)),skus.at(-1));
-      assert.equal(valor(app,celulas(linha(geral,qtd+6)),'D'+(qtd+6)),undefined,'SKU antigo permaneceu apos os novos');
+      assert.doesNotMatch(geral,new RegExp('<row r="'+(qtd+6)+'"'), 'linha excedente do molde permaneceu');
       assert.ok(ler(calc,'PPG Especificações').includes(skus[0]),'especificacao nao chegou a calculadora');
       const t=app._reSpMatriz_(depara,'PPG - Tiragem');
       assert.equal(t.linhas.length,qtd+2);

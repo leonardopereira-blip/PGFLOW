@@ -720,11 +720,11 @@
   }
  
   function renderTecGroups(){
-    var escolheria=document.getElementById('selTecnologia').value;
-    var ordem = escolheria==='AUTO' ? TECNOLOGIAS.slice() : [escolheria].concat(TECNOLOGIAS.filter(function(x){return x!==escolheria;}));
+    var escolheria=document.getElementById('selTecnologia').value || 'DIGITAL';
+    // Nenhum campo das tecnologias nao selecionadas deve ser exibido.
     var host=document.getElementById('containerTecGroups');
-    host.innerHTML=ordem.map(function(tec,idx){
-      var ativo = (escolheria!=='AUTO' && idx===0);
+    host.innerHTML=[escolheria].map(function(tec){
+      var ativo = true;
       var campos = ELEMENTOS.filter(function(e) {
         return e.key !== 'ajuste_papel' || document.getElementById('selectGraficas').value !== 'FORMACERTA';
       }).map(function(e) {
@@ -751,10 +751,7 @@
         '<span class="vc-chev">⌄</span></div>'+
         '<div class="vc-tech-body"><div class="vc-grid2">'+campos+'</div></div></div>';
     }).join('');
-    if(escolheria!=='AUTO'){
-      var outras=TECNOLOGIAS.filter(function(x){return x!==escolheria;}).join(' & ');
-      host.insertAdjacentHTML('beforeend','<div class="vc-more" onclick="abrirOutras()">▾ mostrar também '+outras+'</div>');
-    }
+
   }
  
   function toggleAcc(id){ document.getElementById(id).classList.toggle('open'); }
@@ -858,9 +855,10 @@
     iniciarTracker();
     var respostas=[];
     document.querySelectorAll('.inp-manual').forEach(function(i){ respostas.push({index:i.getAttribute('data-index'), valor:i.value}); });
-    var elementos={DIGITAL:{},PLANA:{},ROTATIVA:{}};
-    document.querySelectorAll('.inp-forn').forEach(function(s){ elementos[s.getAttribute('data-tec')][s.getAttribute('data-el')] = s.value; });
-    var fornecimentoUI={ tecnologia: document.getElementById('selTecnologia').value, fornecedor: document.getElementById('selFornecedor').value, elementos: elementos };
+    var tecnologia=document.getElementById('selTecnologia').value || 'DIGITAL';
+    var elementos={}; elementos[tecnologia]={};
+    document.querySelectorAll('.inp-forn[data-tec="'+tecnologia+'"]').forEach(function(s){ elementos[tecnologia][s.getAttribute('data-el')] = s.value; });
+    var fornecimentoUI={ tecnologia: tecnologia, fornecedor: document.getElementById('selFornecedor').value, elementos: elementos };
     var idPastaOuNome=document.getElementById('selectGraficas').value;
 
     _resumo = [];

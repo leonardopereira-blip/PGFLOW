@@ -466,8 +466,8 @@ function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais
       resumo:result,arquivos:result,ignorados:ignorados,avisos:avisos,jobs:[]};
   }catch(e){return {erro:e.message};}
 }
-// Edita SOMENTE as entradas da CALC Geral mantendo intactas as formulas em
-// todas as linhas e colunas, inclusive as mais de 100 colunas de precificacao.
+// Na CALC Geral, preservar formulas somente nas linhas de SKUs do chamado.
+// Nao preencher blocos de tecnologias nao selecionadas.
 function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
   var parte=/<sheetData(?:\s[^>]*)?>[\s\S]*?<\/sheetData>/.exec(xml);
   if(!parte)throw Error('CALC Geral sem sheetData');
@@ -490,6 +490,8 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
   var rewritten=original.replace(regex,function(full,n){
     var rn=+n;if(rn<6)return full;
     var k=rn-6,sku=skus[k],v={};
+    // Descarta todas as linhas excedentes do molde, inclusive suas formulas.
+    if(k>=skus.length)return '';
     if(sku!==undefined){
       seen++;
       var x=porSku[sku];
@@ -513,7 +515,8 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
         ROTATIVA:['EV','FA','FF','FK','FP','FU','FY']
       };
       var keys=['capa','forro','miolo_principal','miolo_professor','encartes','adesivos','ajuste_papel'];
-      Object.keys(blocos).forEach(function(t){
+      // A escolha e exclusiva: apenas o bloco da tecnologia escolhida recebe dados.
+      [tec].forEach(function(t){
         blocos[t].forEach(function(col,i){
           var user=elements[t]||{},val=user[keys[i]]||'';
           if(val!=='ARCO'&&val!=='GRÁFICA'&&val!=='ARCO TRIANG') {

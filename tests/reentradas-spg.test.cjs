@@ -88,7 +88,7 @@ test('interface usa fluxo separado e retorna arquivos',()=>{
   assert.doesNotMatch(ui,/\.finalizarProcessamentoLoteDepara\(/);
 });
 
-test('CALC Geral preserva formulas de todas as linhas e remove entradas do chamado anterior',()=>{
+test('CALC Geral preserva formulas ate o ultimo SKU e remove linhas sobrando',()=>{
  const xml='<worksheet><sheetData>'+
  '<row r="5"><c r="C5"><v>header</v></c></row>'+
  '<row r="6"><c r="C6" t="inlineStr"><is><t>Chamado 2910</t></is></c>'+
@@ -103,12 +103,13 @@ test('CALC Geral preserva formulas de todas as linhas e remove entradas do chama
   {'SKU-NOVA':{avulso:100,kit:0,maleta:0}},'2964',
   {tecnologia:'PLANA',fornecedor:'GRÁFICA',elementos:{}});
  assert.match(res,/XLOOKUP\(D6,D:D,E:E\)/);
- assert.match(res,/XLOOKUP\(D7,D:D,E:E\)/);
+ assert.doesNotMatch(res,/XLOOKUP\(D7,D:D,E:E\)/);
  assert.match(res,/Chamado 2964/);
  assert.match(res,/SKU-NOVA/);
  assert.doesNotMatch(res,/ANTIGO/);
  assert.doesNotMatch(res,/Chamado 2910/);
  assert.doesNotMatch(res,/<c r="F7"><v>10/);
+ assert.doesNotMatch(res,/<row r="7"/);
 });
 test('calcPr respeita ordem do XML do Excel',()=>{
  const workbook='<workbook><definedNames></definedNames><calcPr calcId="191029"/>'+
@@ -254,4 +255,34 @@ test('OP integral rejeita tiragem sem especificacao ou sem par kit e SKU na arvo
  assert.throws(()=>semEspec.isolated._reSpPrepararDados_('2964','LOGPRINT'),/especifica/i);
  const semArvore=fixtureOp2964();semArvore.matrizes['Árvore (legado)'].linhas.splice(1,1);
  assert.throws(()=>semArvore.isolated._reSpPrepararDados_('2964','LOGPRINT'),/árvore|arvore/i);
+});
+
+test('CALC Geral deixa vazias as tecnologias nao selecionadas e inicia em Digital',()=>{
+  const cols={
+    DIGITAL:['CF','CK','CP','CU','CZ','DE','DI'],
+    PLANA:['DN','DS','DX','EC','EH','EM','EQ'],
+    ROTATIVA:['EV','FA','FF','FK','FP','FU','FY']
+  };
+  const antigas=Object.values(cols).flat().map(c=>'<c r="'+c+'6" t="inlineStr"><is><t>ANTIGO</t></is></c>').join('');
+  const xml='<worksheet><sheetData><row r="6">'+antigas+'<c r="E6"><f>1+1</f></c></row>'+
+    '<row r="7"><c r="E7"><f>1+1</f></c></row></sheetData></worksheet>';
+  const entrada={'SKU-1':{avulso:10,kit:20,maleta:0}};
+  for(const escolha of ['DIGITAL','PLANA','ROTATIVA',undefined]){
+    const f={fornecedor:'GRÁFICA',elementos:{
+      DIGITAL:{capa:'GRÁFICA',forro:'ARCO',miolo_principal:'GRÁFICA'},
+      PLANA:{capa:'ARCO',forro:'ARCO',miolo_principal:'GRÁFICA'},
+      ROTATIVA:{capa:'ARCO TRIANG',forro:'ARCO',miolo_principal:'GRÁFICA'}
+    }};
+    if(escolha)f.tecnologia=escolha;
+    const out=context._reSpPreencherCalcGeral_(xml,['SKU-1'],entrada,'1234',f);
+    for(const [tec,all] of Object.entries(cols)){
+      for(const [i,col] of all.entries()){
+        assert.equal(new RegExp('<c r="'+col+'6"').test(out),tec===(escolha||'DIGITAL')&&i<3,
+          (escolha||'DIGITAL')+' '+col);
+      }
+    }
+    assert.match(out,/<c r="E6"><f>1\+1<\/f>/);
+    assert.doesNotMatch(out,/<row r="7"/);
+    assert.doesNotMatch(out,/ANTIGO/);
+  }
 });

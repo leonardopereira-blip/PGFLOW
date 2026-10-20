@@ -144,8 +144,15 @@ function _reSpNumeroFonte_(valor) {
   var numero=Number(texto);
   return isFinite(numero)?numero:valor;
 }
+function _reSpCodigoSku_(valor) {
+  // Excel compara tipos nas consultas. Preserva zeros iniciais e a precisao
+  // de identificadores longos; somente inteiros canonicos viram numero.
+  if(typeof valor!=='string')return valor;
+  return /^(?:0|[1-9]\d{0,14})$/.test(valor)?Number(valor):valor;
+}
 function _reSpNumeroPorCabecalho_(cabecalho,valor) {
   var c=_reSpNormal_(cabecalho);
+  if(/^1IDCODIGO(?:SKU|KIT)$/.test(c))return _reSpCodigoSku_(valor);
   var numerico=/^16TIR(?:SKU|ITEM|MIOLO|CAPAAVULSA|KIT)$/.test(c) ||
     /^3DIM(?:B(?:ABERTO|FECHADO)MM|A(?:ABERTO|FECHADO)MM|EMM|PESOKG|QUANTIDADETOTALDEPAGINAS)$/.test(c) ||
     /^[45678]MIO(?:PRIN|PROF|ENCA|ADES)QUANTIDADEDEPAGINAS$/.test(c) ||
@@ -192,9 +199,22 @@ function _reSpLinha_(numero,cells,estilos) {
   return '<row r="'+numero+'">'+cs+'</row>';
 }
 function _reSpEstilos_(xml,linha) {
-  var a=new RegExp('<row\\b[^>]*\\br="'+linha+'"[^>]*>([\\s\\S]*?)<\\/row>').exec(xml);
-  var mapa={};if(!a)return mapa;var re=/<c\b([^>]*?)(?:\/>|>)/g,m;
-  while((m=re.exec(a[1]))!==null){var r=/\br="([A-Z]+)\d+"/.exec(m[1]),s=/\bs="(\d+)"/.exec(m[1]);if(r&&s)mapa[_reSpIdx_(r[1])]=s[1];}
+  var mapa={},cols=/<col\b[^>]*\/>/g,m;
+  while((m=cols.exec(xml))!==null){
+    var min=/\bmin="(\d+)"/.exec(m[0]),max=/\bmax="(\d+)"/.exec(m[0]),s=/\bstyle="(\d+)"/.exec(m[0]);
+    if(min&&max&&s)for(var i=+min[1]-1;i<+max[1];i++)mapa[i]=s[1];
+  }
+  var a=new RegExp('(<row\\b[^>]*\\br="'+linha+'"[^>]*>)([\\s\\S]*?)<\\/row>').exec(xml);
+  if(!a)return mapa;
+  var rowStyle=/\bs="(\d+)"/.exec(a[1]);
+  if(/\bcustomFormat="(?:1|true)"/.test(a[1]))for(var i=0;i<16384;i++)mapa[i]=rowStyle?rowStyle[1]:'0';
+  var re=/<c\b([^>]*?)(?:\/>|>)/g;
+  while((m=re.exec(a[2]))!==null){
+    var r=/\br="([A-Z]+)\d+"/.exec(m[1]),s=/\bs="(\d+)"/.exec(m[1]);
+    // No Excel, uma celula existente sem s usa XF0; somente celula ausente
+    // herda linha/coluna. Materializa esse estilo ao gerar novas entradas.
+    if(r)mapa[_reSpIdx_(r[1])]=s?s[1]:'0';
+  }
   return mapa;
 }
 function _reSpTrocarLinhas_(xml,minimo,linhas) {
@@ -212,12 +232,11 @@ function _reSpSenhaHash_(password) {
   return ('0000'+hash.toString(16).toUpperCase()).slice(-4);
 }
 function _reSpProteger_(xml) {
-  // Etapa FINAL, nunca antes do preenchimento das abas.
-  var tag='<sheetProtection password="'+_reSpSenhaHash_(RE_SP_CONFIG.senhaProtecao)+'" sheet="1" objects="1" scenarios="1"/>';
-  xml=xml.replace(/<sheetProtection\b[^>]*\/>/g,'').replace(/<sheetProtection\b[^>]*>[\s\S]*?<\/sheetProtection>/g,'');
-  var i=xml.indexOf('</sheetData>');if(i<0)throw Error('XML sem sheetData');
-  i+='</sheetData>'.length;
-  return xml.substring(0,i)+tag+xml.substring(i);
+  // A protecao e os estilos de bloqueio pertencem ao molde de cada grafica.
+  // Criar protecao em uma aba originalmente livre bloqueia todas as celulas
+  // com locked implicito; trocar a tag tambem perde permissoes como autofiltro.
+  if(xml.indexOf('</sheetData>')<0)throw Error('XML sem sheetData');
+  return xml;
 }
 function _reSpFullCalc_(xml) {
   var pr='<calcPr calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>';
@@ -230,7 +249,8 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
     var val=alteradas[p.getName()];
     return val===undefined?p:Utilities.newBlob(val,'text/xml',p.getName());
   });
-  var xlsx=Utilities.zip(saida,nome).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  var tipo=/\.xlsm$/i.test(nome)?'application/vnd.ms-excel.sheet.macroEnabled.12':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  var xlsx=Utilities.zip(saida,nome).setContentType(tipo);
   return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
 }
 function _reSpPrepararDados_(numero,grafica) {
@@ -486,6 +506,7 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
     'DM','DR','DW','EB','EG','EL','EP',
     'EU','EZ','FE','FJ','FO','FT','FX'];
   var index={};inputs.forEach(function(c){index[_reSpIdx_(c)]=true;});
+  var estilosColunas=_reSpEstilos_(xml,0);
   var seen=0,regex=/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g;
   var rewritten=original.replace(regex,function(full,n){
     var rn=+n;if(rn<6)return full;
@@ -498,7 +519,7 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
       // Campos de entrada extraidos diretamente do contrato da calculadora:
       // C=chamado, D=SKU, F/G/H/I=tiragens, Y=tecnologia, AB=acabamento.
       v[_reSpIdx_('C')]='Chamado '+chamado;
-      v[_reSpIdx_('D')]=sku;
+      v[_reSpIdx_('D')]=_reSpCodigoSku_(sku);
       v[_reSpIdx_('F')]=x.avulso;
       v[_reSpIdx_('G')]=formaCerta?x.kit:0;
       v[_reSpIdx_('H')]=formaCerta?x.maleta:x.kit;
@@ -528,6 +549,7 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
       });
     }
     var head=/^<row\b[^>]*>/.exec(full)[0],end='</row>';
+    var rowStyle=/\bs="(\d+)"/.exec(head),herdadoLinha=/\bcustomFormat="(?:1|true)"/.test(head)?(rowStyle?rowStyle[1]:'0'):undefined;
     var cells=/<c\b[^>]*\/>|<c\b[^>]*>[\s\S]*?<\/c>/g,found={},match;
     while((match=cells.exec(full))!==null){
       var raw=match[0],m=/\br="([A-Z]+)\d+"/.exec(raw);
@@ -536,16 +558,17 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
       if(index[i]&& !/<f(?:\s|>)/.test(raw)){
         // descarta todas as entradas 2910 do modelo, inclusive linhas sobrando
         var sty=/\bs="(\d+)"/.exec(raw);
-        if(sty)found[i]={style:sty[1]};
+        found[i]={style:sty?sty[1]:'0'};
       }else found[i]={xml:raw};
     }
     Object.keys(v).forEach(function(k){
       var i=Number(k),prior=found[i]||{};
       if(prior.xml&&/<f(?:\s|>)/.test(prior.xml))throw Error('Coluna de entrada tem formula: '+_reSpCol_(i+1));
-      found[i]={xml:_reSpCelula_(_reSpCol_(i+1)+rn,v[i],prior.style)};
+      var style=prior.style===undefined?(herdadoLinha===undefined?(estilosColunas[i]===undefined?'0':estilosColunas[i]):herdadoLinha):prior.style;
+      found[i]={xml:_reSpCelula_(_reSpCol_(i+1)+rn,v[i],style)};
     });
     var result=Object.keys(found).map(Number).sort(function(a,b){return a-b;})
-      .map(function(i){return found[i].xml||'';}).join('');
+      .map(function(i){return found[i].xml||(found[i].style!==undefined?'<c r="'+_reSpCol_(i+1)+rn+'" s="'+found[i].style+'"/>':'');}).join('');
     return head+result+end;
   });
   if(seen!==skus.length)throw Error('CALC Geral sem capacidade para '+skus.length+' SKUs (linhas: '+seen+')');
@@ -599,7 +622,7 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
       5:x.emb,6:x.shrinkIndividual,7:x.shrinkKit,8:x.maleta,9:x.obs};}
     if(sku){
       var n=nc.porSku[sku];
-      g[11]=sku;g[12]=n.avulso;g[13]=n.total;
+      g[11]=_reSpCodigoSku_(sku);g[12]=n.avulso;g[13]=n.total;
       g[15]=n.avulso;g[16]=n.kit;g[17]=n.maleta;g[18]=n.total;g[19]='TRUE';
     }
     cgrows.push(_reSpLinha_(ic+4,g,astyle));
@@ -620,12 +643,15 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   alterCalc['xl/workbook.xml']=_reSpFullCalc_(calcOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
   [deparaOrig,calcOrig].forEach(function(w,idx){
     var alter=idx===0?alterDepara:alterCalc,names=idx===0?dnomes:cnomes;
-    // A senha definida neste gerador e aplicada somente apos todos os dados.
+    // Preserva a protecao original, inclusive abas originalmente sem protecao.
     names.forEach(function(n){var p=_reSpAbaPorNome_(w,n);alter[p]=_reSpProteger_(alter[p]===undefined?w.mapa[p].getDataAsString('UTF-8'):alter[p]);});
   });
   var nomeGrafica=RE_SP_MOLDES[_reSpNormal_(grafica)].nome;
   var nomeD='PLANILHA DE PARA PPG '+nomeGrafica.toUpperCase()+' - CHAMADO '+chamado+'.xlsx';
-  var nomeC='CALCULADORA FORNECEDOR '+nomeGrafica.toUpperCase()+' - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsx';
+  var nomeC='CALCULADORA FORNECEDOR '+nomeGrafica.toUpperCase()+' - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsm';
+  var protegerLogprint=_reSpNormal_(grafica)==='LOGPRINT';
+  if(protegerLogprint)_reSpAplicarProtecaoLogprint_(calcOrig,alterCalc);
+  _reSpAdicionarMacro_(calcOrig,alterCalc,protegerLogprint);
   // Somente aqui os arquivos sao criados, depois de validar todas as matrizes.
   var fd=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
   var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC);

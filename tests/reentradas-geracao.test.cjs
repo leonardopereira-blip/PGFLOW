@@ -66,7 +66,7 @@ for(const g of GRAFICAS){
   test(g.nome+': geracao completa de De-Para e calculadora usa seu molde, novas entradas e formulas originais',()=>{
     const criados=[],pastas=[];
     const app=mx.carregarApps(['MoldeXlsx.js','MoldeLogprintDepara.js','Molde'+g.molde+'Calc.js',
-      'ValidaReentradasSPG.js','ReentradasFormaCerta.js'],{
+      'ValidaReentradasSPG.js','ReentradasFormaCerta.js','MacroProtecao.js','MacroProtecaoVba.js','ReentradasMacro.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js'],{
       DriveApp:{getFileById(){throw Error('SPG nao pode ler modelo ou dados externos no Drive');},
         getFolderById(id){pastas.push(id);return {createFile(blob){
           const file={blob,setName(nome){assert.equal(nome,blob.getName());return file;},
@@ -79,9 +79,9 @@ for(const g of GRAFICAS){
     app.Utilities.zip=(blobs,nome)=>{
       const mapa=Object.fromEntries(blobs.map(b=>[b.getName(),b]));
       assert.equal(Object.keys(mapa).length,blobs.length,'partes duplicadas no XLSX');
-      return {mapa,getName:()=>nome,setContentType(tipo){assert.equal(tipo,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return this;}};
+      return {mapa,getName:()=>nome,setContentType(tipo){assert.equal(tipo,/\.xlsm$/.test(nome)?'application/vnd.ms-excel.sheet.macroEnabled.12':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return this;}};
     };
-    const qtd=g.skus||2,skus=Array.from({length:qtd},(_,i)=>'SKU-NOVO-'+g.id+'-'+String(i+1).padStart(3,'0'));
+    const qtd=g.skus||2,skus=Array.from({length:qtd},(_,i)=>i===0?'200713648':'SKU-NOVO-'+g.id+'-'+String(i+1).padStart(3,'0'));
     const dados=prepararMatrizes(app,g.id,skus),consultas=[];
     app._reSpPrepararDados_=(numero,grafica)=>{consultas.push([numero,grafica]);return dados;};
     const fn='_molde'+g.molde+'Calc_',carregarMolde=app[fn];let leiturasMolde=0;
@@ -96,21 +96,29 @@ for(const g of GRAFICAS){
       const calc=criados.find(f=>/^CALCULADORA/.test(f.blob.getName())).blob;
       for(const arquivo of [depara,calc]){
         assert.ok(arquivo.getName().includes(g.nome.toUpperCase()),'nome sem a grafica selecionada');
-        assert.ok(arquivo.getName().endsWith('CHAMADO 9876.xlsx'));
+        assert.ok(arquivo.getName().endsWith('CHAMADO 9876.'+(arquivo===calc?'xlsm':'xlsx')));
         assert.match(arquivo.mapa['xl/workbook.xml'].getDataAsString(),/fullCalcOnLoad="1"/);
         assert.equal(arquivo.mapa['xl/calcChain.xml'],undefined);
       }
       const caminho=(arquivo,nome)=>app._reSpAbaPorNome_(arquivo,nome);
+      assert.ok(calc.mapa['xl/vbaProject.bin'],'macro ausente');
+      assert.ok(calc.mapa['customXml/pgflowProtection.xml'],'mapa original ausente');
+      assert.equal(depara.mapa['xl/vbaProject.bin'],undefined,'macro fora da calculadora');
+      assert.match(calc.mapa['[Content_Types].xml'].getDataAsString(),/application\/vnd.ms-excel.sheet.macroEnabled.main\+xml/);
       const ler=(arquivo,nome)=>arquivo.mapa[caminho(arquivo,nome)].getDataAsString();
       const molde=app._reSpMoldesCache_[g.id+'|calc'];
       for(const nome of SEM_ENTRADA){
         const parte=caminho(calc,nome),saida=calc.mapa[parte].getDataAsString();
-        assert.match(saida,/<sheetProtection password="[0-9A-F]{4}" sheet="1"/,nome+' sem protecao');
-        assert.equal(sha(semProtecao(saida)),sha(semProtecao(app._mxGerarAba_(molde.abas[parte]))),nome+' teve preco/formula/layout alterado');
+        const orig=app._mxGerarAba_(molde.abas[parte]);
+        const comparar=g.id==='LOGPRINT'&&nome==='TAB Papel'?s=>semProtecao(s).replace(/<cols\b[^>]*>[\s\S]*?<\/cols>/,'').replace(/\s(?:s|customFormat)="\d+"/g,''):g.id==='LOGPRINT'?semProtecao:s=>s;
+        assert.equal(sha(comparar(saida)),sha(comparar(orig)),nome+' teve preco/formula/layout/protecao alterado');
       }
       // Estilos, imagens e textos tambem precisam vir do molde desta grafica.
-      for(const nome of ['xl/styles.xml','xl/sharedStrings.xml'])
-        assert.equal(sha(calc.mapa[nome].getDataAsString()),molde.origem.hashes[nome],nome);
+      for(const nome of ['xl/styles.xml','xl/sharedStrings.xml']){
+        let xml=calc.mapa[nome].getDataAsString();
+        if(g.id==='LOGPRINT'&&nome==='xl/styles.xml')xml=xml.replace(/<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/,/<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/.exec(molde.textos[nome])[0]);
+        assert.equal(sha(xml),molde.origem.hashes[nome],nome);
+      }
       const geral=ler(calc,'CALC Geral'),pGeral=caminho(calc,'CALC Geral');
       const modeloGeral=app._mxGerarAba_(molde.abas[pGeral]);
       const linhasUsadas=modeloGeral.replace(/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g,
@@ -126,12 +134,24 @@ for(const g of GRAFICAS){
       assert.ok(ler(calc,'PPG Especificações').includes(skus[0]),'especificacao nao chegou a calculadora');
       const t=app._reSpMatriz_(depara,'PPG - Tiragem');
       assert.equal(t.linhas.length,qtd+2);
-      assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'1. ID_Código SKU'),skus[0]);
+      assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'1. ID_Código SKU'),Number(skus[0]));
       assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'16. TIR_SKU'),100);
+      assert.doesNotMatch(primeira.get('D6'),/t="inlineStr"/,'CALC Geral SKU numerico virou texto');
+      assert.match(celulas(ler(calc,'PPG Especificações')).get('C5'),/<v>200713648<\/v>/);
+      assert.match(celulas(ler(calc,'PPG Especificações')).get('C6'),/t="inlineStr"/);
+      for(const [aba,refs] of [['PPG - Especificações',['B2']],['PPG - Arvore de Produto',['A2','D3']],
+        ['PPG - Tiragem',['A2','D2']],['NC - PPG Especificações',['C6']],['NC - CALC Geral',['A4','B4','L4']]]){
+        const cells=celulas(ler(depara,aba));
+        for(const ref of refs){
+          assert.match(cells.get(ref),/<v>200713648<\/v>/,aba+'!'+ref);
+          assert.doesNotMatch(cells.get(ref),/t="inlineStr"/,aba+'!'+ref);
+        }
+      }
       if(forma){
         for(const ref of ['I6','Y6','AB6'])assert.match(primeira.get(ref),/<f(?:\s|>)/,ref+' perdeu formula');
         const imput=ler(calc,'IMPUT Forma Certa'),ultima=qtd+2;
-        assert.match(imput,/<sheetProtection password="[0-9A-F]{4}" sheet="1"/);
+        const protecao=xml=>(/<sheetProtection\b[^>]*(?:\/>|>[\s\S]*?<\/sheetProtection>)/.exec(xml)||[])[0];
+        assert.equal(protecao(imput),protecao(app._mxGerarAba_(molde.abas[caminho(calc,'IMPUT Forma Certa')])));
         assert.match(celulas(linha(imput,ultima)).get('D'+ultima),new RegExp("<f>'CALC Geral'!D"+(ultima+3)+'<\\/f>'));
         assert.doesNotMatch(linha(imput,ultima),/<v>|<f\b[^>]*t="shared"/,'expansao herdou cache ou formula sem mestre');
         assert.ok(celulas(linha(imput,ultima)).size>50,'IMPUT adicional ficou somente com AH');

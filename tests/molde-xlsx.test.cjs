@@ -51,7 +51,8 @@ for(const m of MOLDES){
 }
 
 test('geracao completa usa somente moldes e preserva abas sem entrada identicas ao modelo',()=>{
-  const code=['MoldeXlsx.js','MoldeLogprintCalc.js','MoldeLogprintDepara.js','ValidaReentradasSPG.js'];
+  const code=['MoldeXlsx.js','MoldeLogprintCalc.js','MoldeLogprintDepara.js','ValidaReentradasSPG.js',
+    'MacroProtecao.js','MacroProtecaoVba.js','ReentradasMacro.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js'];
   const criados=[];
   const app=mx.carregarApps(code,{
     DriveApp:{
@@ -86,8 +87,9 @@ test('geracao completa usa somente moldes e preserva abas sem entrada identicas 
   for(const n of [...semEntrada,'CALC Geral'])caminhos[n]=app._reSpAbaPorNome_(partesMolde,n);
   for(const n of semEntrada){
     const x=ler(caminhos[n]),orig=ctx._mxGerarAba_(molde.abas[caminhos[n]]);
-    assert.match(x,/<sheetProtection password="[0-9A-F]{4}" sheet="1"/,n+' sem protecao');
-    assert.equal(x.replace(/<sheetProtection\b[^>]*\/>/,''),orig.replace(/<sheetProtection\b[^>]*\/>/,''),n+' alterada');
+    const comparar=n==='TAB Papel'?s=>s.replace(/<sheetProtection\b[^>]*\/>/,'').replace(/<cols\b[^>]*>[\s\S]*?<\/cols>/,'').replace(/\s(?:s|customFormat)="\d+"/g,''):s=>s.replace(/<sheetProtection\b[^>]*\/>/,'');
+    assert.equal(mx.sha256(Buffer.from(comparar(x))),mx.sha256(Buffer.from(comparar(orig))),n+' alterada alem da protecao autorizada da Logprint');
+    assert.match(x,/<sheetProtection password="C02C"/);
   }
   assert.match(ler(caminhos['CALC Geral']),/<c r="D6"[^>]*t="inlineStr"><is><t>SKU-TESTE-1<\/t>/);
   assert.match(ler('xl/workbook.xml'),/fullCalcOnLoad="1"/);

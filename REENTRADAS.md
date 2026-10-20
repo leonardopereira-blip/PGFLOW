@@ -1,6 +1,6 @@
 # Validacao de custos de reentradas
 
-As calculadoras de Logprint, Casa da Grafica, Forma Certa, Meta e Reproset usam moldes incorporados ao codigo. O De-Para e comum. Cada calculadora preserva as formulas, precos, abas e estilos do arquivo recebido. O portal preenche as entradas e gera os dois XLSX; o Excel recalcula as formulas ao abrir.
+As calculadoras de Logprint, Casa da Grafica, Forma Certa, Meta e Reproset usam moldes incorporados ao codigo. O De-Para e comum. Cada calculadora preserva as formulas, precos, abas e estilos do arquivo recebido. O portal gera o De-Para XLSX e a calculadora XLSM com macro manual; o Excel recalcula as formulas ao abrir.
 
 ## Origem dos dados
 
@@ -39,3 +39,13 @@ Falhas de transporte HTTP 0 ou NetworkError nas consultas de resumo e validacao 
 ## Tecnologia exclusiva e formulas por SKU
 
 A tela inicia em DIGITAL e exibe somente os campos da tecnologia ativa. PLANA ou ROTATIVA podem ser escolhidas, mas nunca sao preenchidas em paralelo. O gerador recebe e utiliza somente o bloco escolhido, mesmo que haja dados antigos no payload. Na CALC Geral, as formulas originais permanecem apenas nas linhas dos SKUs presentes (a partir da linha 6); linhas excedentes do molde sao excluidas. As outras abas e formulas dos SKUs gerados permanecem inalteradas.
+
+## Tipos de SKU e protecao original
+
+Os campos de codigo SKU/kit usam numero quando o codigo consiste em ate 15 digitos canonicos, sem zeros iniciais. Codigos alfanumericos, zeros iniciais e codigos longos permanecem texto. A regra vale para as entradas do De-Para, NC, PPG Especificacoes e CALC Geral D, mantendo o mesmo tipo nas consultas. ISBN, textos livres, formulas e tarifas nao sao convertidos por essa regra.
+
+A geracao conserva as tags de protecao, permissoes e estilos Locked/Hidden dos moldes protegidos. A Logprint foi fornecida sem protecao para permitir edicao: por orientacao do usuario, recebe o mesmo mapa de entradas editaveis da Casa da Grafica/Reproset, com senha PGFLOW2026, preservando seus formatos, precos e formulas. Nao se cria bloqueio geral de celulas no final da geracao.
+
+A calculadora inclui `RestaurarProtecaoOriginal`, disponivel em Desenvolvedor > Macros, sem botao nem execucao automatica. Depois de desproteger manualmente uma aba, a macro restaura o mapa de celulas editaveis e bloqueadas do arquivo gerado e reaplica as permissoes originais. Ela ignora abas que continuam protegidas e abas originalmente livres. A reprotecao usa a senha `PGFLOW2026`; a geracao inicial mantem as senhas originais dos moldes. Valores, formulas, formatos visuais e custos nao sao regravados pela macro.
+
+O mapa fica em uma parte Custom XML do XLSM, sem novas abas ou formulas. Faixas da macro excluem celulas mescladas, restauradas sempre como uma regiao inteira. O projeto VBA e protegido para visualizacao com a mesma senha PGFLOW2026. A fonte auditavel esta em `tools/RestaurarProtecaoOriginal.bas`; `tools/compilar-macro.py` gera o binario incorporado em `MacroProtecaoVba.js` exclusivamente a partir de fontes, sem templates VBA externos. Alterar a fonte exige recompilar e conferir o hash de fonte/binario.

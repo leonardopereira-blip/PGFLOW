@@ -43,14 +43,32 @@ test('leitor de XLSX preserva tipo numerico original e nao converte texto de cod
   const row=context._reSpLerAba_(x,1,[])[0].cells;
   assert.equal(row[0],210);assert.equal(row[1],'00123');
 });
-test('formato de referencias Excel e protecao criada no final',()=>{
+
+test('SKU e kit numericos usam o tipo das consultas sem perder codigos de texto',()=>{
+  for(const [entrada,esperado] of [['200713648',200713648],['0',0],['999999999999999',999999999999999],
+    ['MS26VF331P1SP','MS26VF331P1SP'],['000123','000123'],['1000000000000000','1000000000000000'],
+    ['20E3','20E3'],['200.123','200.123'],[' 200713648 ',' 200713648 '],['','']]){
+    assert.equal(context._reSpCodigoSku_(entrada),esperado);
+    assert.equal(context._reSpNumeroPorCabecalho_('1. ID_Código SKU',entrada),esperado);
+    assert.equal(context._reSpNumeroPorCabecalho_('1. ID_Código Kit',entrada),esperado);
+  }
+  assert.equal(context._reSpNumeroPorCabecalho_('1. ID_ISBN','9780000000123'),'9780000000123');
+  assert.equal(context._reSpNumeroPorCabecalho_('2. INF_Série','200713648'),'200713648');
+  assert.match(context._reSpCelula_('A1','200713648'),/t="inlineStr"/,'serializador generico preserva texto');
+  const h=['1. ID_Código Kit','1. ID_Código SKU'];
+  const dados=context._reSpMapearCab_(h,h,[['200713648',200713648],[200713648,'200713648']]);
+  for(const row of dados)assert.deepEqual(Array.from(row),[200713648,200713648]);
+});
+test('formato de referencias Excel e protecao original preservada',()=>{
   assert.equal(context._reSpCol_(1),'A');
   assert.equal(context._reSpCol_(81),'CC');
   assert.equal(context._reSpIdx_('CC'),80);
   const hash=context._reSpSenhaHash_('PGFLOW2026');
   assert.match(hash,/^[0-9A-F]{4}$/);
   const xml='<worksheet><sheetData><row r="1"></row></sheetData><extLst/></worksheet>';
-  assert.match(context._reSpProteger_(xml),new RegExp('sheetProtection password="'+hash+'"'));
+  assert.equal(context._reSpProteger_(xml),xml);
+  const protegido=xml.replace('</sheetData>','</sheetData><sheetProtection password="'+hash+'" sheet="1" autoFilter="0"/>');
+  assert.equal(context._reSpProteger_(protegido),protegido);
   assert.match(context._reSpFullCalc_('<workbook></workbook>'),/fullCalcOnLoad="1"/);
 });
 test('mapa de especificacao tem 79 campos e nao replica valores do chamado 2740',()=>{
@@ -277,7 +295,7 @@ test('CALC Geral deixa vazias as tecnologias nao selecionadas e inicia em Digita
     const out=context._reSpPreencherCalcGeral_(xml,['SKU-1'],entrada,'1234',f);
     for(const [tec,all] of Object.entries(cols)){
       for(const [i,col] of all.entries()){
-        assert.equal(new RegExp('<c r="'+col+'6"').test(out),tec===(escolha||'DIGITAL')&&i<3,
+        assert.equal(new RegExp('<c r="'+col+'6"[^>]*><is>').test(out),tec===(escolha||'DIGITAL')&&i<3,
           (escolha||'DIGITAL')+' '+col);
       }
     }
@@ -285,4 +303,18 @@ test('CALC Geral deixa vazias as tecnologias nao selecionadas e inicia em Digita
     assert.doesNotMatch(out,/<row r="7"/);
     assert.doesNotMatch(out,/ANTIGO/);
   }
+});
+
+test('novas entradas materializam o estilo herdado e celulas vazias conservam seu estilo',()=>{
+  const xml='<worksheet><cols><col min="84" max="85" style="584"/></cols><sheetData><row r="6">'+
+    '<c r="D6"><v>10</v></c><c r="CG6" s="12"><v>antigo</v></c>'+
+    '<c r="DN6" s="583"><v>antigo</v></c><c r="E6" s="9"><f>1+1</f></c></row></sheetData></worksheet>';
+  const out=context._reSpPreencherCalcGeral_(xml,['200713648'],{'200713648':{avulso:10,kit:0,maleta:0}},'2932',{});
+  assert.match(out,/<c r="CF6" s="584" t="inlineStr">/,'entrada nova precisa do estilo da coluna para continuar editavel');
+  assert.match(out,/<c r="D6" s="0"><v>200713648<\/v>/,'celula original sem s conserva XF0');
+  assert.match(out,/<c r="DN6" s="583"\/>/,'tecnologia vazia conserva bloqueio e formato');
+  assert.match(out,/<c r="E6" s="9"><f>1\+1<\/f>/,'formula intacta');
+  const styles=context._reSpEstilos_(xml,6);
+  assert.equal(styles[83],'584');
+  assert.equal(styles[3],'0');
 });

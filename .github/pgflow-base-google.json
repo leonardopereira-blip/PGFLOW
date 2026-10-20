@@ -1,12 +1,12 @@
 {
   "scriptId": "1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu",
-  "lido_em": "2026-10-20T17:40:27.000Z",
+  "lido_em": "2026-10-20T18:34:27.231Z",
   "files": {
     "SERVER_JS:Ajusta_API": "66e97e7d8e378d73d9710b5a2d699fc51cdb34a6b66856767c712d71faabcfbc",
     "SERVER_JS:AlertaSPG": "3f35f4298b9b120397af4371af56b573320761bfae34898eece2ba9f682f10f5",
     "JSON:appsscript": "4a846da84479b6e3003e1293114c93a735912c5700283e001141e88c64ffa157",
     "SERVER_JS:Codigo": "279d347e4c7fa1a6f3bbb78a1c70cc0c2e35c9f63fa640bec38133e4c13876a8",
-    "SERVER_JS:EmailSPG": "7143d5e51fdf12a0c9ae03925c87cfaedcf15bde2bd64dc6c8d5c4e7e0b2f757",
+    "SERVER_JS:EmailSPG": "bcda3cf72a089322eab7042996f4a1e877ea840f176028df05fee1e71a1f3d6b",
     "HTML:Index": "75a4ed069b64c8de1a7e88646b16aacd8a30d9335ed9055fd419f7acbc078eb4",
     "SERVER_JS:LegadoAlocacaoReentradas": "64bf4e25a90ce5f09af518c2896aa66e1c8e0dbca499dda125839f0c0f142878",
     "SERVER_JS:Menu_Emails": "39332cf8f14a664eb556e90fdb812b02f4e0b8ef95cf367ae4e53e2990257d92",
@@ -27,7 +27,7 @@
     "HTML:ValidaInterface": "338b7debe3ecf49a4056c440594a341c5cff882333644d3fce45ff782083a72e",
     "SERVER_JS:ValidaPrincipal": "bcd3b7ae17b38fddd608ecdbe3e3ff9e46a411a86e02edb0b8d498d75d6178f2",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
-    "SERVER_JS:ValidaReentradasSPG": "697e91c6336e65b00f5f114ae6c185eeb78a212f0a752a3d9a9800b89ccf1d21",
+    "SERVER_JS:ValidaReentradasSPG": "ff756cf3709734922407227d881ce3e508545a4635ad57439cadf40e51821660",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82"
   }
 }

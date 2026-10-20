@@ -347,7 +347,9 @@
     document.getElementById('btnAvancar').innerHTML = 'Iniciar validação';
     document.getElementById('painelResumo').classList.add('active');
     document.getElementById('conteudoResumoLoader').innerHTML =
-      '<span role="alert" style="color:#b5341f">' + escHtml(mensagem) + '</span>';
+      '<span role="alert" style="color:#b5341f">' + escHtml(mensagem) + '</span>' +
+      (falhaTransporteReentradas(err) && especificacoesSelecionadasParaIgnorarReentradas().length ?
+        '<div class="vc-legado-opcoes"><button type="button" onclick="ignorarEspecificacoesSelecionadasReentradas()">Continuar sem os SKUs selecionados</button></div>' : '');
     document.getElementById('conteudoResumoLoader').style.display = 'block';
     document.getElementById('conteudoResumoData').style.display = 'none';
     document.getElementById('btnTentarResumo').style.display = '';
@@ -379,12 +381,14 @@
   }
   function copiarEspecificacoesGeraisReentradas() {
     return especificacoesGeraisReentradas.map(function(item) {
-      return {chamado:item.chamado, sku:item.sku};
+      var copia = {chamado:item.chamado, sku:item.sku};
+      if (item.ignorar === true) copia.ignorar = true;
+      return copia;
     });
   }
   function especificacoesGeraisDoChamadoReentradas(chamado) {
     return especificacoesGeraisReentradas.filter(function(item) {
-      return item.chamado === String(chamado);
+      return item.chamado === String(chamado) && item.ignorar !== true;
     }).map(function(item) { return item.sku; });
   }
   function especificacoesGeraisUtilizadasReentradas(chamado) {
@@ -406,6 +410,41 @@
     var chamado = String(resumo.chamado);
     if (especificacoesGeraisDoChamadoReentradas(chamado).indexOf(sku) !== -1) return;
     especificacoesGeraisReentradas.push({chamado:chamado, sku:sku});
+    abrirResumoAntesDeAvancar();
+  }
+  function marcarSkuIgnoradoReentradas(chamado, sku) {
+    var existente = especificacoesGeraisReentradas.filter(function(item) {
+      return item.chamado === String(chamado) && item.sku === sku;
+    })[0];
+    if (existente) existente.ignorar = true;
+    else especificacoesGeraisReentradas.push({chamado:String(chamado), sku:sku, ignorar:true});
+  }
+  function ignorarSkusComErroReentradas(indice, indiceSku) {
+    var resumo = _resumosReentradas[indice];
+    var skus = especificacoesAusentesReentradas(resumo);
+    if (!skus.length || _chamadosOrigemKey !== chaveChamadosReentradas() ||
+        origensLegadoReentradas.indexOf(String(resumo.chamado)) === -1) return;
+    if (indiceSku !== undefined) skus = skus[indiceSku] ? [skus[indiceSku]] : [];
+    if (!skus.length) return;
+    skus.forEach(function(sku) { marcarSkuIgnoradoReentradas(resumo.chamado, sku); });
+    abrirResumoAntesDeAvancar();
+  }
+  function especificacoesSelecionadasParaIgnorarReentradas() {
+    return especificacoesGeraisReentradas.filter(function(item) {
+      return item.ignorar !== true && typeof item.sku === 'string' && item.sku.trim() !== '' &&
+        origensLegadoReentradas.indexOf(String(item.chamado)) !== -1;
+    });
+  }
+  function ignorarEspecificacoesSelecionadasReentradas(indice) {
+    if (_chamadosOrigemKey !== chaveChamadosReentradas()) return;
+    var selecionadas = especificacoesSelecionadasParaIgnorarReentradas();
+    if (indice !== undefined) {
+      var resumo = _resumosReentradas[indice];
+      if (!resumo || resumo.origem !== 'legado' || !resumo.erro) return;
+      selecionadas = selecionadas.filter(function(item) { return item.chamado === String(resumo.chamado); });
+    }
+    if (!selecionadas.length) return;
+    selecionadas.forEach(function(item) { marcarSkuIgnoradoReentradas(item.chamado, item.sku); });
     abrirResumoAntesDeAvancar();
   }
  
@@ -492,7 +531,7 @@
         }
         if (Array.isArray(resumo.skusIgnorados) && resumo.skusIgnorados.length) {
           html += '<div role="status" class="vc-espec-aviso"><strong>SKUs ignorados:</strong> ' +
-            resumo.skusIgnorados.map(escHtml).join(', ') + '. Não encontrados no cadastro geral; serão excluídos da geração.</div>';
+            resumo.skusIgnorados.map(escHtml).join(', ') + '. Serão excluídos da geração; os demais SKUs podem continuar.</div>';
         }
         var especificacoesAusentes = especificacoesAusentesReentradas(resumo);
         if (especificacoesAusentes.length) {
@@ -507,9 +546,9 @@
             } else {
               html += '<div role="status">Uso da especificação geral já autorizado. Confira o alerta ou volte para tentar novamente.</div>';
             }
-            html += '</div>';
+            html += '<div class="vc-legado-opcoes"><button type="button" onclick="ignorarSkusComErroReentradas(' + indice + ',' + indiceSku + ')">Ignorar este SKU</button></div></div>';
           });
-          html += '</div></div>';
+          html += '<div class="vc-legado-opcoes"><button type="button" onclick="ignorarSkusComErroReentradas(' + indice + ')">Continuar sem os SKUs com erro</button></div></div></div>';
           return;
         }
         if (resumo.naoEncontrado === true && resumo.origem !== 'legado' &&
@@ -533,7 +572,12 @@
           html += '<div role="alert" style="color:#b5341f; font-size:13px; line-height:1.6;">' +
             '<strong>' + (resumo.origem === 'legado' ? 'Falha ao carregar dados da alocação antiga.' : 'Falha ao carregar dados do SPG.') + '</strong> ' +
             escHtml(resumo.erro || 'O SPG nao retornou SKUs e tiragem validos para este chamado.') +
-            '</div></div>';
+            '</div>';
+          if (resumo.origem === 'legado' && resumo.erro && geraisAutorizadas.length &&
+              origensLegadoReentradas.indexOf(String(resumo.chamado)) !== -1) {
+            html += '<div class="vc-legado-opcoes"><button type="button" onclick="ignorarEspecificacoesSelecionadasReentradas(' + indice + ')">Continuar sem os SKUs selecionados</button></div>';
+          }
+          html += '</div>';
           return;
         }
         html += '  <div class="vc-summary-box">';

@@ -139,16 +139,32 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
   }
   var idxEspec = _reEspecGeralIndice_(espec.headers, '1. ID_Codigo SKU');
   var idxTiragem = _reEspecGeralIndice_(tiragem.headers, '1. ID_Codigo SKU');
+  var ignorar = Object.create(null), ignoradosUsuario = [];
+  (Array.isArray(especificacoesGerais) ? especificacoesGerais : []).forEach(function(a) {
+    if (_reEspecGeralAutorizacaoValida_(a) && a.ignorar === true &&
+        _reEspecGeralTexto_(a.chamado) === _reEspecGeralTexto_(numero)) ignorar[_reEspecGeralTexto_(a.sku)] = true;
+  });
+  tiragem.linhas.forEach(function(r) {
+    var sku = _reEspecGeralTexto_(r[idxTiragem]);
+    if (ignorar[sku] && ignoradosUsuario.indexOf(sku) < 0) ignoradosUsuario.push(sku);
+  });
+  if (ignoradosUsuario.length) espec = {headers:espec.headers, linhas:espec.linhas.filter(function(r) {
+    return !ignorar[_reEspecGeralTexto_(r[idxEspec])];
+  })};
+  var avisosUsuario = ignoradosUsuario.map(function(sku) {
+    return 'SKU ' + sku + ': ignorado por escolha do usuário; não será incluído na geração.';
+  });
   var presentes = Object.create(null), faltantes = [];
   espec.linhas.forEach(function(r) { presentes[_reEspecGeralTexto_(r[idxEspec])] = true; });
   tiragem.linhas.forEach(function(r) {
     var sku = _reEspecGeralTexto_(r[idxTiragem]);
-    if (sku && sku !== '-' && !presentes[sku] && faltantes.indexOf(sku) < 0) faltantes.push(sku);
+    if (sku && sku !== '-' && !ignorar[sku] && !presentes[sku] && faltantes.indexOf(sku) < 0) faltantes.push(sku);
   });
-  if (!faltantes.length) return { espec: espec, skusEspecificacaoGeral: [], skusIgnorados: [], avisos: [] };
+  if (!faltantes.length) return { espec: espec, skusEspecificacaoGeral: [], skusIgnorados: ignoradosUsuario, avisos: avisosUsuario };
   var autorizado = Object.create(null), candidatos = faltantes.slice();
   (Array.isArray(especificacoesGerais) ? especificacoesGerais : []).forEach(function(a) {
     if (!_reEspecGeralAutorizacaoValida_(a)) return;
+    if (a.ignorar === true) return;
     var sku = _reEspecGeralTexto_(a.sku);
     if (_reEspecGeralTexto_(a.chamado) === _reEspecGeralTexto_(numero)) autorizado[sku] = true;
     // Pre-carregar outros SKUs escolhidos no lote reduz consultas, sem autorizar
@@ -196,10 +212,10 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
   return {
     espec: { headers: headers, linhas: linhas },
     skusEspecificacaoGeral: encontrados,
-    skusIgnorados: naoEncontrados,
+    skusIgnorados: ignoradosUsuario.concat(naoEncontrados),
     avisos: encontrados.map(function(sku) {
       return 'SKU ' + sku + ': especificacao tecnica geral do SPG utilizada por escolha do usuario; ausente na alocacao antiga.';
-    }).concat(naoEncontrados.map(function(sku) {
+    }).concat(avisosUsuario, naoEncontrados.map(function(sku) {
       return 'SKU ' + sku + ': não encontrado no catálogo geral do SPG; não será incluído na geração.';
     }))
   };

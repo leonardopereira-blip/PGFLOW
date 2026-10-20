@@ -245,7 +245,7 @@ test('SKU ausente no cadastro geral é avisado e excluído sem bloquear os demai
   const summary = s.el('conteudoResumoData').textContent;
   assert.match(summary, /Consulta geral autorizada/);
   assert.match(s.el('conteudoResumoData').innerHTML, /<strong>SKUs ignorados:<\/strong> MS26VF331P1SP/);
-  assert.match(summary, /Não encontrados no cadastro geral/);
+  assert.match(summary, /Serão excluídos da geração/);
   assert.match(s.el('conteudoResumoData').innerHTML, /Qtd\. SKU's Únicos:<\/strong> 1/);
   assert.match(s.el('conteudoResumoData').innerHTML, /Tiragem Válida:<\/strong> 150/);
   assert.doesNotMatch(summary, /Especificação técnica geral utilizada|Falha ao carregar/);

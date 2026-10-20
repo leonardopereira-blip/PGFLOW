@@ -67,6 +67,7 @@ test('nao consulta API quando todas as especificacoes ja existem e preserva a ma
   const actual = run(h, data, []);
   assert.equal(actual.espec, data.espec);
   assert.deepEqual(plain(actual.skusEspecificacaoGeral), []);
+  assert.deepEqual(plain(actual.skusIgnorados), []);
   assert.equal(h.requests.length, 0);
   assert.equal(h.logins, 0);
 });
@@ -109,6 +110,7 @@ test('usa o mapeamento SPG para dimensoes, booleanos e duas referencias da mesma
   assert.equal(value(REF_CHAPA), 'CHAPA-0');
   assert.equal(value(REF_PERS), 'PERSON-0');
   assert.deepEqual(plain(actual.skusEspecificacaoGeral), [SKU]);
+  assert.deepEqual(plain(actual.skusIgnorados), []);
   assert.equal(actual.avisos.length, 1);
   assert.match(actual.avisos[0], /alocacao antiga/);
   assert.equal(h.requests.length, 1);
@@ -190,10 +192,38 @@ test('paginacao invalida nunca retorna um resultado parcial', () => {
   }
 });
 
-test('catalogo vazio e SKU ausente geram mensagem de cadastro acionavel', () => {
+test('catalogo vazio ou SKU ausente autorizado permitem seguir sem incluir especificacao substituta', () => {
   for (const response of [page([]), page([product('OUTRO')])]) {
-    assert.throws(() => run(harness([response])), new RegExp('nao encontrada.*' + SKU));
+    const h = harness([response]), actual = run(h);
+    assert.deepEqual(plain(actual.skusEspecificacaoGeral), []);
+    assert.deepEqual(plain(actual.skusIgnorados), [SKU]);
+    assert.deepEqual(plain(actual.espec.linhas), []);
+    assert.ok(actual.espec.headers.includes(SKU_HEADER));
+    assert.ok(actual.espec.headers.includes(REF_CHAPA));
+    assert.equal(actual.avisos.length, 1);
+    assert.match(actual.avisos[0], new RegExp('SKU ' + SKU + ': não encontrado.*não será incluído'));
+    assert.equal(h.requests.length, 1);
   }
+});
+
+test('completa os SKUs encontrados e identifica somente os ausentes para exclusao sem alterar as entradas', () => {
+  const missing = 'SKU-AUSENTE', data = matrices(['ANTIGO', SKU, missing, SKU]);
+  data.espec.linhas = [[2632, 'ANTIGO', 'Especificacao original']];
+  const before = plain(data);
+  const h = harness([
+    page([product()], 1, 2, 1),
+    page([product('OUTRO')], 2, 2, 1)
+  ]);
+  const actual = run(h, data, [{ chamado: '2632', sku: SKU }, { chamado: '2632', sku: missing }]);
+  assert.deepEqual(plain(data), before);
+  assert.deepEqual(plain(actual.skusEspecificacaoGeral), [SKU]);
+  assert.deepEqual(plain(actual.skusIgnorados), [missing]);
+  const index = actual.espec.headers.indexOf(SKU_HEADER);
+  assert.deepEqual(plain(actual.espec.linhas.map(row => row[index])), ['ANTIGO', SKU]);
+  assert.equal(actual.avisos.length, 2);
+  assert.match(actual.avisos[0], /utilizada por escolha do usuario/);
+  assert.match(actual.avisos[1], /SKU-AUSENTE: não encontrado.*não será incluído/);
+  assert.equal(h.requests.length, 2);
 });
 
 test('duplicatas identicas sao aceitas mas especificacoes divergentes impedem escolha arbitraria', () => {
@@ -206,7 +236,10 @@ test('duplicatas identicas sao aceitas mas especificacoes divergentes impedem es
 test('nao aceita paginas repetidas com metadados novos nem expande autorizacao a SKU parecido', () => {
   const repeated = harness([page([product()], 1, 2, 1), page([product()], 2, 2, 1)]);
   assert.throws(() => run(repeated), /repetiu uma pagina/);
-  assert.throws(() => run(harness([page([product(SKU + '-EXTRA')])])), /nao encontrada/);
+  const similar = run(harness([page([product(SKU + '-EXTRA')])]));
+  assert.deepEqual(plain(similar.skusEspecificacaoGeral), []);
+  assert.deepEqual(plain(similar.skusIgnorados), [SKU]);
+  assert.equal(similar.espec.linhas.length, 0);
 });
 
 test('falha de autenticacao nao expoe mensagem privada nem consulta produtos', () => {
@@ -243,8 +276,15 @@ test('ausencia confirmada tambem fica em memoria sem transformar aceite de outro
   const choices = [{ chamado: '2632', sku: SKU }, { chamado: '2633', sku: 'SKU-AUSENTE' }];
   run(h, matrices(), choices);
   for (let i = 0; i < 2; i++) {
-    assert.throws(() => run(h, matrices(['SKU-AUSENTE']), choices, '2633'), /nao encontrada.*SKU-AUSENTE/);
+    const actual = run(h, matrices(['SKU-AUSENTE']), choices, '2633');
+    assert.deepEqual(plain(actual.skusIgnorados), ['SKU-AUSENTE']);
+    assert.deepEqual(plain(actual.skusEspecificacaoGeral), []);
+    assert.equal(actual.espec.linhas.length, 0);
   }
+  assert.throws(() => run(h, matrices(['SKU-AUSENTE']), choices, '2632'), error => {
+    assert.equal(error.codigo, 'ESPECIFICACAO_LEGADO_AUSENTE');
+    return true;
+  });
   assert.equal(h.requests.length, 1);
   assert.equal(h.logins, 1);
 });

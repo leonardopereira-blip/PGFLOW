@@ -185,3 +185,27 @@ test('aceite de especificacao geral nunca completa lacuna da OP na API atual',()
   assert.match(r.erro,/SKU sem especificacao no SPG/);
   assert.equal(r.especificacoesAusentes.length,0);
 });
+
+test('chamado sem SKU cadastrado nao impede lote misto nem inicia a criacao de arquivos vazios',()=>{
+  const {context,abas}=fixture(),escolhas=[{chamado:'2567',sku:'SKU-2567'}];
+  abas['Especificação Técnica'][1][2]='OUTRO-SKU';
+  context._reEspecGeralConsultar_=()=>({products:[],dividirPesoPor100000:false});
+  const resumo=context.buscarResumoReentradasSPG('1234,2567',['2567'],escolhas);
+  assert.equal(resumo[0].totalSkus,1);
+  assert.equal(resumo[1].erro,undefined);assert.equal(resumo[1].semSkusParaGerar,true);
+  assert.equal(resumo[1].totalSkus,0);assert.equal(resumo[1].tiragemTotal,0);
+  assert.equal(resumo[1].tiragemIgnorada,300);
+  assert.deepEqual(Array.from(resumo[1].skusIgnorados),['SKU-2567']);
+  const val=context.validarReentradasSPG('META','1234,2567',['2567'],escolhas);
+  assert.equal(val.sucesso,true);assert.deepEqual(Array.from(val.validos),['1234']);
+  assert.match(val.invalidos[0],/2567.*nenhum SKU/);assert.match(val.avisos.join(' '),/SKU-2567/);
+  context._reSpMolde_=()=>{throw Error('Nao deve iniciar molde para chamado sem SKU');};
+  const vazio=context.gerarValidacaoReentradasSPG('META',['2567'],'spg','',[],{},['2567'],escolhas);
+  assert.equal(vazio.sucesso,false);assert.equal(vazio.arquivos.length,0);
+  assert.equal(vazio.ignorados[0].semSkusParaGerar,true);assert.match(vazio.avisos.join(' '),/SKU-2567/);
+  const gerar=context._reSpGerarUm_;
+  context._reSpGerarUm_=(id,...args)=>id==='1234'?{chamado:id,depara:'depara',calculadora:'calc'}:gerar(id,...args);
+  const lote=context.gerarValidacaoReentradasSPG('META',['1234','2567'],'spg','',[],{},['2567'],escolhas);
+  assert.equal(lote.sucesso,true);assert.equal(lote.arquivos.length,1);assert.equal(lote.ignorados.length,1);
+  assert.match(lote.avisos.join(' '),/SKU-2567.*não será incluído/);
+});

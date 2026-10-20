@@ -157,8 +157,9 @@ test('especificação geral de SKU legado exige aceite e acompanha resumo, valid
   choose(s);
   const choices = [{ chamado: '2632', sku }];
   assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['2632', ['2632'], choices]);
-  s.reply('buscarResumoReentradasSPG', [{ ...ok('2632'), avisos: ['SKU ' + sku + ': especificação técnica geral utilizada.'] }]);
-  assert.match(s.el('conteudoResumoData').textContent, /Especificação técnica geral autorizada/);
+  s.reply('buscarResumoReentradasSPG', [{ ...ok('2632'), skusEspecificacaoGeral: [sku], avisos: ['SKU ' + sku + ': especificação técnica geral utilizada.'] }]);
+  assert.match(s.el('conteudoResumoData').textContent, /Consulta geral autorizada/);
+  assert.match(s.el('conteudoResumoData').textContent, /Especificação técnica geral utilizada/);
   assert.match(s.el('conteudoResumoData').textContent, /especificação técnica geral utilizada/);
   assert.equal(s.next().style.display, ''); s.dispatch(s.next());
   assert.deepEqual(plain(s.pending('validarReentradasSPG').args), ['META', '2632', ['2632'], choices]);
@@ -180,7 +181,7 @@ test('cada SKU ausente do legado precisa de autorização própria sem escolha g
   assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args[2]), [{ chamado: '2632', sku }]);
   s.reply('buscarResumoReentradasSPG', [absent('2632', ['SKU-B'])]);
   assert.equal(s.next().style.display, 'none');
-  assert.match(s.el('conteudoResumoData').textContent, /Especificação técnica geral autorizada/);
+  assert.match(s.el('conteudoResumoData').textContent, /Consulta geral autorizada/);
   assert.match(s.el('conteudoResumoData').textContent, /MS26VF331P1SP/);
   choose(s);
   assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args[2]), [
@@ -215,7 +216,7 @@ test('alterar os chamados limpa autorizações e ignora resumo e falha atrasados
   assert.doesNotMatch(s.el('conteudoResumoLoader').textContent, /atrasada/);
   assert.deepEqual(plain(s.pending('buscarResumoReentradasSPG').args), ['3100', [], []]);
   s.reply('buscarResumoReentradasSPG', [ok('3100', 'spg')]);
-  assert.doesNotMatch(s.el('conteudoResumoData').textContent, /2632|Especificação técnica geral autorizada/);
+  assert.doesNotMatch(s.el('conteudoResumoData').textContent, /2632|Consulta geral autorizada/);
 });
 
 test('especificação geral mantém alerta escapado e ausência tipada permanece pendente mesmo com totais válidos', () => {
@@ -230,4 +231,100 @@ test('especificação geral mantém alerta escapado e ausência tipada permanece
   s.context.cancelarResumo();
   s.context.selecionarEspecificacaoGeralReentradas(0, 0);
   assert.deepEqual(plain(s.context.especificacoesGeraisReentradas), []);
+});
+
+const ignored = (chamado = '2632', skus = [sku]) => ({ ...ok(chamado), totalSkus: 0, tiragemTotal: 0,
+  skusIgnorados: skus, skusEspecificacaoGeral: [], semSkusParaGerar: true,
+  avisos: ['Chamado ' + chamado + ': SKU ' + skus.join(', ') + ' não encontrado no cadastro geral.'] });
+
+test('SKU ausente no cadastro geral é avisado e excluído sem bloquear os demais SKUs do mesmo chamado', () => {
+  const s = makeScreen('2632'); enterLegacy(s);
+  s.reply('buscarResumoReentradasSPG', [absent()]); choose(s);
+  s.reply('buscarResumoReentradasSPG', [{ ...ok('2632'), totalSkus: 1, tiragemTotal: 150,
+    skusIgnorados: [sku], skusEspecificacaoGeral: [], avisos: ['SKU ' + sku + ' ignorado.'] }]);
+  const summary = s.el('conteudoResumoData').textContent;
+  assert.match(summary, /Consulta geral autorizada/);
+  assert.match(s.el('conteudoResumoData').innerHTML, /<strong>SKUs ignorados:<\/strong> MS26VF331P1SP/);
+  assert.match(summary, /Não encontrados no cadastro geral/);
+  assert.match(s.el('conteudoResumoData').innerHTML, /Qtd\. SKU's Únicos:<\/strong> 1/);
+  assert.match(s.el('conteudoResumoData').innerHTML, /Tiragem Válida:<\/strong> 150/);
+  assert.doesNotMatch(summary, /Especificação técnica geral utilizada|Falha ao carregar/);
+  assert.equal(s.next().style.display, ''); s.dispatch(s.next());
+  s.reply('validarReentradasSPG', { validos: ['2632'], invalidos: [], colunasManuais: [], avisos: ['SKU ' + sku + ' ignorado.'] });
+  assert.match(s.el('painelChips').textContent, /2632 · Legado temporário/);
+  assert.doesNotMatch(s.el('painelChips').textContent, /Especificação geral/);
+  assert.match(s.el('painelInvalidos').textContent, /SKU MS26VF331P1SP ignorado/);
+  s.dispatch('btnConcluir');
+  s.reply('gerarValidacaoReentradasSPG', { sucesso: true, arquivos: ['file'], resumo: [] });
+  assert.match(s.el('erroFase3').textContent, /SKUs ignorados: MS26VF331P1SP/);
+});
+
+test('chamado sem SKUs geráveis não bloqueia outro chamado e seu aviso permanece na conclusão', () => {
+  const s = makeScreen('2632, 3100'); enterLegacy(s);
+  s.reply('buscarResumoReentradasSPG', [ignored(), ok('3100', 'spg')]);
+  assert.equal(s.next().style.display, '');
+  assert.match(s.el('conteudoResumoData').textContent, /Este chamado ficou sem SKUs para gerar e será ignorado/);
+  assert.doesNotMatch(s.el('conteudoResumoData').textContent, /Falha ao carregar dados/);
+  s.dispatch(s.next());
+  s.reply('validarReentradasSPG', { validos: ['3100'], invalidos: ['2632: nenhum SKU para gerar'], colunasManuais: [] });
+  assert.equal(s.el('painelChips').textContent, '3100');
+  assert.match(s.el('painelInvalidos').textContent, /2632: nenhum SKU para gerar/);
+  assert.doesNotMatch(s.el('painelInvalidos').textContent, /não encontrados\)/);
+  s.dispatch('btnConcluir');
+  assert.deepEqual(plain(s.pending('gerarValidacaoReentradasSPG').args[1]), ['3100']);
+  s.reply('gerarValidacaoReentradasSPG', { sucesso: true, arquivos: ['file'], resumo: [], avisos: ['Outro aviso'] });
+  assert.match(s.el('erroFase3').textContent, /Chamado 2632: SKU MS26VF331P1SP não encontrado/);
+  assert.match(s.el('erroFase3').textContent, /Outro aviso/);
+});
+
+test('todos os chamados sem SKUs geráveis exibem motivo claro e não seguem para arquivos vazios', () => {
+  const s = makeScreen('2632'); enterLegacy(s);
+  s.reply('buscarResumoReentradasSPG', [ignored()]);
+  assert.equal(s.next().style.display, 'none');
+  assert.match(s.el('conteudoResumoData').textContent, /Nenhum chamado possui SKUs para gerar\. Nenhum arquivo será criado/);
+  assert.doesNotMatch(s.el('conteudoResumoData').textContent, /Falha ao carregar dados/);
+  s.context.continuarPosResumo();
+  assert.equal(s.requests.some(req => req.method === 'validarReentradasSPG'), false);
+  s.context.processarResultadoFase1App({ validos: [], invalidos: ['2632: nenhum SKU'], colunasManuais: [] });
+  assert.match(s.el('mensagemFase1').textContent, /Nenhum chamado possui SKUs para gerar/);
+  assert.equal(s.el('telaFase2').style.display, 'none');
+});
+
+test('flag sem SKUs não oculta erro real, especificação pendente ou chamado não encontrado', () => {
+  for (const bad of [
+    { ...ignored(), erro: 'API indisponível' },
+    { ...ignored(), especificacoesAusentes: ['SKU-PENDENTE'] },
+    { ...ignored(), naoEncontrado: true }
+  ]) {
+    const s = makeScreen('2632, 3100'); enterLegacy(s);
+    s.reply('buscarResumoReentradasSPG', [bad, ok('3100', 'spg')]);
+    assert.equal(s.next().style.display, 'none');
+    s.context.continuarPosResumo();
+    assert.equal(s.requests.some(req => req.method === 'validarReentradasSPG'), false);
+  }
+});
+
+test('SKU ignorado e motivos aparecem escapados, sem aviso de uso indevido de especificação geral', () => {
+  const s = makeScreen('2632'); enterLegacy(s);
+  s.reply('buscarResumoReentradasSPG', [{ ...ok('2632'), skusIgnorados: ['<sku onclick="bad">'],
+    skusEspecificacaoGeral: [], avisos: ['Aviso <script>'] }]);
+  const summary = s.el('conteudoResumoData').innerHTML;
+  assert.match(summary, /&lt;sku onclick=&quot;bad&quot;&gt;/);
+  assert.doesNotMatch(summary, /<sku|<script>/);
+  s.dispatch(s.next());
+  s.reply('validarReentradasSPG', { validos: ['2632'], invalidos: ['<img onerror="bad">'], colunasManuais: [] });
+  const warnings = s.el('painelInvalidos').innerHTML;
+  assert.match(warnings, /&lt;img onerror=&quot;bad&quot;&gt;/);
+  assert.match(warnings, /&lt;sku onclick=&quot;bad&quot;&gt;/);
+  assert.doesNotMatch(warnings, /<img|<sku|<script>/);
+});
+
+test('novo conjunto de chamados limpa os avisos de exclusão da validação anterior', () => {
+  const s = makeScreen('2632'); enterLegacy(s);
+  s.reply('buscarResumoReentradasSPG', [{ ...ok('2632'), skusIgnorados: [sku], skusEspecificacaoGeral: [] }]);
+  s.dispatch(s.next());
+  s.reply('validarReentradasSPG', { validos: ['2632'], invalidos: [], colunasManuais: [] });
+  assert(s.context._avisosValidacaoReentradas.length > 0);
+  s.context.resetarParaNovaCalculadora();
+  assert.deepEqual(plain(s.context._avisosValidacaoReentradas), []);
 });

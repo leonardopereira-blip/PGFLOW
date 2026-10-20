@@ -14,6 +14,8 @@ Quando faltar especificacao de um SKU no chamado legado, a interface conserva o 
 
 Os indicadores booleanos do relatorio SPG usam Sim/Nao e aceitam true/false ou sim/nao sem diferenciar maiusculas de minusculas, preservando numeros e textos livres.
 
+Se o SKU autorizado tambem nao existir no catalogo geral completo da API, ele e omitido com aviso no resumo e no resultado. Sua tiragem e seus vinculos de arvore sao retirados da geracao; os demais SKUs continuam. Chamados que ficarem sem nenhum SKU disponivel nao geram arquivos vazios nem impedem os outros chamados do lote. Falhas de acesso, paginacao incompleta e especificacoes conflitantes nao equivalem a ausencia de cadastro.
+
 ## Forma Certa
 
 O layout da CALC Geral tem entradas distintas e uma aba adicional IMPUT Forma Certa. A adaptacao preserva as formulas da calculadora e completa as formulas da IMPUT conforme os SKUs do chamado, ate 300.

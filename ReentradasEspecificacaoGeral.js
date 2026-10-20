@@ -145,7 +145,7 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
     var sku = _reEspecGeralTexto_(r[idxTiragem]);
     if (sku && sku !== '-' && !presentes[sku] && faltantes.indexOf(sku) < 0) faltantes.push(sku);
   });
-  if (!faltantes.length) return { espec: espec, skusEspecificacaoGeral: [], avisos: [] };
+  if (!faltantes.length) return { espec: espec, skusEspecificacaoGeral: [], skusIgnorados: [], avisos: [] };
   var autorizado = Object.create(null), candidatos = faltantes.slice();
   (Array.isArray(especificacoesGerais) ? especificacoesGerais : []).forEach(function(a) {
     if (!_reEspecGeralAutorizacaoValida_(a)) return;
@@ -174,10 +174,7 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
     porSku[sku] = linha;
   }
   var naoEncontrados = faltantes.filter(function(sku) { return !porSku[sku]; });
-  if (naoEncontrados.length) {
-    throw new Error('Especificacao tecnica geral nao encontrada no SPG para o SKU ' + naoEncontrados.join(', ') +
-      '. Confira o cadastro do SKU para continuar.');
-  }
+  var encontrados = faltantes.filter(function(sku) { return !!porSku[sku]; });
 
   var headers = espec.headers.slice(), existentes = Object.create(null);
   headers.forEach(function(h) { if (_reEspecGeralChave_(h)) existentes[_reEspecGeralChave_(h)] = true; });
@@ -190,7 +187,7 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
   var linhas = espec.linhas.map(function(r) {
     return headers.map(function(h, i) { return i < espec.headers.length && r[i] != null ? r[i] : ''; });
   });
-  faltantes.forEach(function(sku) {
+  encontrados.forEach(function(sku) {
     linhas.push(headers.map(function(h) {
       var indice = indices[_reEspecGeralChave_(h)];
       return indice === undefined ? '' : porSku[sku][indice];
@@ -198,9 +195,12 @@ function _reSpCompletarEspecLegado_(numero, espec, tiragem, especificacoesGerais
   });
   return {
     espec: { headers: headers, linhas: linhas },
-    skusEspecificacaoGeral: faltantes.slice(),
-    avisos: faltantes.map(function(sku) {
+    skusEspecificacaoGeral: encontrados,
+    skusIgnorados: naoEncontrados,
+    avisos: encontrados.map(function(sku) {
       return 'SKU ' + sku + ': especificacao tecnica geral do SPG utilizada por escolha do usuario; ausente na alocacao antiga.';
-    })
+    }).concat(naoEncontrados.map(function(sku) {
+      return 'SKU ' + sku + ': não encontrado no catálogo geral do SPG; não será incluído na geração.';
+    }))
   };
 }

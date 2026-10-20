@@ -378,6 +378,9 @@ function buscarResumoReentradasSPG(chamados,origensLegado,especificacoesGerais){
         origem:p.pacote&&p.pacote.origem==='legado'?'legado':'spg',
         legadoTemporario:!!(p.pacote&&p.pacote.origem==='legado'),
         skusEspecificacaoGeral:p.skusEspecificacaoGeral||[],
+        skusIgnorados:p.skusIgnorados||[],
+        tiragemIgnorada:p.tiragemIgnorada||0,
+        semSkusParaGerar:!!p.semSkusParaGerar,
         avisos:p.avisos||[],
         totalSkus:Object.keys(skus).length,
         tiragemTotal:total,
@@ -399,9 +402,14 @@ function validarReentradasSPG(grafica,chamados,origensLegado,especificacoesGerai
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Calculadora indisponivel para esta grafica.'};
   var ids=String(chamados||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
   if(!ids.length)return {erro:'Informe os chamados.'};
-  var validos=[],invalidos=[];
-  ids.forEach(function(id){try{_reSpDadosChamado_(id,grafica,origensLegado,especificacoesGerais);validos.push(id);}catch(err){invalidos.push(id+': '+err.message);}});
-  if(!validos.length)return {erro:'Nenhum chamado validado: '+invalidos.join(' | ')};
+  var validos=[],invalidos=[],avisos=[];
+  ids.forEach(function(id){try{
+    var p=_reSpDadosChamado_(id,grafica,origensLegado,especificacoesGerais);
+    (p.avisos||[]).forEach(function(aviso){avisos.push('Chamado '+id+': '+aviso);});
+    if(p.semSkusParaGerar){invalidos.push(id+': nenhum SKU com especificação disponível; chamado não incluído.');return;}
+    validos.push(id);
+  }catch(err){invalidos.push(id+': '+err.message);}});
+  if(!validos.length)return {erro:'Nenhum chamado com SKUs disponíveis para gerar: '+invalidos.join(' | '),avisos:avisos};
   var manuais=[
     [32,'RELEVO','Sim / Não'],[33,'RELEVO - ÁREA','cm²'],[34,'UV LOCALIZADO','Sim / Não'],
     [35,'UV LOCALIZADO - ÁREA','cm²'],[36,'HOT STAMPING','Sim / Não'],[37,'HOT STAMPING - ÁREA','cm²'],
@@ -410,7 +418,7 @@ function validarReentradasSPG(grafica,chamados,origensLegado,especificacoesGerai
     [78,'SHRINK COLETIVO','Sim / Não']
   ].map(function(r){return {index:String(r[0]),titulo:r[1],instrucao:r[2],
     opcoes:/Sim/.test(r[2])?['Não','Sim']:null};});
-  return {bundle:true,sucesso:true,validos:validos,invalidos:invalidos,colunasManuais:manuais};
+  return {bundle:true,sucesso:true,validos:validos,invalidos:invalidos,avisos:avisos,colunasManuais:manuais};
 }
 function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais,respostas,fornecimento,origensLegado,especificacoesGerais) {
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])return {erro:'Modelo ainda nao disponivel para esta grafica.'};
@@ -418,14 +426,18 @@ function gerarValidacaoReentradasSPG(grafica,chamados,opcaoVersao,versoesManuais
     return {sucesso:false,erro:'A validação usa somente a versão vinculada ao chamado no SPG. Atualize a página.'};
   }
   try{
-    var result=[],failed=[];
+    var result=[],failed=[],ignorados=[];
     (chamados||[]).forEach(function(chamado){
-      try{result.push(_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{},origensLegado,especificacoesGerais));}
+      try{
+        var item=_reSpGerarUm_(String(chamado),grafica,respostas,fornecimento||{},origensLegado,especificacoesGerais);
+        if(item.semSkusParaGerar)ignorados.push(item);else result.push(item);
+      }
       catch(e){failed.push(chamado+': '+e.message);}
     });
     var avisos=failed.slice();
-    result.forEach(function(item){(item.avisos||[]).forEach(function(aviso){avisos.push(aviso);});});
-    return {sucesso:!!result.length,erro:result.length?undefined:failed.join(' | '),resumo:result,arquivos:result,avisos:avisos,jobs:[]};
+    result.concat(ignorados).forEach(function(item){(item.avisos||[]).forEach(function(aviso){avisos.push(aviso);});});
+    return {sucesso:!!result.length,erro:result.length?undefined:(failed.join(' | ')||'Nenhum SKU com especificação disponível. Nenhum arquivo foi gerado.'),
+      resumo:result,arquivos:result,ignorados:ignorados,avisos:avisos,jobs:[]};
   }catch(e){return {erro:e.message};}
 }
 // Edita SOMENTE as entradas da CALC Geral mantendo intactas as formulas em
@@ -514,6 +526,8 @@ function _reSpPreencherCalcGeral_(xml,skus,porSku,chamado,fornecimento,grafica){
 function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,especificacoesGerais) {
   if(!/^\d{2,8}$/.test(chamado))throw Error('Numero do chamado invalido');
   var api=_reSpDadosChamado_(chamado,grafica,origensLegado,especificacoesGerais);
+  if(api.semSkusParaGerar)return {chamado:chamado,origem:'legado',semSkusParaGerar:true,
+    skusIgnorados:api.skusIgnorados||[],avisos:api.avisos||[],skus:0,tiragem:0};
   var deparaOrig=_reSpMolde_(grafica,'depara');
   var calcOrig=_reSpMolde_(grafica,'calc');
   var dnomes=['PPG - Especificações','PPG - Arvore de Produto','PPG - Tiragem',
@@ -590,5 +604,6 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
     tiragem:Object.keys(nc.porSku).reduce(function(s,k){return s+nc.porSku[k].total;},0),
     depara:fd.getUrl(),calculadora:fc.getUrl(),arquivo:nomeC,
     skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],avisos:api.avisos||[],
+    skusIgnorados:api.skusIgnorados||[],tiragemIgnorada:api.tiragemIgnorada||0,
     aviso:'O Excel recalcula custos ao abrir; precos nao homologados sem abrir e validar.'};
 }

@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const code=fs.readFileSync(path.join(__dirname,'..','LegadoAlocacaoReentradas.js'),'utf8');
 const motor=fs.readFileSync(path.join(__dirname,'..','ValidaReentradasSPG.js'),'utf8');
 const geral=fs.readFileSync(path.join(__dirname,'..','ReentradasEspecificacaoGeral.js'),'utf8');
+const spg=fs.readFileSync(path.join(__dirname,'..','SPG.js'),'utf8');
 const idFonte='1pR9a5-oogD7ZYHxImsE9ABNpHeVyCJaTcIab7_U_bI0';
 const meta=['ID (Coluna A)','PPG utilizada (Último Link)'];
 const link='https://drive.google.com/file/d/PPG-2567-ATUAL/view';
@@ -78,7 +79,7 @@ function fixture(){
     }).formatToParts(date).map(p=>[p.type,p.value]));
     return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${String(date.getUTCMilliseconds()).padStart(3,'0')}`;
   }}};
-  vm.createContext(context);vm.runInContext(motor,context);vm.runInContext(code,context);vm.runInContext(geral,context);
+  vm.createContext(context);vm.runInContext(spg,context);vm.runInContext(motor,context);vm.runInContext(code,context);vm.runInContext(geral,context);
   return {context,data,reads,opens,dateFormats};
 }
 
@@ -191,6 +192,34 @@ test('falta de toda especificacao da ultima versao oferece cada SKU sem reutiliz
     assert.deepEqual(Array.from(err.especificacoesAusentes),['SKU-A','SKU-B']);
     return true;
   });
+});
+
+test('SKU ausente no cadastro geral sai da tiragem e da arvore sem impedir os demais SKUs',()=>{
+  const {context,data}=fixture();
+  data['Especificação Técnica'].splice(3,1);
+  data['Árvore de produto'].splice(4,1); // A ausencia de arvore do SKU excluido tambem nao bloqueia B.
+  context._reEspecGeralConsultar_=()=>({products:[],dividirPesoPor100000:false});
+  const r=context._reSpPrepararDadosLegado_('2567','META',[{chamado:'2567',sku:'SKU-A'}]);
+  assert.deepEqual(Array.from(r.skusIgnorados),['SKU-A']);
+  assert.deepEqual(Array.from(r.skusEspecificacaoGeral),[]);
+  assert.equal(r.tiragemIgnorada,1200);assert.equal(r.semSkusParaGerar,false);
+  assert.equal(r.espec.linhas.length,1);
+  assert.equal(context._reSpBuscar_(r.espec.linhas[0],r.espec.headers,'1. ID_Código SKU'),'SKU-B');
+  assert.equal(r.tiragem.linhas.length,1);
+  assert.equal(context._reSpBuscar_(r.tiragem.linhas[0],r.tiragem.headers,'16. TIR_SKU'),100);
+  assert.deepEqual(Array.from(r.arvore.linhas,row=>context._reSpBuscar_(row,r.arvore.headers,'1. ID_Código SKU')),['','SKU-B']);
+  assert.match(r.avisos.join(' '),/SKU-A.*não será incluído/);
+});
+
+test('kit sem componentes incluidos e removido e chamado totalmente sem SKUs fica identificado',()=>{
+  const {context,data}=fixture();
+  data['Especificação Técnica']=data['Especificação Técnica'].filter((r,i)=>i===0||!['SKU-A','SKU-B'].includes(r[2]));
+  context._reEspecGeralConsultar_=()=>({products:[],dividirPesoPor100000:false});
+  const r=context._reSpPrepararDadosLegado_('2567','META',[
+    {chamado:'2567',sku:'SKU-A'},{chamado:'2567',sku:'SKU-B'}]);
+  assert.equal(r.semSkusParaGerar,true);assert.equal(r.tiragemIgnorada,1300);
+  assert.equal(r.espec.linhas.length,0);assert.equal(r.tiragem.linhas.length,0);assert.equal(r.arvore.linhas.length,0);
+  assert.deepEqual(Array.from(r.skusIgnorados),['SKU-A','SKU-B']);
 });
 
 test('numeros invalidos sao recusados antes de ler a planilha',()=>{

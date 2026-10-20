@@ -227,6 +227,7 @@
   var _legadoRecusadoReentradas = [];
   var _chamadosOrigemKey = '';
   var _resumosReentradas = [];
+  var _avisosValidacaoReentradas = [];
   var _resumoProntoReentradas = false;
   var _reentradasConsultaSeq = 0;
   var _reentradasRecentes = [];
@@ -293,6 +294,7 @@
       especificacoesGeraisReentradas = [];
       _legadoRecusadoReentradas = [];
       _resumosReentradas = [];
+      _avisosValidacaoReentradas = [];
       _resumoProntoReentradas = false;
       _reentradasConsultaSeq++;
       document.getElementById('painelResumo').classList.remove('active');
@@ -332,6 +334,17 @@
     return especificacoesGeraisReentradas.filter(function(item) {
       return item.chamado === String(chamado);
     }).map(function(item) { return item.sku; });
+  }
+  function especificacoesGeraisUtilizadasReentradas(chamado) {
+    var resumo = _resumosReentradas.filter(function(item) {
+      return String(item.chamado) === String(chamado);
+    })[0];
+    if (resumo && Array.isArray(resumo.skusEspecificacaoGeral)) {
+      return resumo.skusEspecificacaoGeral.filter(function(sku) {
+        return typeof sku === 'string' && sku.trim() !== '';
+      });
+    }
+    return especificacoesGeraisDoChamadoReentradas(chamado);
   }
   function selecionarEspecificacaoGeralReentradas(indice, indiceSku) {
     var resumo = _resumosReentradas[indice];
@@ -383,13 +396,17 @@
   }
   function renderResumosReentradas(resumosArr) {
       _resumosReentradas = resumosArr;
-      // O backend pode devolver erro + zeros para um chamado. Nao ocultar a falha.
+      // Um chamado inteiramente excluído não bloqueia os demais, mas erros reais continuam pendentes.
       var resumoComFalha = resumosArr.some(function(r) {
-        return !!r.erro || especificacoesAusentesReentradas(r).length > 0 || r.naoEncontrado === true || !(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0);
+        return !!r.erro || especificacoesAusentesReentradas(r).length > 0 || r.naoEncontrado === true ||
+          (r.semSkusParaGerar !== true && (!(Number(r.totalSkus) > 0) || !(Number(r.tiragemTotal) > 0)));
       });
-      _resumoProntoReentradas = !resumoComFalha;
+      var algumChamadoGeravel = resumosArr.some(function(r) {
+        return r.semSkusParaGerar !== true && Number(r.totalSkus) > 0 && Number(r.tiragemTotal) > 0;
+      });
+      _resumoProntoReentradas = !resumoComFalha && algumChamadoGeravel;
       document.querySelector('#botoesResumo .btn-continuar').style.display =
-        resumoComFalha ? 'none' : '';
+        _resumoProntoReentradas ? '' : 'none';
       document.getElementById('conteudoResumoLoader').style.display = 'none';
       document.getElementById('conteudoResumoData').style.display = 'block';
      
@@ -407,11 +424,19 @@
         }
         var geraisAutorizadas = especificacoesGeraisDoChamadoReentradas(resumo.chamado);
         if (geraisAutorizadas.length) {
-          html += '<div role="status" class="vc-espec-aviso"><strong>Especificação técnica geral autorizada:</strong> ' +
+          html += '<div role="status" class="vc-espec-aviso"><strong>Consulta geral autorizada:</strong> ' +
             geraisAutorizadas.map(escHtml).join(', ') + '</div>';
+        }
+        if (Array.isArray(resumo.skusEspecificacaoGeral) && resumo.skusEspecificacaoGeral.length) {
+          html += '<div role="status" class="vc-espec-aviso"><strong>Especificação técnica geral utilizada:</strong> ' +
+            resumo.skusEspecificacaoGeral.map(escHtml).join(', ') + '</div>';
         }
         if (Array.isArray(resumo.avisos) && resumo.avisos.length) {
           html += '<div role="status" class="vc-espec-aviso">' + resumo.avisos.map(escHtml).join('<br>') + '</div>';
+        }
+        if (Array.isArray(resumo.skusIgnorados) && resumo.skusIgnorados.length) {
+          html += '<div role="status" class="vc-espec-aviso"><strong>SKUs ignorados:</strong> ' +
+            resumo.skusIgnorados.map(escHtml).join(', ') + '. Não encontrados no cadastro geral; serão excluídos da geração.</div>';
         }
         var especificacoesAusentes = especificacoesAusentesReentradas(resumo);
         if (especificacoesAusentes.length) {
@@ -444,6 +469,10 @@
           html += '</div></div>';
           return;
         }
+        if (resumo.semSkusParaGerar === true && !resumo.erro && resumo.naoEncontrado !== true) {
+          html += '<div role="status" class="vc-espec-aviso">Este chamado ficou sem SKUs para gerar e será ignorado. Os demais chamados válidos podem continuar.</div></div>';
+          return;
+        }
         if (resumo.erro || resumo.naoEncontrado === true || !(Number(resumo.totalSkus) > 0) || !(Number(resumo.tiragemTotal) > 0)) {
           html += '<div role="alert" style="color:#b5341f; font-size:13px; line-height:1.6;">' +
             '<strong>' + (resumo.origem === 'legado' ? 'Falha ao carregar dados da alocação antiga.' : 'Falha ao carregar dados do SPG.') + '</strong> ' +
@@ -464,6 +493,9 @@
       });
      
       html += '</div>';
+      if (!resumoComFalha && !algumChamadoGeravel) {
+        html += '<div role="status" class="vc-espec-aviso">Nenhum chamado possui SKUs para gerar. Nenhum arquivo será criado.</div>';
+      }
       document.getElementById('conteudoResumoData').innerHTML = html;
       document.getElementById('botoesResumo').style.display = 'flex';
      
@@ -499,14 +531,25 @@
     }).validarReentradasSPG(g,c,origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
   function processarResultadoFase1App(res){
-    if(res.erro){ setMsg('mensagemFase1', res.erro, '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
+    if(!res || res.erro || !Array.isArray(res.validos) || !res.validos.length){ setMsg('mensagemFase1', escHtml(res && res.erro || 'Nenhum chamado possui SKUs para gerar. Nenhum arquivo será criado.'), '#b5341f'); document.getElementById('btnAvancar').disabled=false; return; }
     cacheChamadosValidos = res.validos;
     setMsg('mensagemFase1','', '#333');
     document.getElementById('telaFase1').style.display='none';
     document.getElementById('telaFase2').style.display='block';
-    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+escHtml(v)+(origensLegadoReentradas.indexOf(String(v)) !== -1 ? ' · Legado temporário' : '')+(especificacoesGeraisDoChamadoReentradas(v).length ? ' · Especificação geral' : '')+'</span>';}).join('');
+    document.getElementById('painelChips').innerHTML = res.validos.map(function(v){return '<span class="vc-chip">'+escHtml(v)+(origensLegadoReentradas.indexOf(String(v)) !== -1 ? ' · Legado temporário' : '')+(especificacoesGeraisUtilizadasReentradas(v).length ? ' · Especificação geral' : '')+'</span>';}).join('');
+    var avisos = Array.isArray(res.avisos) ? res.avisos.slice() : [];
+    _resumosReentradas.forEach(function(r) {
+      (Array.isArray(r.avisos) ? r.avisos : []).forEach(function(aviso) {
+        if (avisos.indexOf(aviso) === -1) avisos.push(aviso);
+      });
+      if (Array.isArray(r.skusIgnorados) && r.skusIgnorados.length) {
+        avisos.push('Chamado ' + r.chamado + ': SKUs ignorados: ' + r.skusIgnorados.join(', '));
+      }
+    });
+    _avisosValidacaoReentradas = avisos;
     document.getElementById('painelInvalidos').innerHTML =
-      (res.invalidos && res.invalidos.length) ? '<b>Ignorados:</b> '+res.invalidos.join(', ')+' (não encontrados)' : '';
+      ((res.invalidos && res.invalidos.length) ? '<b>Ignorados:</b> '+res.invalidos.map(escHtml).join(', ') : '') +
+      (avisos.length ? '<div role="status" class="vc-espec-aviso">'+avisos.map(escHtml).join('<br>')+'</div>' : '');
     document.getElementById('ctaHint').textContent = res.validos.length+' chamado(s) pronto(s)';
     renderAcabamentos(res.colunasManuais || []);
     renderFornecimento();
@@ -710,9 +753,13 @@
       }
       _resumo = res.resumo || [];
       concluirTracker();
-      if (res.avisos && res.avisos.length) {
+      var avisos = _avisosValidacaoReentradas.slice();
+      (Array.isArray(res.avisos) ? res.avisos : []).forEach(function(item) {
+        if (avisos.indexOf(item) === -1) avisos.push(item);
+      });
+      if (avisos.length) {
         var aviso = document.getElementById('erroFase3');
-        aviso.textContent = 'Avisos: ' + res.avisos.join(' | ');
+        aviso.textContent = 'Avisos: ' + avisos.join(' | ');
         aviso.style.display = 'block';
       }
     }).withFailureHandler(function(err) {

@@ -139,20 +139,38 @@ function _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais) {
     if(!pai&&pares[par])arvorePares[par]=true;
     return !!kits[kit]&&(pai||!!pares[par]);
   });
-  Object.keys(pares).forEach(function(par){
-    if(!arvorePares[par])throw Error('Kit/SKU sem árvore na alocação antiga: '+JSON.parse(par).join(' / '));
-  });
   // A escolha individual so completa lacunas de especificacao. Arvore,
   // tiragem, versao e link continuam sendo os do chamado antigo validado.
   var complemento=_reSpCompletarEspecLegado_(numero,{headers:e.headers,linhas:espec},
     {headers:t.headers,linhas:linhasSku},especificacoesGerais);
+  var ignorados=Object.create(null),kitsIncluidos=Object.create(null),tiragemIgnorada=0;
+  (complemento.skusIgnorados||[]).forEach(function(sku){ignorados[sku]=true;});
+  var tiragem=linhasSku.filter(function(r){
+    if(ignorados[_reSpBuscar_(r,t.headers,'1. ID_Código SKU')]){
+      tiragemIgnorada+=_reSpQuant_(_reSpBuscar_(r,t.headers,'16. TIR_SKU'));
+      return false;
+    }
+    kitsIncluidos[_reSpBuscar_(r,t.headers,'1. ID_Código Kit')]=true;
+    return true;
+  });
+  Object.keys(pares).forEach(function(par){
+    var codigos=JSON.parse(par);
+    if(!ignorados[codigos[1]]&&!arvorePares[par])throw Error('Kit/SKU sem árvore na alocação antiga: '+codigos.join(' / '));
+  });
+  arvore=arvore.filter(function(r){
+    var kit=_reSpBuscar_(r,a.headers,'1. ID_Código Kit'),sku=_reSpBuscar_(r,a.headers,'1. ID_Código SKU');
+    return !!kitsIncluidos[kit]&&!ignorados[sku];
+  });
   return {
     pacote:{id:numero,versaoId:'legado:'+origem.versao,origem:'legado',
       versaoPpg:origem.versao,linkPpg:origem.link,fontePlanilha:config.idPlanilha},
     espec:complemento.espec,
     skusEspecificacaoGeral:complemento.skusEspecificacaoGeral,
+    skusIgnorados:complemento.skusIgnorados||[],
+    tiragemIgnorada:tiragemIgnorada,
+    semSkusParaGerar:!tiragem.length&&!!(complemento.skusIgnorados||[]).length,
     avisos:complemento.avisos,
     arvore:{headers:a.headers,linhas:arvore},
-    tiragem:{headers:t.headers,linhas:linhasSku}
+    tiragem:{headers:t.headers,linhas:tiragem}
   };
 }

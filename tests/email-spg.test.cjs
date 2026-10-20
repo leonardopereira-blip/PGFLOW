@@ -710,3 +710,10 @@ test('modelo inclusivo recusa outro tipo antes de baixar ou enviar anexo',()=>{
   assert.equal(h.send(p,{tipoEmail:'inclusivo'}).sucesso,false);
   assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);assert.equal(h.state.emails.length,0);
 });
+
+// A trava de tipo e exclusiva da validacao de custos de Reentradas.
+test('validacao de reentradas recusa chamado Principal antes de baixar OP',()=>{
+  const h=apiHarness({mutate(d){d.detalhe.tipoSolicitacao='PRINCIPAL';}});
+  assert.throws(()=>h.c._emailSpgPacote_('3100',true,'reentrada','reentrada'),/não é uma REENTRADA/);
+  assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
+});

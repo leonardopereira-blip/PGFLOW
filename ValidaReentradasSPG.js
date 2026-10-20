@@ -90,6 +90,7 @@ function _reSpLerAba_(mapa,numero,strings) {
       var val=v?_reSpUnescape_(v[1]):'';
       if(tipo&&tipo[1]==='s')val=strings[+val]||'';
       else if(inline){var inner='',tr=/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g,tm;while((tm=tr.exec(inline[1]))!==null)inner+=_reSpUnescape_(tm[1]);val=inner;}
+      else if(v&&(!tipo||tipo[1]==='n')&&/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(val))val=Number(val);
       if(val!=='')obj[idx]=val;
     }
     rows.push({numero:+m[1],cells:obj});
@@ -133,10 +134,31 @@ function _reSpNormal_(s){
   return String(s||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^A-Za-z0-9]/g,'').toUpperCase();
 }
+function _reSpNumeroFonte_(valor) {
+  if(typeof valor!=='string')return valor;
+  var texto=valor.trim().replace(/[\s\u00a0]/g,'');
+  if(!texto)return valor;
+  if(/^[+-]?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(texto))texto=texto.replace(/\./g,'').replace(',','.');
+  else if(/^[+-]?\d+(?:,\d+)$/.test(texto))texto=texto.replace(',','.');
+  else if(!/^[+-]?\d+(?:\.\d+)?$/.test(texto))return valor;
+  var numero=Number(texto);
+  return isFinite(numero)?numero:valor;
+}
+function _reSpNumeroPorCabecalho_(cabecalho,valor) {
+  var c=_reSpNormal_(cabecalho);
+  var numerico=/^16TIR(?:SKU|ITEM|MIOLO|CAPAAVULSA|KIT)$/.test(c) ||
+    /^3DIM(?:B(?:ABERTO|FECHADO)MM|A(?:ABERTO|FECHADO)MM|EMM|PESOKG|QUANTIDADETOTALDEPAGINAS)$/.test(c) ||
+    /^[45678]MIO(?:PRIN|PROF|ENCA|ADES)QUANTIDADEDEPAGINAS$/.test(c) ||
+    c==='4CAPORELHA' || c==='11REFQUANTIDADEDEPERSONALIZADOS' ||
+    c==='13MANTOTALDEITENSCOLECIONADOS';
+  return numerico?_reSpNumeroFonte_(valor):valor;
+}
 function _reSpMapearCab_(dest,cab,linhas) {
   var mapa={};cab.forEach(function(c,i){if(c)mapa[_reSpNormal_(c)]=i;});
   var idx=dest.map(function(h){var n=_reSpNormal_(h);return mapa[n]===undefined?-1:mapa[n];});
-  var rows=linhas.map(function(a){return idx.map(function(i){return i===-1?'':a[i];});});
+  var rows=linhas.map(function(a){return idx.map(function(i,j){
+    return i===-1?'':_reSpNumeroPorCabecalho_(dest[j],a[i]);
+  });});
   return rows.filter(function(a){return a[0]||a[1]||a[3];});
 }
 function _reSpBuscar_(row,headers,nome) {
@@ -213,7 +235,7 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
 }
 function _reSpPrepararDados_(numero,grafica) {
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])throw Error('Modelo ainda nao disponivel para esta grafica.');
-  var pacote=_emailSpgPacote_(numero,false,'reentrada');
+  var pacote=_emailSpgPacote_(numero,false,'reentrada','reentrada');
   if(pacote.id!==numero||!pacote.versaoId||!pacote.blob)throw Error('Chamado ou versao inconsistentes na API');
   if(/CANCELAD/i.test(pacote.statusChamado+' '+pacote.statusProducao))throw Error('Chamado cancelado');
   var raw=_reSpPartes_(pacote.blob);
@@ -322,6 +344,10 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
     [25,27,29,46,49,50,51,56,57,62,63,68,69,75,77,78,79,80].forEach(function(col){
       r[col-3]=_reSpBool_(r[col-3]);
     });
+    // Areas, dimensoes e campos manuais quantitativos precisam ser numericos no XLSX.
+    [22,28,33,35,37,39,72,73,81].forEach(function(col){
+      r[col-3]=_reSpNumeroFonte_(r[col-3]);
+    });
     ret.push(r);
   });
   if(!ret.length)throw Error('Nenhuma especificacao util apos o filtro por grafica');
@@ -337,7 +363,7 @@ function _reSpDadosChamado_(numero,grafica,origensLegado,especificacoesGerais){
   if(!legado)return _reSpPrepararDados_(numero,grafica);
   // A confirmacao da tela nao pode trocar um chamado existente/cancelado por Sheets.
   try{
-    _emailSpgPacote_(numero,true,'reentrada');
+    _emailSpgPacote_(numero,true,'reentrada','reentrada');
   }catch(err){
     if(err.codigo==='CHAMADO_NAO_ENCONTRADO')return _reSpPrepararDadosLegado_(numero,grafica,especificacoesGerais);
     throw err;

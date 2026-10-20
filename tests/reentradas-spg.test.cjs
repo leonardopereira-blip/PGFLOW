@@ -20,6 +20,29 @@ test('normalizacao numerica com virgula e ponto',()=>{
   assert.throws(()=>context._reSpQuant_(''),/vazia/);
   assert.throws(()=>context._reSpQuant_('-10'),/invalida/);
 });
+test('valores numericos do SPG e do legado entram como numero sem alterar SKU, ISBN ou texto',()=>{
+  const cab=['1. ID_Código SKU','3, DIM_B (Aberto)(mm)','3. DIM_Peso (Kg)',
+    '4.Cap_orelha','16. TIR_SKU','2. INF_Série','1. ID_ISBN'];
+  const linha=['000123','210','0,125','80,5','1.234','3','9780000000123'];
+  const mapped=context._reSpMapearCab_(cab,cab,[linha])[0];
+  assert.equal(mapped[0],'000123');
+  assert.equal(mapped[1],210);
+  assert.equal(mapped[2],0.125);
+  assert.equal(mapped[3],80.5);
+  assert.equal(mapped[4],1234);
+  assert.equal(mapped[5],'3');
+  assert.equal(mapped[6],'9780000000123');
+  assert.match(context._reSpCelula_('B2',mapped[1]),/<v>210<\/v>/);
+  assert.match(context._reSpCelula_('A2',mapped[0]),/t="inlineStr"/);
+});
+test('leitor de XLSX preserva tipo numerico original e nao converte texto de codigo',()=>{
+  const xml='<worksheet><sheetData><row r="1">'+
+    '<c r="A1"><v>210</v></c><c r="B1" t="inlineStr"><is><t>00123</t></is></c>'+
+    '</row></sheetData></worksheet>';
+  const x={'xl/worksheets/sheet1.xml':{getDataAsString:()=>xml}};
+  const row=context._reSpLerAba_(x,1,[])[0].cells;
+  assert.equal(row[0],210);assert.equal(row[1],'00123');
+});
 test('formato de referencias Excel e protecao criada no final',()=>{
   assert.equal(context._reSpCol_(1),'A');
   assert.equal(context._reSpCol_(81),'CC');

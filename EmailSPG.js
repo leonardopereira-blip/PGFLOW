@@ -374,7 +374,7 @@ function identificarTipoEmailSPG(idChamado) {
   }
 }
 
-function _emailSpgPacote_(idChamado, apenasMetadados, tipoEmail) {
+function _emailSpgPacote_(idChamado, apenasMetadados, tipoEmail, tipoObrigatorio) {
   var statusChamado = '', statusProducao = '';
   try {
     var numero = _emailSpgId_(idChamado), token = _spgLogin_();
@@ -383,6 +383,11 @@ function _emailSpgPacote_(idChamado, apenasMetadados, tipoEmail) {
     var detalhe = _emailSpgLerJson_('/api/reentradas/' + id, token).reentrada;
     if (!detalhe || detalhe.id !== id || String(detalhe.numero) !== numero) {
       throw new Error('Nao foi possivel confirmar a identificacao do chamado no SPG.');
+    }
+    // A validacao de custos de Reentradas exige o tipo do proprio chamado.
+    // O fluxo Principal e os envios de e-mail nao passam este parametro.
+    if (tipoObrigatorio === 'reentrada' && _emailSpgNormalizar_(detalhe.tipoSolicitacao) !== 'reentrada') {
+      throw new Error('Este chamado não é uma REENTRADA. Utilize o fluxo de Validação Principal para chamados desse tipo.');
     }
     statusChamado = _emailSpgStatus_(detalhe.status);
     if (detalhe.versao && detalhe.versao.id === detalhe.versaoId) {

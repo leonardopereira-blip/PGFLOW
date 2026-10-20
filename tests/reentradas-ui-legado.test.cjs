@@ -183,13 +183,15 @@ test('mistura SPG e legado preserva gráfica, campos manuais e fornecimento até
   assert.equal(s.el('telaFase2').style.display, 'block');
   assert.match(s.el('painelChips').textContent, /2567 · Legado temporário/);
   const manual = s.document.querySelector('.inp-manual'); assert(manual); manual.value = 'Sim';
-  s.el('selTecnologia').value = 'PLANA'; s.el('selFornecedor').value = 'ATHOS';
+  s.el('selTecnologia').value = 'PLANA'; s.dispatch('selTecnologia', 'change');
+  s.el('selFornecedor').value = 'ATHOS';
   s.dispatch('btnConcluir');
   const args = plain(s.pending('gerarValidacaoReentradasSPG').args);
   assert.equal(args[0], 'META'); assert.deepEqual(args[1], ['3100', '2567']);
   assert.deepEqual(args[4], [{ index: '51', valor: 'Sim' }]);
   assert.equal(args[5].tecnologia, 'PLANA'); assert.equal(args[5].fornecedor, 'ATHOS');
-  assert.equal(args[5].elementos.DIGITAL.capa, 'GRÁFICA'); assert.deepEqual(args[6], ['2567']);
+  assert.equal(args[5].elementos.PLANA.capa, 'GRÁFICA');
+  assert.equal(args[5].elementos.DIGITAL, undefined); assert.deepEqual(args[6], ['2567']);
   assert.match(s.el('step1').textContent, /origens de dados confirmadas/);
   s.reply('gerarValidacaoReentradasSPG', { sucesso: true, arquivos: ['file'], resumo: [] });
   assert.equal(s.el('finishArea').style.display, 'block');

@@ -11,6 +11,16 @@ const network = () => new Error('NetworkError: Falha na conexão devido a HTTP 0
 const valid = id => ({ chamado: id, origem: 'spg', totalSkus: 1, tiragemTotal: 250,
   marcas: 'SAS', series: '', papeisCapa: '', papeisMiolo: '', cdsDestino: 'FOR' });
 
+test('resultado somente tecnico mostra De-Para sem link de calculadora inexistente',()=>{
+  const s=screen();
+  s.context.renderResumo([{chamado:'2932',grafica:'Reproset',skus:0,tiragem:0,
+    depara:'https://drive.google.com/file/d/tecnico/view',calculadora:'',somenteEspecificacao:true}],'resumoGerado');
+  const html=s.el('resumoGerado').innerHTML;
+  assert.match(html,/Abrir De-Para/);
+  assert.match(html,/Somente especificação técnica: nenhum SKU calculável/);
+  assert.doesNotMatch(html,/Abrir calculadora|undefined/);
+});
+
 function screen() {
   const elements = new Map();
   function el(id) {

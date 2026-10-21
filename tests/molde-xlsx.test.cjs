@@ -52,7 +52,7 @@ for(const m of MOLDES){
 
 test('geracao completa usa somente moldes e preserva abas sem entrada identicas ao modelo',()=>{
   const code=['MoldeXlsx.js','MoldeLogprintCalc.js','MoldeLogprintDepara.js','ValidaReentradasSPG.js',
-    'MacroProtecao.js','MacroProtecaoVba.js','ReentradasMacro.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js'];
+    'MacroProtecao.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js','ReentradasElegibilidade.js'];
   const criados=[];
   const app=mx.carregarApps(code,{
     DriveApp:{

@@ -249,8 +249,7 @@ function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
     var val=alteradas[p.getName()];
     return val===undefined?p:Utilities.newBlob(val,'text/xml',p.getName());
   });
-  var tipo=/\.xlsm$/i.test(nome)?'application/vnd.ms-excel.sheet.macroEnabled.12':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  var xlsx=Utilities.zip(saida,nome).setContentType(tipo);
+  var xlsx=Utilities.zip(saida,nome).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
 }
 function _reSpPrepararDados_(numero,grafica) {
@@ -607,7 +606,13 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
     alterDepara[caminho]=_reSpTrocarLinhas_(xml,2,rows);
   }
   var nc=_reSpConstrucaoNC_(bases[0],bases[1],bases[2],respostas);
-  if(nc.especificacoes.length>RE_SP_CONFIG.limiteSkus)throw Error('Excesso de SKUs para calculadora; maximo '+RE_SP_CONFIG.limiteSkus);
+  // As matrizes tecnicas ficam completas. O filtro usa os indicadores da
+  // origem antes que o molde de 80 colunas descarte Grafico/Editorial.
+  var somenteEspec=_reSpSkusNaoCalculaveis_(api.espec,api.tiragem),fora=Object.create(null);
+  somenteEspec.forEach(function(item){fora[String(item.sku)]=true;});
+  var itensCalc=nc.calc.filter(function(item){return !fora[String(item.sku)];});
+  var especCalc=nc.especificacoes.filter(function(row){return !fora[String(row[0])];});
+  if(especCalc.length>RE_SP_CONFIG.limiteSkus)throw Error('Excesso de SKUs para calculadora; maximo '+RE_SP_CONFIG.limiteSkus);
   var dc=_reSpAbaPorNome_(deparaOrig,'NC - PPG Especificações'),
     dxml=deparaOrig.mapa[dc].getDataAsString('UTF-8'),dstyle=_reSpEstilos_(dxml,6);
   var ncrows=nc.especificacoes.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+6,o,dstyle);});
@@ -615,9 +620,9 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   var da=_reSpAbaPorNome_(deparaOrig,'NC - CALC Geral'),axml=deparaOrig.mapa[da].getDataAsString('UTF-8'),astyle=_reSpEstilos_(axml,4);
   // A:J (kits/componentes) e L:U (totais por SKU) sao blocos paralelos,
   // NAO sequenciais: o consumidor legado le L:S a partir da linha 4.
-  var bySku=Object.keys(nc.porSku).sort(),cgrows=[];
-  for(var ic=0;ic<Math.max(nc.calc.length,bySku.length);ic++){
-    var x=nc.calc[ic],sku=bySku[ic],g={};
+  var bySku=Object.keys(nc.porSku).filter(function(sku){return !fora[sku];}).sort(),cgrows=[];
+  for(var ic=0;ic<Math.max(itensCalc.length,bySku.length);ic++){
+    var x=itensCalc[ic],sku=bySku[ic],g={};
     if(x){g={0:x.kit,1:x.sku,2:x.quant,3:x.kit===x.sku?'TRUE':'FALSE',4:x.elementos,
       5:x.emb,6:x.shrinkIndividual,7:x.shrinkKit,8:x.maleta,9:x.obs};}
     if(sku){
@@ -628,9 +633,21 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
     cgrows.push(_reSpLinha_(ic+4,g,astyle));
   }
   alterDepara[da]=_reSpTrocarLinhas_(axml,4,cgrows);
+  var nomeGrafica=RE_SP_MOLDES[_reSpNormal_(grafica)].nome;
+  var nomeD='PLANILHA DE PARA PPG '+nomeGrafica.toUpperCase()+' - CHAMADO '+chamado+'.xlsx';
+  var avisos=(api.avisos||[]).slice();
+  somenteEspec.forEach(function(item){avisos.push('SKU '+item.sku+': '+item.motivos.join(' e ')+'. Mantido somente na especificacao tecnica; excluido dos custos.');});
+  alterDepara['xl/workbook.xml']=_reSpFullCalc_(deparaOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
+  if(!bySku.length){
+    var tecnico=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
+    return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',
+      skus:0,tiragem:0,depara:tecnico.getUrl(),calculadora:'',arquivo:nomeD,somenteEspecificacao:true,
+      skusSomenteEspecificacao:somenteEspec,avisos:avisos,
+      skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],skusIgnorados:api.skusIgnorados||[]};
+  }
   // Insere especificacoes apenas na aba de entrada; as 11 demais mantem formula original.
   var cp=_reSpAbaPorNome_(calcOrig,'PPG Especificações'),cpx=calcOrig.mapa[cp].getDataAsString('UTF-8'),cpstyle=_reSpEstilos_(cpx,5);
-  var cr=nc.especificacoes.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+5,o,cpstyle);});
+  var cr=especCalc.map(function(r,i){var o={};r.forEach(function(x,j){o[j+2]=x;});return _reSpLinha_(i+5,o,cpstyle);});
   var alterCalc={};alterCalc[cp]=_reSpTrocarLinhas_(cpx,5,cr);
   var geral=_reSpAbaPorNome_(calcOrig,'CALC Geral'),gx=calcOrig.mapa[geral].getDataAsString('UTF-8');
   alterCalc[geral]=_reSpPreencherCalcGeral_(gx,bySku,nc.porSku,chamado,fornecimento,grafica);
@@ -646,19 +663,16 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
     // Preserva a protecao original, inclusive abas originalmente sem protecao.
     names.forEach(function(n){var p=_reSpAbaPorNome_(w,n);alter[p]=_reSpProteger_(alter[p]===undefined?w.mapa[p].getDataAsString('UTF-8'):alter[p]);});
   });
-  var nomeGrafica=RE_SP_MOLDES[_reSpNormal_(grafica)].nome;
-  var nomeD='PLANILHA DE PARA PPG '+nomeGrafica.toUpperCase()+' - CHAMADO '+chamado+'.xlsx';
-  var nomeC='CALCULADORA FORNECEDOR '+nomeGrafica.toUpperCase()+' - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsm';
+  var nomeC='CALCULADORA FORNECEDOR '+nomeGrafica.toUpperCase()+' - LIVROS REENTRADA 2026 - NOVA VERSÃO - CHAMADO '+chamado+'.xlsx';
   var protegerLogprint=_reSpNormal_(grafica)==='LOGPRINT';
   if(protegerLogprint)_reSpAplicarProtecaoLogprint_(calcOrig,alterCalc);
-  _reSpAdicionarMacro_(calcOrig,alterCalc,protegerLogprint);
   // Somente aqui os arquivos sao criados, depois de validar todas as matrizes.
   var fd=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
   var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC);
   return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',skus:bySku.length,
-    tiragem:Object.keys(nc.porSku).reduce(function(s,k){return s+nc.porSku[k].total;},0),
+    tiragem:bySku.reduce(function(s,k){return s+nc.porSku[k].total;},0),
     depara:fd.getUrl(),calculadora:fc.getUrl(),arquivo:nomeC,
-    skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],avisos:api.avisos||[],
+    skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],avisos:avisos,skusSomenteEspecificacao:somenteEspec,
     skusIgnorados:api.skusIgnorados||[],tiragemIgnorada:api.tiragemIgnorada||0,
     aviso:'O Excel recalcula custos ao abrir; precos nao homologados sem abrir e validar.'};
 }

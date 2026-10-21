@@ -34,7 +34,7 @@ function _reLpMascara_(xml,estilos){
   var re=/<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g;
   while((m=re.exec(xml))!==null){
     var row=m[0],a=_reMpAtributos_((/^<row\b[^>]*>/.exec(row)||[])[0]),rn=Number(a.r),pRow=null;
-    if(a.s!==undefined&&_reMpBool_(a.customFormat,0))pRow=linhas[rn]=estilos[Number(a.s)];
+    if(_reMpBool_(a.customFormat,0))pRow=linhas[rn]=estilos[Number(a.s||0)];
     var cr=/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g,c;
     while((c=cr.exec(row))!==null){
       var ca=_reMpAtributos_((/^<c\b[^>]*>/.exec(c[0])||[])[0]);
@@ -99,7 +99,7 @@ function _reLpAplicarMascara_(xml,mascara,clonar){
     });
   });
 }
-function _reSpAplicarProtecaoLogprint_(partes,alteradas,referencia){
+function _reSpAplicarProtecaoLogprint_(partes,alteradas,referencia,restaurarTudo){
   var ref=referencia||_moldeCasaDaGraficaCalc_(),estilosRef=_reMpEstilos_(ref.textos['xl/styles.xml']);
   var original=alteradas['xl/styles.xml']===undefined?partes.mapa['xl/styles.xml'].getDataAsString('UTF-8'):alteradas['xl/styles.xml'];
   var tags=_reMpXfs_(original,'cellXfs'),estilos=_reMpEstilos_(original),cache={};
@@ -113,17 +113,25 @@ function _reSpAplicarProtecaoLogprint_(partes,alteradas,referencia){
     tag=tag.replace(/(?=<extLst\b|<\/xf>)/,'<protection locked="'+p.locked+'" hidden="'+p.hidden+'"/>');
     cache[chave]=tags.length;tags.push(tag);estilos.push({locked:p.locked,hidden:p.hidden});return cache[chave];
   };
-  if(!_reLpIgual_(estilos[0],estilosRef[0]))throw Error('Protecao padrao da Logprint difere da referencia.');
+  if(!_reLpIgual_(estilos[0],estilosRef[0]))throw Error('O estilo padrao de protecao do arquivo foi alterado. Nenhum arquivo foi salvo; restaure esse estilo antes de tentar novamente.');
   var refs={},refAbas=_reLpAbas_(ref.textos['xl/workbook.xml'],ref.textos['xl/_rels/workbook.xml.rels']);
   refAbas.forEach(function(a){refs[a.nome]=a.caminho;});
   var abas=_reLpAbas_(partes.mapa['xl/workbook.xml'].getDataAsString('UTF-8'),partes.mapa['xl/_rels/workbook.xml.rels'].getDataAsString('UTF-8'));
   abas.forEach(function(a){
     var caminho=refs[a.nome],molde=caminho&&ref.abas[caminho];if(!molde)throw Error('Aba Logprint sem referencia compativel: '+a.nome);
-    var protegido=/<sheetProtection\b[^>]*>/.exec(molde.fim);if(!protegido)throw Error('Aba de referencia sem protecao: '+a.nome);
+    var protegido=/<sheetProtection\b[^>]*>/.exec(molde.fim);
+    var xml=alteradas[a.caminho]===undefined?partes.mapa[a.caminho].getDataAsString('UTF-8'):alteradas[a.caminho];
+    if(!protegido||!_reMpBool_(_reMpAtributos_(protegido[0]).sheet,0)){
+      if(!restaurarTudo)throw Error('Aba de referencia sem protecao: '+a.nome);
+      // Uma aba livre no perfil continua livre, mesmo que o arquivo escolhido
+      // tenha recebido protecao manualmente depois de ter sido gerado.
+      alteradas[a.caminho]=xml.replace(/<sheetProtection\b[^>]*?(?:\/>|>[\s\S]*?<\/sheetProtection>)/g,'');
+      if(protegido)alteradas[a.caminho]=_reLpProtegerAba_(alteradas[a.caminho],protegido[0]);
+      return;
+    }
     var op=_reMpAtributos_(protegido[0]),tag='<sheetProtection password="'+_reSpSenhaHash_('PGFLOW2026')+'"';
     Object.keys(RE_MP_OPCOES).forEach(function(k){tag+=' '+k+'="'+_reMpBool_(op[k],RE_MP_OPCOES[k])+'"';});tag+='/>';
-    var xml=alteradas[a.caminho]===undefined?partes.mapa[a.caminho].getDataAsString('UTF-8'):alteradas[a.caminho];
-    if(_reLpTemExcecao_(molde,estilosRef))xml=_reLpAplicarMascara_(xml,_reLpMascara_(_mxGerarAba_(molde),estilosRef),clonar);
+    if(restaurarTudo||_reLpTemExcecao_(molde,estilosRef))xml=_reLpAplicarMascara_(xml,_reLpMascara_(_mxGerarAba_(molde),estilosRef),clonar);
     alteradas[a.caminho]=_reLpProtegerAba_(xml,tag);
   });
   alteradas['xl/styles.xml']=original.replace(/<cellXfs\b[^>]*>[\s\S]*?<\/cellXfs>/,function(x){

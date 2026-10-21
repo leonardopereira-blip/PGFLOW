@@ -798,10 +798,10 @@
         html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:0 8px 8px; border-bottom:1px solid #eef1f5; color:#6b7684; font-size:11px;">' +
           escHtml(r.arquivo) + '</td></tr>';
       }
-      if (r.depara && r.calculadora && /^https:\/\/drive.google.com\//.test(r.depara) && /^https:\/\/drive.google.com\//.test(r.calculadora)) {
+      if (r.depara && /^https:\/\/drive.google.com\//.test(r.depara)) {
         html += '<tr><td colspan="' + (temChamado ? 6 : 5) + '" style="padding:8px;">' +
-          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.depara) + '">Abrir De-Para</a> · ' +
-          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.calculadora) + '">Abrir calculadora</a></td></tr>';
+          '<a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.depara) + '">Abrir De-Para</a>' +
+          (r.calculadora && /^https:\/\/drive.google.com\//.test(r.calculadora) ? ' · <a target="_blank" rel="noopener noreferrer" href="' + escHtml(r.calculadora) + '">Abrir calculadora</a>' : ' · Somente especificação técnica: nenhum SKU calculável.') + '</td></tr>';
       }
     });
 
@@ -843,7 +843,7 @@
     var el = document.getElementById('step1');
     el.className = 'tracker-row done';
     el.querySelector('.icon').textContent = '✓';
-    el.querySelector('.lbl').textContent = 'De-Para e calculadora gerados no Drive';
+    el.querySelector('.lbl').textContent = _resumo.some(function(r){return r.somenteEspecificacao;}) ? 'Arquivos técnicos gerados no Drive' : 'De-Para e calculadora gerados no Drive';
     var total = fmtTime(Math.floor((Date.now() - _timers.tTotal) / 1000));
     el.querySelector('.time').textContent = total;
     document.getElementById('stepTotal').textContent = 'Tempo total: ' + total;

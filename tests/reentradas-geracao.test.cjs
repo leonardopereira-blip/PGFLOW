@@ -66,7 +66,7 @@ for(const g of GRAFICAS){
   test(g.nome+': geracao completa de De-Para e calculadora usa seu molde, novas entradas e formulas originais',()=>{
     const criados=[],pastas=[];
     const app=mx.carregarApps(['MoldeXlsx.js','MoldeLogprintDepara.js','Molde'+g.molde+'Calc.js',
-      'ValidaReentradasSPG.js','ReentradasFormaCerta.js','MacroProtecao.js','MacroProtecaoVba.js','ReentradasMacro.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js'],{
+      'ValidaReentradasSPG.js','ReentradasFormaCerta.js','MacroProtecao.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js','ReentradasElegibilidade.js'],{
       DriveApp:{getFileById(){throw Error('SPG nao pode ler modelo ou dados externos no Drive');},
         getFolderById(id){pastas.push(id);return {createFile(blob){
           const file={blob,setName(nome){assert.equal(nome,blob.getName());return file;},
@@ -79,7 +79,7 @@ for(const g of GRAFICAS){
     app.Utilities.zip=(blobs,nome)=>{
       const mapa=Object.fromEntries(blobs.map(b=>[b.getName(),b]));
       assert.equal(Object.keys(mapa).length,blobs.length,'partes duplicadas no XLSX');
-      return {mapa,getName:()=>nome,setContentType(tipo){assert.equal(tipo,/\.xlsm$/.test(nome)?'application/vnd.ms-excel.sheet.macroEnabled.12':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return this;}};
+      return {mapa,getName:()=>nome,setContentType(tipo){assert.equal(tipo,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return this;}};
     };
     const qtd=g.skus||2,skus=Array.from({length:qtd},(_,i)=>i===0?'200713648':'SKU-NOVO-'+g.id+'-'+String(i+1).padStart(3,'0'));
     const dados=prepararMatrizes(app,g.id,skus),consultas=[];
@@ -96,15 +96,16 @@ for(const g of GRAFICAS){
       const calc=criados.find(f=>/^CALCULADORA/.test(f.blob.getName())).blob;
       for(const arquivo of [depara,calc]){
         assert.ok(arquivo.getName().includes(g.nome.toUpperCase()),'nome sem a grafica selecionada');
-        assert.ok(arquivo.getName().endsWith('CHAMADO 9876.'+(arquivo===calc?'xlsm':'xlsx')));
+        assert.ok(arquivo.getName().endsWith('CHAMADO 9876.xlsx'));
         assert.match(arquivo.mapa['xl/workbook.xml'].getDataAsString(),/fullCalcOnLoad="1"/);
         assert.equal(arquivo.mapa['xl/calcChain.xml'],undefined);
       }
       const caminho=(arquivo,nome)=>app._reSpAbaPorNome_(arquivo,nome);
-      assert.ok(calc.mapa['xl/vbaProject.bin'],'macro ausente');
-      assert.ok(calc.mapa['customXml/pgflowProtection.xml'],'mapa original ausente');
+      assert.equal(calc.mapa['xl/vbaProject.bin'],undefined,'XLSX nao deve conter VBA');
+      assert.equal(calc.mapa['customXml/pgflowProtection.xml'],undefined,'XLSX nao precisa de mapa de macro');
       assert.equal(depara.mapa['xl/vbaProject.bin'],undefined,'macro fora da calculadora');
-      assert.match(calc.mapa['[Content_Types].xml'].getDataAsString(),/application\/vnd.ms-excel.sheet.macroEnabled.main\+xml/);
+      assert.match(calc.mapa['[Content_Types].xml'].getDataAsString(),/application\/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main\+xml/);
+      assert.doesNotMatch(calc.mapa['[Content_Types].xml'].getDataAsString(),/macroEnabled|vbaProject/);
       const ler=(arquivo,nome)=>arquivo.mapa[caminho(arquivo,nome)].getDataAsString();
       const molde=app._reSpMoldesCache_[g.id+'|calc'];
       for(const nome of SEM_ENTRADA){

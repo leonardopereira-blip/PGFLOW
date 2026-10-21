@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <base target="_top">
+  <style>
+    body{font:14px Arial,sans-serif;color:#173151;background:#f5f7fb;margin:0;padding:24px}
+    h1{font-size:22px;margin:0 0 10px}p{line-height:1.5;margin:0 0 16px;color:#52647b}
+    .topo{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:18px}
+    input{font:inherit;padding:10px 12px;border:1px solid #cdd6e4;border-radius:7px;min-width:0;flex:1}
+    button{font:inherit;font-weight:600;border:0;border-radius:7px;background:#173e73;color:white;padding:10px 14px;cursor:pointer}
+    button:disabled{background:#b4c0cf;cursor:default}.secundario{color:#173e73;background:#e6ecf5}
+    #status{padding:12px 0;line-height:1.5}#status.erro{color:#a32929}#status.sucesso{color:#17623c}
+    .arquivo{background:white;border:1px solid #dce3ee;border-radius:9px;padding:16px;margin-bottom:12px;display:flex;gap:20px;align-items:center;justify-content:space-between}
+    .nome{font-weight:600;line-height:1.4;overflow-wrap:anywhere}.detalhes{font-size:12px;color:#65748a;margin-top:6px;line-height:1.5}
+    .acao{flex-shrink:0}.vazio{padding:22px;text-align:center;color:#65748a}a{color:#174c8d}
+    @media(max-width:650px){body{padding:16px}.arquivo{display:block}.acao{margin-top:14px}.topo{gap:8px}}
+  </style>
+</head>
+<body>
+  <h1>Restaurar proteção</h1>
+  <p>Escolha uma calculadora para restaurar as células editáveis e protegidas do seu modelo. A senha será <strong>PGFLOW2026</strong>. O arquivo mantém o mesmo link no Drive.</p>
+  <div class="topo">
+    <input id="busca" type="search" placeholder="Buscar por chamado ou nome do arquivo" aria-label="Buscar calculadora">
+    <button id="atualizar" class="secundario" type="button">Atualizar lista</button>
+  </div>
+  <div id="status" role="status" aria-live="polite">Carregando calculadoras...</div>
+  <div id="lista"></div>
+  <script>
+    var arquivos=[],ocupado=false;
+    function mensagem(texto,tipo){var el=document.getElementById('status');el.textContent=texto;el.className=tipo||'';}
+    function controle(estado){ocupado=estado;document.getElementById('atualizar').disabled=estado;renderizar();}
+    function renderizar(){
+      var lista=document.getElementById('lista'),termo=document.getElementById('busca').value.toLocaleLowerCase('pt-BR');
+      lista.replaceChildren();
+      var visiveis=arquivos.filter(function(a){return a.nome.toLocaleLowerCase('pt-BR').indexOf(termo)>=0;});
+      visiveis.forEach(function(a){
+        var linha=document.createElement('div');linha.className='arquivo';
+        var info=document.createElement('div'),nome=document.createElement('div');nome.className='nome';nome.textContent=a.nome;info.appendChild(nome);
+        var detalhes=document.createElement('div');detalhes.className='detalhes';
+        detalhes.textContent='Atualizado em '+new Date(a.atualizadoEm).toLocaleString('pt-BR')+(/\.xlsm$/i.test(a.nome)?' · Será salvo como XLSX, sem macros.':'');
+        if(!a.disponivel)detalhes.textContent+=' · '+a.motivo;
+        info.appendChild(detalhes);linha.appendChild(info);
+        var botao=document.createElement('button');botao.type='button';botao.className='acao';botao.textContent='Restaurar proteção';botao.disabled=ocupado||!a.disponivel;
+        botao.addEventListener('click',function(){restaurar(a);});linha.appendChild(botao);lista.appendChild(linha);
+      });
+      if(!visiveis.length){var vazio=document.createElement('div');vazio.className='vazio';vazio.textContent=arquivos.length?'Nenhuma calculadora corresponde à busca.':'Nenhuma calculadora XLSX ou XLSM encontrada nesta pasta.';lista.appendChild(vazio);}
+    }
+    function carregar(){
+      controle(true);mensagem('Carregando calculadoras...');
+      google.script.run.withSuccessHandler(function(res){
+        if(res&&res.erro){controle(false);mensagem(res.erro,'erro');return;}
+        arquivos=res&&res.arquivos||[];controle(false);mensagem(arquivos.length+' calculadora(s) encontrada(s).');
+      }).withFailureHandler(function(){controle(false);mensagem('Não foi possível carregar a lista. Tente atualizar novamente.','erro');}).listarCalculadorasParaBloqueio();
+    }
+    function restaurar(arquivo){
+      controle(true);mensagem('Restaurando a proteção de '+arquivo.nome+'...');
+      google.script.run.withSuccessHandler(function(res){
+        controle(false);
+        if(!res||res.erro){mensagem(res&&res.erro||'A restauração não foi confirmada. Atualize a lista.','erro');return;}
+        arquivo.nome=res.nome;arquivo.atualizadoEm=res.atualizadoEm;arquivo.url=res.url;renderizar();
+        mensagem('Proteção restaurada e conferida em '+res.nome+'. ','sucesso');
+        var link=document.createElement('a');link.href=res.url;link.target='_blank';link.rel='noopener';link.textContent='Abrir arquivo no Drive';document.getElementById('status').appendChild(link);
+      }).withFailureHandler(function(){controle(false);mensagem('A restauração não foi confirmada. Atualize a lista para conferir o arquivo.','erro');}).bloquearCalculadoraSelecionada(arquivo.id,arquivo.atualizadoEm);
+    }
+    document.getElementById('atualizar').addEventListener('click',carregar);
+    document.getElementById('busca').addEventListener('input',renderizar);
+    carregar();
+  </script>
+</body>
+</html>

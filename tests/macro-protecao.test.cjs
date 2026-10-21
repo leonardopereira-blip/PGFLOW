@@ -1,20 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const mx=require('../tools/molde-node.cjs');
-const fs=require('node:fs');
-const path=require('node:path');
-
-test('VBA incorporado corresponde a fonte manual revisada e ao binario verificado',()=>{
-  const app=mx.carregarApps(['MacroProtecaoVba.js']);
-  const source=fs.readFileSync(path.join(mx.RAIZ,'tools/RestaurarProtecaoOriginal.bas'),'utf8').replace(/\r\n/g,'\n');
-  const binary=Buffer.from(app._reSpMacroVba_(),'base64');
-  assert.equal(mx.sha256(Buffer.from(source,'utf8')),app.RE_MP_VBA_FONTE_SHA256,'recompile a macro apos editar a fonte');
-  assert.equal(mx.sha256(binary),app.RE_MP_VBA_BIN_SHA256);
-  assert.equal(binary.subarray(0,8).toString('hex'),'d0cf11e0a1b11ae1');
-  assert.match(source,/Public Sub RestaurarProtecaoOriginal\(\)/);
-  assert.doesNotMatch(source,/\b(?:Auto_Open|Auto_Close|Workbook_Open|Worksheet_Change|\.Unprotect)\b/i);
-});
-
 const attrs=tag=>Object.fromEntries(Array.from((tag||'').matchAll(/([\w:]+)="([^"]*)"/g),m=>[m[1],m[2]]));
 const cellTags=xml=>new Map(Array.from(xml.matchAll(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g),m=>[attrs(m[0]).r,m[0]]));
 const colNum=c=>Array.from(c).reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0);

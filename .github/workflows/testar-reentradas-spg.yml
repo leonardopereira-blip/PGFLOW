@@ -10,7 +10,9 @@ on:
       - ReentradasFormaCerta.js
       - ReentradasRecentes.js
       - ReentradasEspecificacaoGeral.js
-      - ReentradasMacro.js
+      - ReentradasElegibilidade.js
+      - ProtecaoCalculadoras.js
+      - BloquearCalculadoras.html
       - MacroProtecao*.js
       - ProtecaoLogprint.js
       - SPG.js

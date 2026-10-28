@@ -75,6 +75,36 @@
 #pf-email .pf-success {text-align:center;padding:45px 16px 33px}
 #pf-email .pf-success-icon {margin:0 auto 15px;width:52px;height:52px;display:grid;place-items:center;background:#e4f6eb;color:#23734a;font-size:25px;border-radius:50%;font-weight:bold}
 @media(max-width:640px){#pf-email .pf-panel{padding:16px}#pf-email .pf-hero{padding:17px}#pf-email .pf-grid{grid-template-columns:1fr}#pf-email .pf-footer{align-items:stretch}#pf-email .pf-actions{width:100%}#pf-email .pf-actions button{flex:1}#pf-email .pf-stepper span{font-size:10px;padding:8px 5px}#pf-email .pf-dialog-body{padding:12px}#pf-email .pf-addgraphic{grid-template-columns:1fr}#pf-email .pf-manage-line button{padding:8px}}
+
+/* Leitura do Excel exclusivamente dentro do portal; aba e rolagem preservadas ao fechar. */
+#pf-email .pf-preview[hidden]{display:none!important}
+#pf-email .pf-preview{margin:0 0 19px;border:1px solid #cad9ee;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(28,56,99,.08)}
+#pf-email .pf-preview-head{padding:13px 16px;background:#f5f8fd;border-bottom:1px solid #dfe8f5;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#pf-email .pf-preview-head strong{font-size:14px;color:#1c365d}
+#pf-email .pf-preview-head p{font-size:11px;color:#667b96;margin:3px 0 0}
+#pf-email .pf-preview-actions{display:flex;gap:7px;flex-wrap:wrap}
+#pf-email .pf-preview-tabs{display:flex;gap:4px;padding:9px 12px 0;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+#pf-email .pf-preview-tabs button{flex-shrink:0;border:1px solid #dce5f2;border-bottom:2px solid transparent;background:#f7faff;color:#4f6684;padding:8px 12px;min-height:35px;border-radius:7px 7px 0 0}
+#pf-email .pf-preview-tabs button[aria-selected="true"]{background:#e7f0ff;color:#15488e;border-color:#a8c6ef;border-bottom-color:#2459ae}
+#pf-email .pf-preview-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;background:#fff;border-bottom:1px solid #e3e9f3}
+#pf-email .pf-preview-tools label{font-size:11px;font-weight:700;color:#526881}
+#pf-email .pf-preview-tools input{width:min(270px,100%);min-width:150px;flex:1;padding:8px 10px;min-height:36px}
+#pf-email .pf-preview-status{padding:7px 13px;color:#64758b;font-size:11px;background:#fbfcff}
+#pf-email .pf-preview-grid{height:330px;overflow:auto;overscroll-behavior:contain;background:#fff}
+#pf-email .pf-preview-grid table{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;min-width:100%;font:11px/1.4 Arial,sans-serif;color:#283d54}
+#pf-email .pf-preview-grid th,#pf-email .pf-preview-grid td{border-right:1px solid #e5eaf2;border-bottom:1px solid #e5eaf2;padding:6px 9px;min-width:128px;max-width:290px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;height:30px}
+#pf-email .pf-preview-grid thead th{position:sticky;top:0;z-index:2;background:#eaf1fb;color:#3c597c;min-width:128px}
+#pf-email .pf-preview-grid .pf-row-index{position:sticky;left:0;z-index:1;min-width:48px;width:48px;max-width:48px;text-align:right;background:#f3f7fc;color:#66809f;font-weight:600}
+#pf-email .pf-preview-grid thead .pf-row-index{z-index:3;background:#e1ebf9}
+#pf-email .pf-preview-grid tbody tr:hover td{background:#f4f9ff}
+#pf-email .pf-preview-grid tbody tr:hover .pf-row-index{background:#e9f1fd}
+#pf-email .pf-preview-pager{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid #e4ebf4}
+#pf-email .pf-preview-pager .pf-actions{gap:5px}
+#pf-email .pf-preview-pager button{padding:7px 11px;min-height:34px}
+#pf-email .pf-preview-fullscreen{position:fixed;inset:12px;z-index:99998;display:flex;flex-direction:column;border-radius:12px;box-shadow:0 16px 70px rgba(0,0,0,.4)}
+#pf-email .pf-preview-fullscreen .pf-preview-grid{flex:1;height:auto;min-height:100px}
+#pf-email .pf-preview-fullscreen .pf-preview-status{flex-shrink:0}
+@media(max-width:640px){#pf-email .pf-preview-pager{align-items:stretch}#pf-email .pf-preview-pager .pf-actions{justify-content:space-between}#pf-email .pf-preview-head{padding:11px}#pf-email .pf-preview-fullscreen{inset:5px}}
 </style>
 
 <div id="pf-email" class="pf-email">
@@ -136,8 +166,47 @@
 
   <section id="passo2" class="passo pf-panel" aria-label="Revisar envio">
     <h3>Revisar e enviar</h3>
-    <div class="pf-anexo"><div><strong id="nomeAnexo">Chamado.xlsx</strong><small id="pf-origem-anexo"></small></div>
-      <a id="linkPreview" href="#" target="_blank" rel="noopener" style="display:none">Visualizar anexo</a></div>
+    <div class="pf-anexo">
+      <div><strong id="nomeAnexo">Chamado.xlsx</strong><small id="pf-origem-anexo"></small></div>
+      <div class="pf-actions">
+        <button id="pf-abrir-previa" type="button" class="pf-primary" onclick="pfAbrirPreviaExcel()">Conferir Excel no portal</button>
+        <a id="linkPreview" href="#" target="_blank" rel="noopener" style="display:none">Abrir original</a>
+      </div>
+    </div>
+    <div id="pf-previa" class="pf-preview" hidden aria-label="Prévia do Excel anexado">
+      <div class="pf-preview-head">
+        <div><strong>Prévia do Excel</strong><p>Visualização de células, sem editar o arquivo anexado. Formatação avançada pode diferir do Excel.</p></div>
+        <div class="pf-preview-actions">
+          <button id="pf-preview-expandir" type="button" class="pf-secondary" onclick="pfPreviaAlternarTamanho()">Expandir</button>
+          <button type="button" class="pf-secondary" onclick="pfFecharPreviaExcel()">Fechar prévia ✕</button>
+        </div>
+      </div>
+      <div id="pf-preview-abas" class="pf-preview-tabs" role="tablist" aria-label="Abas da planilha"></div>
+      <div class="pf-preview-tools">
+        <label for="pf-preview-busca">Buscar nesta aba</label>
+        <input id="pf-preview-busca" type="text" maxlength="100" placeholder="SKU, descrição ou número…" oninput="pfPreviaDebounceBusca()">
+        <button type="button" class="pf-secondary" onclick="pfPreviaLimparBusca()">Limpar busca</button>
+      </div>
+      <div id="pf-preview-carregando" class="pf-preview-status" role="status" style="display:none">Lendo as células do anexo…</div>
+      <div id="pf-preview-erro" class="pf-alert" role="alert" style="display:none"></div>
+      <div id="pf-preview-status" class="pf-preview-status" aria-live="polite">Abra a prévia para consultar as abas.</div>
+      <div class="pf-preview-grid" id="pf-preview-grid">
+        <table aria-label="Células do Excel">
+          <thead id="pf-preview-cabecalho"></thead>
+          <tbody id="pf-preview-linhas"></tbody>
+        </table>
+      </div>
+      <div class="pf-preview-pager">
+        <div class="pf-actions">
+          <button id="pf-preview-anterior" type="button" class="pf-secondary" onclick="pfPreviaMoverLinha(-1)">← Linhas</button>
+          <button id="pf-preview-proximo" type="button" class="pf-secondary" onclick="pfPreviaMoverLinha(1)">Linhas →</button>
+        </div>
+        <div class="pf-actions">
+          <button id="pf-preview-col-anterior" type="button" class="pf-secondary" onclick="pfPreviaMoverColuna(-1)">← Colunas</button>
+          <button id="pf-preview-col-proximo" type="button" class="pf-secondary" onclick="pfPreviaMoverColuna(1)">Colunas →</button>
+        </div>
+      </div>
+    </div>
     <div class="pf-field">
       <label class="pf-label" for="assuntoEmail">Assunto</label>
       <input id="assuntoEmail" type="text" maxlength="400">
@@ -242,6 +311,186 @@ function pfHtmlNode(tag, cls, txt) {
   if (txt !== undefined) el.textContent = txt;
   return el;
 }
+
+/* Prévia opcional: o painel inicia fechado e pode ser reaberto sem perder a posição. */
+var pfPreviaEstado = {aba:0,linha:0,coluna:0,busca:'',cache:{}};
+var pfPreviaUltima = null, pfPreviaToken = 0, pfPreviaTimer = null;
+function pfPreviaReiniciar() {
+  ++pfPreviaToken;
+  if (pfPreviaTimer !== null) clearTimeout(pfPreviaTimer);
+  pfPreviaTimer = null;
+  pfPreviaEstado = {aba:0,linha:0,coluna:0,busca:'',cache:{}};
+  pfPreviaUltima = null;
+  pfEl('pf-previa').hidden = true;
+  pfEl('pf-previa').classList.toggle('pf-preview-fullscreen',false);
+  pfEl('pf-preview-expandir').textContent = 'Expandir';
+  pfEl('pf-preview-busca').value = '';
+  pfEl('pf-preview-abas').textContent = '';
+  pfEl('pf-preview-cabecalho').textContent = '';
+  pfEl('pf-preview-linhas').textContent = '';
+  pfEl('pf-preview-status').textContent = 'Abra a prévia para consultar as abas.';
+  pfEl('pf-preview-carregando').style.display = 'none';
+  pfEl('pf-preview-erro').style.display = 'none';
+}
+function pfAbrirPreviaExcel() {
+  if (!dadosGlobais || !dadosGlobais.origem) {
+    alert('Consulte o chamado antes de abrir a prévia.'); return;
+  }
+  pfEl('pf-previa').hidden = false;
+  // Não reconstrói a tabela ao reabrir: preserva rolagem, aba, busca e página.
+  if (!pfPreviaUltima || pfPreviaUltima.aba !== pfPreviaEstado.aba ||
+      pfPreviaUltima.linha !== pfPreviaEstado.linha ||
+      pfPreviaUltima.coluna !== pfPreviaEstado.coluna ||
+      pfPreviaUltima.busca !== pfPreviaEstado.busca) pfPreviaCarregar();
+}
+function pfFecharPreviaExcel() {
+  if (pfPreviaTimer !== null) {
+    clearTimeout(pfPreviaTimer); pfPreviaTimer = null;
+    pfPreviaEstado.busca = pfEl('pf-preview-busca').value.trim().substring(0,100);
+    pfPreviaEstado.linha = 0;
+  }
+  pfEl('pf-previa').hidden = true;
+  pfEl('pf-previa').classList.toggle('pf-preview-fullscreen',false);
+  pfEl('pf-preview-expandir').textContent = 'Expandir';
+}
+function pfPreviaAlternarTamanho() {
+  var caixa = pfEl('pf-previa');
+  var ampliar = !caixa.classList.contains('pf-preview-fullscreen');
+  caixa.classList.toggle('pf-preview-fullscreen',ampliar);
+  pfEl('pf-preview-expandir').textContent = ampliar ? 'Reduzir' : 'Expandir';
+}
+function pfPreviaErro(msg) {
+  var el = pfEl('pf-preview-erro');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+function pfPreviaCarregar() {
+  if (pfEl('pf-previa').hidden || !dadosGlobais.origem) return;
+  var estado = pfPreviaEstado;
+  var pedido = {
+    origem:dadosGlobais.origem, tipoEmail:dadosGlobais.tipoEmail,
+    idChamado:dadosGlobais.idChamado, anexoHash:dadosGlobais.anexoHash || '',
+    idArquivo:dadosGlobais.idArquivo || '', aba:estado.aba, linha:estado.linha,
+    coluna:estado.coluna, busca:estado.busca
+  };
+  var chave = JSON.stringify(pedido);
+  var ticket = ++pfPreviaToken;
+  pfPreviaErro('');
+  if (estado.cache[chave]) {
+    pfPreviaUltima = estado.cache[chave];
+    pfPreviaRender(pfPreviaUltima);
+    pfEl('pf-preview-carregando').style.display = 'none';
+    return;
+  }
+  pfEl('pf-preview-carregando').style.display = 'block';
+  pfEl('pf-preview-status').textContent = 'Carregando a aba solicitada…';
+  google.script.run.withSuccessHandler(function(resp) {
+    if (ticket !== pfPreviaToken) return;
+    pfEl('pf-preview-carregando').style.display = 'none';
+    if (!resp || !Array.isArray(resp.abas) || !Array.isArray(resp.linhas)) {
+      pfPreviaErro('O servidor não retornou uma prévia válida. Tente novamente.'); return;
+    }
+    var chaves = Object.keys(estado.cache);
+    if (chaves.length >= 35) delete estado.cache[chaves[0]];
+    estado.cache[chave] = resp;
+    pfPreviaUltima = resp;
+    pfPreviaRender(resp);
+  }).withFailureHandler(function(e) {
+    if (ticket !== pfPreviaToken) return;
+    pfEl('pf-preview-carregando').style.display = 'none';
+    pfPreviaErro('Não foi possível ler o Excel: ' + ((e && e.message) || e) + '. Feche e reabra para tentar novamente.');
+    pfEl('pf-preview-status').textContent = 'A prévia não foi carregada.';
+  }).obterPreviaExcelEmail(pedido);
+}
+function pfPreviaRender(resp) {
+  var tabs = pfEl('pf-preview-abas');
+  tabs.textContent = '';
+  resp.abas.forEach(function(nome,indice) {
+    var b = pfHtmlNode('button','',String(nome));
+    b.type = 'button';
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected',String(indice === resp.aba));
+    b.onclick = function() { pfPreviaSelecionarAba(indice); };
+    tabs.appendChild(b);
+  });
+  pfEl('pf-preview-busca').value = pfPreviaEstado.busca;
+  var cabecalho = pfEl('pf-preview-cabecalho'), corpo = pfEl('pf-preview-linhas');
+  cabecalho.textContent = ''; corpo.textContent = '';
+  var tr = pfHtmlNode('tr');
+  tr.appendChild(pfHtmlNode('th','pf-row-index','#'));
+  resp.colunas.forEach(function(letra) { tr.appendChild(pfHtmlNode('th','',String(letra))); });
+  cabecalho.appendChild(tr);
+  resp.linhas.forEach(function(linha) {
+    var tr = pfHtmlNode('tr');
+    tr.appendChild(pfHtmlNode('td','pf-row-index',String(linha.numero)));
+    linha.celulas.forEach(function(valor) {
+      var td = pfHtmlNode('td','',String(valor == null ? '' : valor));
+      if (String(valor || '').length > 28) td.setAttribute('title',String(valor).substring(0,2400));
+      tr.appendChild(td);
+    });
+    corpo.appendChild(tr);
+  });
+  if (!resp.linhas.length) {
+    var vazia = pfHtmlNode('tr'), celula = pfHtmlNode('td','pf-empty','Nenhuma linha encontrada nesta aba.');
+    celula.setAttribute('colspan',String(resp.colunas.length + 1));
+    vazia.appendChild(celula); corpo.appendChild(vazia);
+  }
+  var inicio = resp.linhas.length ? resp.linha + 1 : 0;
+  var fim = resp.linha + resp.linhas.length;
+  var colFinal = resp.colunas.length ? resp.colunas[resp.colunas.length-1] : '—';
+  pfEl('pf-preview-status').textContent =
+    'Aba ' + (resp.aba + 1) + ' de ' + resp.abas.length +
+    ' · Linhas ' + inicio + '–' + fim + ' de ' + resp.totalFiltradas +
+    (resp.busca ? ' encontradas (' + resp.totalLinhas + ' no total)' : '') +
+    ' · Colunas ' + (resp.colunas[0] || '—') + '–' + colFinal + ' de ' + resp.totalColunas;
+  pfEl('pf-preview-anterior').disabled = resp.linha <= 0;
+  pfEl('pf-preview-proximo').disabled = resp.linha + resp.linhas.length >= resp.totalFiltradas;
+  pfEl('pf-preview-col-anterior').disabled = resp.coluna <= 0;
+  pfEl('pf-preview-col-proximo').disabled = resp.coluna + resp.colunas.length >= resp.totalColunas;
+}
+function pfPreviaSelecionarAba(aba) {
+  if (pfPreviaTimer !== null) { clearTimeout(pfPreviaTimer); pfPreviaTimer = null; }
+  if (aba === pfPreviaEstado.aba) return;
+  pfPreviaEstado.aba = aba;
+  pfPreviaEstado.linha = 0;
+  pfPreviaEstado.coluna = 0;
+  pfPreviaEstado.busca = '';
+  pfEl('pf-preview-busca').value = '';
+  pfPreviaCarregar();
+}
+function pfPreviaMoverLinha(delta) {
+  if (!pfPreviaUltima) return;
+  var max = Math.max(0,pfPreviaUltima.totalFiltradas - 1);
+  var novo = Math.min(max,Math.max(0,pfPreviaUltima.linha + delta * 50));
+  if (novo === pfPreviaUltima.linha) return;
+  pfPreviaEstado.linha = novo;
+  pfPreviaCarregar();
+}
+function pfPreviaMoverColuna(delta) {
+  if (!pfPreviaUltima) return;
+  var max = Math.max(0,pfPreviaUltima.totalColunas - 1);
+  var novo = Math.min(max,Math.max(0,pfPreviaUltima.coluna + delta * 65));
+  if (novo === pfPreviaUltima.coluna) return;
+  pfPreviaEstado.coluna = novo;
+  pfPreviaCarregar();
+}
+function pfPreviaDebounceBusca() {
+  if (pfPreviaTimer !== null) clearTimeout(pfPreviaTimer);
+  pfPreviaTimer = setTimeout(function() {
+    pfPreviaTimer = null;
+    pfPreviaEstado.busca = pfEl('pf-preview-busca').value.trim().substring(0,100);
+    pfPreviaEstado.linha = 0;
+    pfPreviaCarregar();
+  },300);
+}
+function pfPreviaLimparBusca() {
+  if (pfPreviaTimer !== null) { clearTimeout(pfPreviaTimer); pfPreviaTimer = null; }
+  pfEl('pf-preview-busca').value = '';
+  pfPreviaEstado.busca = '';
+  pfPreviaEstado.linha = 0;
+  pfPreviaCarregar();
+}
+
 function pfNomeStatusSPG(status) {
   var valor = String(status || '').trim();
   var nomes = {solicitado:'Solicitado',liberado:'Liberado',alocado:'Alocado',validado:'Validado',
@@ -361,6 +610,7 @@ function pfBloquearBusca(ativo) {
   Array.prototype.forEach.call(document.querySelectorAll('#pf-email #passo1 input'),function(el){el.disabled=ativo;});
 }
 function pfInvalidarConsulta() {
+  pfPreviaReiniciar();
   pfTokenBusca++;
   pfConsultaAtual = null;
   pfBloquearBusca(false);
@@ -499,6 +749,7 @@ function pfDestinatariosGrupos() {
 }
 function pfPrepararRevisao(tipoFonte,resp,manual,consulta) {
   if (!pfConsultaVigente(consulta) || pfChamadoCancelado) return;
+  pfPreviaReiniciar();
   var id = consulta.id;
   if (resp.idChamado && String(resp.idChamado) !== id) {
     pfErro('O chamado retornado não corresponde ao solicitado. Consulte novamente antes de enviar.');

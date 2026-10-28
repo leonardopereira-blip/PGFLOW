@@ -97,7 +97,7 @@ function makeScreen(bootstrap) {
       withFailureHandler(fn) { this.failure = fn; return this; }
     };
     ['identificarTipoEmailSPG', 'obterCadastroEmailsSPG', 'salvarCadastroEmailsSPG', 'consultarPacoteEmailSPG',
-      'obterDadosChamado', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
+      'obterDadosChamado', 'obterPreviaExcelEmail', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
       chain[method] = (...args) => requests.push({ method, args, success: chain.success, failure: chain.failure });
     });
     return chain;
@@ -472,4 +472,47 @@ test('cadastro permite adicionar gráfica e editar, adicionar e excluir emails n
   assert.equal(s.context.pfRascunhoCadastro.Nova.join(','), 'second@example.com');
   s.context.pfSalvarCadastro();
   assert.equal(s.pending('salvarCadastroEmailsSPG').args[0].Nova.join(','), 'second@example.com');
+});
+
+
+test('prévia começa fechada, abre no próprio portal, permite trocar abas e fecha preservando o lugar', () => {
+  const s=makeScreen();
+  s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',complete);
+  assert.equal(s.el('pf-previa').hidden,true);
+  s.context.pfAbrirPreviaExcel();
+  assert.equal(s.el('pf-previa').hidden,false);
+  assert.equal(s.pending('obterPreviaExcelEmail').args[0].anexoHash,'hash3100');
+  const a={arquivo:'Chamado 3100.xlsx',abas:['Tiragem','Árvore'],aba:0,linha:0,coluna:0,
+    totalLinhas:2,totalFiltradas:2,totalColunas:2,colunas:['A','B'],
+    linhas:[{numero:1,celulas:['SKU','Tiragem']},{numero:2,celulas:['SKU-1','100']}]};
+  s.reply('obterPreviaExcelEmail',a);
+  assert.match(s.el('pf-preview-linhas').textContent,/SKU-1/);
+  assert.equal(s.el('pf-preview-abas').querySelectorAll('button').length,2);
+  s.context.pfPreviaSelecionarAba(1);
+  assert.equal(s.pending('obterPreviaExcelEmail').args[0].aba,1);
+  s.reply('obterPreviaExcelEmail',{...a,aba:1,linhas:[{numero:1,celulas:['KIT-1','10']}]});
+  s.context.pfFecharPreviaExcel();
+  assert.equal(s.el('pf-previa').hidden,true);
+  const antes=s.requests.length;
+  s.context.pfAbrirPreviaExcel();
+  assert.equal(s.el('pf-previa').hidden,false);
+  assert.equal(s.requests.length,antes);
+  assert.match(s.el('pf-preview-linhas').textContent,/KIT-1/);
+  assert.equal(s.context.pfPreviaEstado.aba,1);
+  s.context.pfPreviaAlternarTamanho();
+  assert.equal(s.el('pf-previa').classList.contains('pf-preview-fullscreen'),true);
+  s.context.pfFecharPreviaExcel();
+  assert.equal(s.el('pf-previa').classList.contains('pf-preview-fullscreen'),false);
+});
+test('cancelar chamado descarta retorno tardio da prévia sem reabrir janela', () => {
+  const s=makeScreen();
+  s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',complete);
+  s.context.pfAbrirPreviaExcel();
+  s.context.pfResetar();
+  s.reply('obterPreviaExcelEmail',{abas:['Tiragem'],aba:0,linha:0,coluna:0,totalLinhas:0,
+    totalFiltradas:0,totalColunas:1,colunas:['A'],linhas:[]});
+  assert.equal(s.el('pf-previa').hidden,true);
+  assert.equal(s.el('pf-preview-linhas').textContent,'');
 });

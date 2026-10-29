@@ -20,6 +20,82 @@ test('normalizacao numerica com virgula e ponto',()=>{
   assert.throws(()=>context._reSpQuant_(''),/vazia/);
   assert.throws(()=>context._reSpQuant_('-10'),/invalida/);
 });
+test('API de Reentradas aplica a normalizacao de dimensoes da aba Espec sem alterar outros campos',()=>{
+  const cab=['1. ID_Código SKU','3, DIM_B (Aberto)(mm)','3, DIM_A (Aberto)(mm)',
+    '3,DIM_BxA(Aberto)(mm)','3, DIM_B (Fechado)(mm)','3, DIM_A (Fechado)(mm)',
+    '3. DIM_E (mm)','3.DIM_BXA(Fechado)','3.DIM_Dimensãoacabada(BxAxE)','2. INF_Marca'];
+  const orig=['SKU-1','425,9','275,8','425,9x275,8','205,99',275.7,'15,79',
+    '205,99 x 275,7','205,99x275,7x15.79','SAE'];
+  const semDecimais=['SKU-2',310.9,440.4,'',310.9,220.6,'7,09','','','SAS'];
+  const input={headers:cab,linhas:[orig,semDecimais]};
+  const a=context._reSpNormalizarDimensoesAPI_(input);
+  assert.deepEqual(Array.from(a.linhas[0]).slice(1,9),
+    [425,275,'425X275',205,275,15.7,'205X275','205X275X15,7']);
+  assert.deepEqual(Array.from(a.linhas[1]).slice(1,9),
+    [310,440,'310X440',310,220,7,'310X220','310X220X7,0']);
+  assert.equal(a.linhas[0][9],'SAE');
+  assert.equal(orig[1],'425,9','a matriz original nao pode ser modificada');
+  const numericos=context._reSpMapearCab_(cab,cab,a.linhas)[0];
+  assert.equal(typeof numericos[1],'number');
+  assert.equal(typeof numericos[6],'number');
+  assert.equal(numericos[8],'205X275X15,7');
+});
+test('Reentradas usa as referencias da Tiragem do proprio SKU e protege conflitos',()=>{
+  const espec={headers:['1. ID_Código SKU','11. REF_Referência troca de chapa',
+    '11. REF_Referência personalização','1. ID_Descrição'],
+    linhas:[['SKU-A','ANTIGA','ANTIGA','Livro A'],['SKU-B','ANTIGA','ANTIGA','Livro B']]};
+  const cab=['1. ID_Código Kit','1. ID_Código SKU',
+    '11. REF_Referência troca de chapa','11. REF_Referência personalização'];
+  const tiragem={headers:cab,linhas:[
+    ['KIT-A','SKU-A','CHAPA-A','PERSON-A'],
+    ['KIT-A','SKU-A','CHAPA-A','PERSON-A'],
+    ['KIT-B','SKU-B','CHAPA-B','']
+  ]};
+  const atual=context._reSpAplicarReferenciasTiragemAPI_(espec,tiragem);
+  assert.deepEqual(Array.from(atual.linhas[0]),['SKU-A','CHAPA-A','PERSON-A','Livro A']);
+  assert.deepEqual(Array.from(atual.linhas[1]),['SKU-B','CHAPA-B','','Livro B']);
+  assert.equal(espec.linhas[0][1],'ANTIGA','nao altera matriz recebida');
+  const semColunas=context._reSpAplicarReferenciasTiragemAPI_(espec,
+    {headers:['1. ID_Código SKU'],linhas:[['SKU-A']]});
+  assert.equal(semColunas,espec,'OP antiga sem campos de referencia preserva a origem');
+  const incompleta=context._reSpAplicarReferenciasTiragemAPI_(
+    {headers:['1. ID_Código SKU'],linhas:[['SKU-A']]},tiragem);
+  assert.equal(incompleta.linhas[0][1],'CHAPA-A');
+  assert.equal(incompleta.linhas[0][2],'PERSON-A');
+  const divergente={headers:cab,linhas:[['KIT-1','SKU-A','CHAPA-1',''],['KIT-2','SKU-A','CHAPA-2','']]};
+  assert.throws(()=>context._reSpAplicarReferenciasTiragemAPI_(espec,divergente),/divergente/);
+});
+
+test('somente a leitura de chamado da API aplica a normalizacao de dimensoes',()=>{
+  const original={
+    pacote:context._emailSpgPacote_,partes:context._reSpPartes_,matriz:context._reSpMatriz_
+  };
+  context._emailSpgPacote_=()=>({id:'2632',versaoId:'v1',blob:{},statusChamado:'Em producao',statusProducao:'Em producao'});
+  context._reSpPartes_=()=>({});
+  const espec={headers:['1. ID_Código SKU','3, DIM_B (Fechado)(mm)',
+    '3, DIM_A (Fechado)(mm)','3. DIM_E (mm)','3.DIM_BXA(Fechado)',
+    '3.DIM_Dimensãoacabada(BxAxE)'],
+    linhas:[['SKU-1','205,99','275,9','2,78','origem','origem']]};
+  const arvore={headers:['1. ID_Código Kit','1. ID_Código SKU'],linhas:[['KIT-1','SKU-1']]};
+  const tiragem={headers:['1. ID_Código Kit','1. ID_Código SKU','15. DES_CD envio','16. TIR_SKU',
+    '11. REF_Referência troca de chapa','11. REF_Referência personalização'],
+    linhas:[['KIT-1','SKU-1','JDI',100,'CHAPA-2632','PERSON-2632']]};
+  context._reSpMatriz_=(_,nome)=>nome==='Esp. Técnica (legado)'?espec:
+    nome==='Árvore (legado)'?arvore:tiragem;
+  try{
+    const result=context._reSpPrepararDados_('2632','LOGPRINT');
+    assert.equal(result.espec.linhas[0][4],'205X275');
+    assert.equal(result.espec.linhas[0][5],'205X275X2,7');
+    assert.equal(result.espec.linhas[0][result.espec.headers.indexOf('11. REF_Referência troca de chapa')],'CHAPA-2632');
+    assert.equal(result.espec.linhas[0][result.espec.headers.indexOf('11. REF_Referência personalização')],'PERSON-2632');
+    assert.equal(espec.linhas[0][4],'origem','dados extraidos nao sao mutados');
+  }finally{
+    context._emailSpgPacote_=original.pacote;
+    context._reSpPartes_=original.partes;
+    context._reSpMatriz_=original.matriz;
+  }
+});
+
 test('valores numericos do SPG e do legado entram como numero sem alterar SKU, ISBN ou texto',()=>{
   const cab=['1. ID_Código SKU','3, DIM_B (Aberto)(mm)','3. DIM_Peso (Kg)',
     '4.Cap_orelha','16. TIR_SKU','2. INF_Série','1. ID_ISBN'];

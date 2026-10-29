@@ -144,6 +144,87 @@ function _reSpNumeroFonte_(valor) {
   var numero=Number(texto);
   return isFinite(numero)?numero:valor;
 }
+// Somente especificacoes de chamados obtidos pela API do SPG.
+// A aba Espec do De-Para usa B/A inteiros para baixo, E com uma casa para
+// baixo e concatenacoes X sem espacos (espessura com virgula).
+function _reSpNormalizarDimensoesAPI_(espec) {
+  var headers=espec.headers||[],chaves=headers.map(_reSpNormal_);
+  var indice=function(nome){return chaves.indexOf(_reSpNormal_(nome));};
+  var col={
+    bAberto:indice('3, DIM_B (Aberto)(mm)'),
+    aAberto:indice('3, DIM_A (Aberto)(mm)'),
+    bxAberto:indice('3,DIM_BxA(Aberto)(mm)'),
+    bFechado:indice('3, DIM_B (Fechado)(mm)'),
+    aFechado:indice('3, DIM_A (Fechado)(mm)'),
+    espessura:indice('3. DIM_E (mm)'),
+    bxFechado:indice('3.DIM_BXA(Fechado)'),
+    acabada:indice('3.DIM_Dimensãoacabada(BxAxE)')
+  };
+  var medida=function(valor,decimal) {
+    var n=_reSpNumeroFonte_(valor);
+    if(typeof n!=='number'||!isFinite(n))return '';
+    return decimal?Math.floor(n*10)/10:Math.floor(n);
+  };
+  return {headers:headers,linhas:(espec.linhas||[]).map(function(original){
+    var linha=original.slice(),normalizado=function(nome,decimal) {
+      var i=col[nome];if(i<0)return '';
+      var v=medida(original[i],decimal);linha[i]=v;return v;
+    };
+    var bAberto=normalizado('bAberto',false),aAberto=normalizado('aAberto',false);
+    var bFechado=normalizado('bFechado',false),aFechado=normalizado('aFechado',false);
+    var espessura=normalizado('espessura',true);
+    var aberto=bAberto!==''&&aAberto!==''?bAberto+'X'+aAberto:'';
+    var fechado=bFechado!==''&&aFechado!==''?bFechado+'X'+aFechado:'';
+    if(col.bxAberto>=0&&col.bAberto>=0&&col.aAberto>=0)linha[col.bxAberto]=aberto;
+    if(col.bxFechado>=0&&col.bFechado>=0&&col.aFechado>=0)linha[col.bxFechado]=fechado;
+    if(col.acabada>=0&&col.bFechado>=0&&col.aFechado>=0&&col.espessura>=0){
+      linha[col.acabada]=fechado!==''&&espessura!==''?
+        fechado+'X'+espessura.toFixed(1).replace('.',','):'';
+    }
+    return linha;
+  })};
+}
+
+// A Tiragem do proprio chamado e a fonte das duas referencias. Nunca usar
+// dados de outro SKU nem aceitar arbitrariamente valores conflitantes.
+function _reSpAplicarReferenciasTiragemAPI_(espec,tiragem) {
+  var nomeSku='1. ID_Código SKU';
+  var nomes=['11. REF_Referência troca de chapa','11. REF_Referência personalização'];
+  var buscar=function(cab,nome){
+    return cab.map(_reSpNormal_).indexOf(_reSpNormal_(nome));
+  };
+  var skuT=buscar(tiragem.headers,nomeSku);
+  var refT=nomes.map(function(n){return buscar(tiragem.headers,n);});
+  if(skuT<0||refT.every(function(i){return i<0;}))return espec;
+  var porSku=Object.create(null);
+  tiragem.linhas.forEach(function(linha){
+    var sku=String(linha[skuT]==null?'':linha[skuT]).trim();
+    if(!sku)return;
+    var atual=porSku[sku]||(porSku[sku]=['','']);
+    refT.forEach(function(i,j){
+      if(i<0)return;
+      var valor=String(linha[i]==null?'':linha[i]).trim();
+      if(!valor)return;
+      if(atual[j]&&atual[j]!==valor)throw Error(
+        'SKU '+sku+': '+nomes[j]+' divergente entre linhas da Tiragem.');
+      atual[j]=valor;
+    });
+  });
+  var headers=espec.headers.slice(),idx=nomes.map(function(nome,j){
+    if(refT[j]<0)return -1;
+    var i=buscar(headers,nome);
+    if(i<0){i=headers.length;headers.push(nome);}
+    return i;
+  }),skuE=buscar(headers,nomeSku);
+  if(skuE<0)return espec;
+  return {headers:headers,linhas:espec.linhas.map(function(original){
+    var linha=original.slice(),sku=String(linha[skuE]==null?'':linha[skuE]).trim();
+    var valores=porSku[sku];
+    if(valores)idx.forEach(function(i,j){if(i>=0)linha[i]=valores[j];});
+    return linha;
+  })};
+}
+
 function _reSpCodigoSku_(valor) {
   // Excel compara tipos nas consultas. Preserva zeros iniciais e a precisao
   // de identificadores longos; somente inteiros canonicos viram numero.
@@ -259,8 +340,10 @@ function _reSpPrepararDados_(numero,grafica) {
   if(/CANCELAD/i.test(pacote.statusChamado+' '+pacote.statusProducao))throw Error('Chamado cancelado');
   var raw=_reSpPartes_(pacote.blob);
   var e=_reSpMatriz_(raw,'Esp. Técnica (legado)');
+  e=_reSpNormalizarDimensoesAPI_(e);
   var a=_reSpMatriz_(raw,'Árvore (legado)');
   var t=_reSpMatriz_(raw,'Tiragem (legado)');
+  e=_reSpAplicarReferenciasTiragemAPI_(e,t);
   if(!e.linhas.length||!a.linhas.length||!t.linhas.length)throw Error('OP do SPG sem as tres matrizes de producao');
   // A grafica escolhida define o modelo de custos para a OP inteira do chamado.
   // O calculo pode anteceder a alocacao; nao consulta nem altera alocacoes no SPG.

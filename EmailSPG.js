@@ -451,8 +451,21 @@ function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
     var faltantes = [];
     if (!p.dataDesejada) faltantes.push('Data desejada de entrega');
     if (!p.descricao) faltantes.push('Descricao da producao');
+    // Reaproveita o Excel desta consulta. Navegar na prévia não precisa repetir a API.
+    // A prévia é opcional; o envio continua validando o pacote atual no SPG.
+    var previaExcel = null, paginaPreviaExcel = null;
+    if (typeof _pfPreviaConjuntoXlsx_ === 'function') {
+      try { previaExcel = _pfPreviaConjuntoXlsx_(p.blob); }
+      catch (erroPrevia) { previaExcel = null; }
+    }
+    if (!previaExcel && typeof _pfPreviaXlsx_ === 'function') {
+      try { paginaPreviaExcel = _pfPreviaXlsx_(p.blob, {aba: 0, linha: 0, coluna: 0, busca: ''}); }
+      catch (erroPaginaPrevia) { paginaPreviaExcel = null; }
+    }
     return {status: faltantes.length ? 'incompleto' : 'ok',
       idChamado: p.id, anexoValido: true, anexoHash: p.hash,
+      previaExcel: previaExcel,
+      paginaPreviaExcel: paginaPreviaExcel,
       statusChamado: p.statusChamado, statusProducao: p.statusProducao, cancelado: false,
       dataDesejada: p.dataDesejada, dataColeta: _emailSpgColeta_(p.dataDesejada),
       descricao: p.descricao, op: p.op, opParcial: p.opParcial, versaoId: p.versaoId, faltantes: faltantes};

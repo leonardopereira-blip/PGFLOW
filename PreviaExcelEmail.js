@@ -1,6 +1,10 @@
 // Prévia de leitura do anexo de formalização. Não grava arquivos nem envia e-mails.
 var PF_PREVIA_LINHAS_PAGINA = 50;
 var PF_PREVIA_COLUNAS_PAGINA = 65;
+// Conjuntos leves ficam no navegador; arquivos maiores usam a leitura paginada.
+var PF_PREVIA_CONJUNTO_MAX_JSON = 1000000;
+var PF_PREVIA_CONJUNTO_MAX_XML = 4000000;
+var PF_PREVIA_CONJUNTO_MAX_CELULAS = 100000;
 
 function _pfPreviaNumero_(valor, limite) {
   var n = Number(valor);
@@ -69,8 +73,7 @@ function _pfPreviaResultado_(nome, nomes, selecionada, linhas, colunas, total, f
     colunas: colunasVisiveis, linhas: exibidas, busca: consulta.busca
   };
 }
-function _pfPreviaXlsx_(blob, pedido) {
-  var consulta = _pfPreviaConsulta_(pedido);
+function _pfPreviaLivroXlsx_(blob) {
   if (blob.getBytes().length > 18 * 1024 * 1024) throw new Error('Excel grande demais para a prévia do portal.');
   var partes = Utilities.unzip(blob.copyBlob().setContentType('application/zip'));
   var arquivos = {};
@@ -103,12 +106,19 @@ function _pfPreviaXlsx_(blob, pedido) {
     }
   });
   if (!nomes.length) throw new Error('O Excel não contém abas acessíveis.');
-  if (consulta.aba >= nomes.length) throw new Error('Aba da prévia não encontrada.');
   var compartilhadas = [];
   if (arquivos['xl/sharedStrings.xml']) {
     var tabela = _emailSpgXlsxRaiz_(arquivos['xl/sharedStrings.xml']);
     compartilhadas = tabela.getChildren('si', tabela.getNamespace()).map(_emailSpgXlsxTexto_);
   }
+  return {nomes: nomes, caminhos: caminhos, arquivos: arquivos, compartilhadas: compartilhadas};
+}
+function _pfPreviaXlsx_(blob, pedido) {
+  var consulta = _pfPreviaConsulta_(pedido);
+  var livro = _pfPreviaLivroXlsx_(blob);
+  var nomes = livro.nomes, caminhos = livro.caminhos;
+  var arquivos = livro.arquivos, compartilhadas = livro.compartilhadas;
+  if (consulta.aba >= nomes.length) throw new Error('Aba da prévia não encontrada.');
   var xml = arquivos[caminhos[consulta.aba]];
   if (!xml) throw new Error('Não foi possível ler a aba selecionada do Excel.');
   var raiz = _emailSpgXlsxRaiz_(xml);
@@ -149,6 +159,132 @@ function _pfPreviaXlsx_(blob, pedido) {
   });
   return _pfPreviaResultado_(blob.getName() || 'Chamado.xlsx', nomes, consulta.aba,
     selecionadas, Math.max(1, colunas), total, selecionadas, consulta);
+}
+
+function _pfPreviaConjuntoXlsx_(blob) {
+  var livro = _pfPreviaLivroXlsx_(blob);
+  var tamanhoXml = livro.caminhos.reduce(function(total, caminho) {
+    return total + String(livro.arquivos[caminho] || '').length;
+  }, 0);
+  if (tamanhoXml > PF_PREVIA_CONJUNTO_MAX_XML) return null;
+  var conjunto = {arquivo: blob.getName() || 'Chamado.xlsx', abas: []};
+  var celulas = 0;
+  for (var a = 0; a < livro.nomes.length; a++) {
+    var xml = livro.arquivos[livro.caminhos[a]];
+    if (!xml) throw new Error('Não foi possível ler uma aba do Excel.');
+    var raiz = _emailSpgXlsxRaiz_(xml), ns = raiz.getNamespace();
+    var dados = raiz.getChild('sheetData', ns);
+    if (!dados) throw new Error('Esta aba não possui área de células legível.');
+    var aba = {nome: livro.nomes[a], totalColunas: 1, linhas: []};
+    var dimensao = raiz.getChild('dimension', ns);
+    var ref = dimensao && dimensao.getAttribute('ref');
+    if (ref) aba.totalColunas = Math.max(1, _pfPreviaColunaNumero_(ref.getValue().split(':').pop()) + 1);
+    var linhasXml = dados.getChildren('row', dados.getNamespace());
+    for (var i = 0; i < linhasXml.length; i++) {
+      var linha = linhasXml[i], numero = linha.getAttribute('r');
+      var item = {numero: numero ? Number(numero.getValue()) : i + 1, valores: {}};
+      var valoresXml = linha.getChildren('c', linha.getNamespace());
+      for (var c = 0; c < valoresXml.length; c++) {
+        if (++celulas > PF_PREVIA_CONJUNTO_MAX_CELULAS) return null;
+        var referencia = valoresXml[c].getAttribute('r');
+        var coluna = referencia ? _pfPreviaColunaNumero_(referencia.getValue()) : -1;
+        if (coluna < 0) continue;
+        aba.totalColunas = Math.max(aba.totalColunas, coluna + 1);
+        var valor = _pfPreviaValorCelula_(valoresXml[c], livro.compartilhadas);
+        if (valor !== '') item.valores[coluna] = valor;
+      }
+      aba.linhas.push(item);
+    }
+    conjunto.abas.push(aba);
+    // Nunca entrega um conjunto parcial: busca e paginação devem alcançar tudo.
+    if (JSON.stringify(conjunto).length > PF_PREVIA_CONJUNTO_MAX_JSON) return null;
+  }
+  return conjunto;
+}
+
+function _pfPreviaConjuntoSheets_(idArquivo) {
+  var livro = SpreadsheetApp.openById(idArquivo), folhas = livro.getSheets();
+  var totalCelulas = folhas.reduce(function(total, f) {
+    return total + f.getLastRow() * Math.max(1, f.getLastColumn());
+  }, 0);
+  if (totalCelulas > PF_PREVIA_CONJUNTO_MAX_CELULAS) return null;
+  var conjunto = {arquivo: livro.getName(), abas: []};
+  for (var a = 0; a < folhas.length; a++) {
+    var folha = folhas[a], total = folha.getLastRow(), colunas = Math.max(1, folha.getLastColumn());
+    var valores = total ? folha.getRange(1, 1, total, colunas).getDisplayValues() : [];
+    var aba = {nome: folha.getName(), totalColunas: colunas, linhas: []};
+    valores.forEach(function(linha, i) {
+      var item = {numero: i + 1, valores: {}};
+      linha.forEach(function(v, c) { if (v !== '') item.valores[c] = String(v); });
+      aba.linhas.push(item);
+    });
+    conjunto.abas.push(aba);
+    if (JSON.stringify(conjunto).length > PF_PREVIA_CONJUNTO_MAX_JSON) return null;
+  }
+  return conjunto;
+}
+
+function _pfPreviaPacoteSpg_(pedido) {
+  var id = _emailSpgId_(pedido.idChamado);
+  if (!/^[a-f0-9]{64}$/i.test(String(pedido.anexoHash || ''))) {
+    throw new Error('Consulte o chamado novamente antes de visualizar o Excel.');
+  }
+  var pacote = _emailSpgPacote_(id, false, pedido.tipoEmail);
+  if (pacote.hash !== pedido.anexoHash) {
+    throw new Error('O Excel ou os dados do SPG mudaram. Volte e consulte o chamado novamente.');
+  }
+  return pacote;
+}
+
+function _pfPreviaArquivoAntigo_(pedido) {
+  var arquivoId = String(pedido.idArquivo || '').trim();
+  if (!/^[A-Za-z0-9_-]{15,}$/.test(arquivoId)) throw new Error('ID do anexo inválido.');
+  var arquivo = DriveApp.getFileById(arquivoId);
+  if (arquivo.getMimeType() !== 'application/vnd.google-apps.spreadsheet' &&
+      !/spreadsheetml\.sheet|application\/zip|application\/vnd\.ms-excel/i.test(arquivo.getMimeType())) {
+    throw new Error('O anexo antigo não está em um formato de planilha compatível com a prévia.');
+  }
+  return {id: arquivoId, arquivo: arquivo};
+}
+
+function obterConjuntoPreviaExcelEmail(pedido) {
+  if (!pedido || (pedido.origem !== 'spg' && pedido.origem !== 'antigo')) throw new Error('Origem da prévia inválida.');
+  if (pedido.origem === 'spg') {
+    var blobSpg = _pfPreviaPacoteSpg_(pedido).blob;
+    var conjuntoSpg = _pfPreviaConjuntoXlsx_(blobSpg);
+    return {previaExcel: conjuntoSpg, pagina: conjuntoSpg ? null : _pfPreviaXlsx_(blobSpg, pedido)};
+  }
+  var fonte = _pfPreviaArquivoAntigo_(pedido);
+  if (fonte.arquivo.getMimeType() === 'application/vnd.google-apps.spreadsheet') {
+    var conjuntoSheets = _pfPreviaConjuntoSheets_(fonte.id);
+    return {previaExcel: conjuntoSheets, pagina: conjuntoSheets ? null : _pfPreviaSheets_(fonte.id, pedido)};
+  }
+  var blobAntigo = fonte.arquivo.getBlob().setName(fonte.arquivo.getName());
+  var conjuntoAntigo = _pfPreviaConjuntoXlsx_(blobAntigo);
+  return {previaExcel: conjuntoAntigo, pagina: conjuntoAntigo ? null : _pfPreviaXlsx_(blobAntigo, pedido)};
+}
+
+function baixarPreviaExcelEmail(pedido) {
+  if (!pedido || (pedido.origem !== 'spg' && pedido.origem !== 'antigo')) throw new Error('Origem da prévia inválida.');
+  var numero = _emailSpgId_(pedido.idChamado);
+  var mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  var blob;
+  if (pedido.origem === 'spg') blob = _pfPreviaPacoteSpg_(pedido).blob;
+  else {
+    var fonte = _pfPreviaArquivoAntigo_(pedido);
+    if (fonte.arquivo.getMimeType() === 'application/vnd.google-apps.spreadsheet') {
+      var resposta = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + fonte.id +
+        '/export?mimeType=' + encodeURIComponent(mime), {
+        headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true});
+      if (resposta.getResponseCode() !== 200) throw new Error('Não foi possível baixar o Excel do Drive.');
+      blob = resposta.getBlob();
+    } else blob = fonte.arquivo.getBlob();
+    blob.setName('Chamado ' + numero + '.xlsx');
+  }
+  var bytes = blob.getBytes();
+  if (bytes.length > 18 * 1024 * 1024) throw new Error('O Excel é grande demais para baixar pelo portal.');
+  if (bytes.length < 4 || (bytes[0] & 255) !== 80 || (bytes[1] & 255) !== 75) throw new Error('Não foi possível obter um arquivo XLSX válido.');
+  return {nome: blob.getName(), mimeType: mime, base64: Utilities.base64Encode(bytes)};
 }
 function _pfPreviaSheets_(idArquivo, pedido) {
   var consulta = _pfPreviaConsulta_(pedido);
@@ -194,19 +330,10 @@ function obterPreviaExcelEmail(pedido) {
     throw new Error('Origem da prévia inválida.');
   }
   if (pedido.origem === 'spg') {
-    var id = _emailSpgId_(pedido.idChamado);
-    if (!/^[a-f0-9]{64}$/i.test(String(pedido.anexoHash || ''))) {
-      throw new Error('Consulte o chamado novamente antes de visualizar o Excel.');
-    }
-    var pacote = _emailSpgPacote_(id, false, pedido.tipoEmail);
-    if (pacote.hash !== pedido.anexoHash) {
-      throw new Error('O Excel ou os dados do SPG mudaram. Volte e consulte o chamado novamente.');
-    }
+    var pacote = _pfPreviaPacoteSpg_(pedido);
     return _pfPreviaXlsx_(pacote.blob, pedido);
   }
-  var arquivoId = String(pedido.idArquivo || '').trim();
-  if (!/^[A-Za-z0-9_-]{15,}$/.test(arquivoId)) throw new Error('ID do anexo inválido.');
-  var arquivo = DriveApp.getFileById(arquivoId);
+  var fonte = _pfPreviaArquivoAntigo_(pedido), arquivoId = fonte.id, arquivo = fonte.arquivo;
   if (arquivo.getMimeType() === 'application/vnd.google-apps.spreadsheet') {
     return _pfPreviaSheets_(arquivoId, pedido);
   }

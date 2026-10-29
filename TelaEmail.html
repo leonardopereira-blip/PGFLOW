@@ -170,9 +170,11 @@
       <div><strong id="nomeAnexo">Chamado.xlsx</strong><small id="pf-origem-anexo"></small></div>
       <div class="pf-actions">
         <button id="pf-abrir-previa" type="button" class="pf-primary" onclick="pfAbrirPreviaExcel()">Conferir Excel no portal</button>
+        <button id="pf-baixar-previa" type="button" class="pf-secondary" onclick="pfBaixarPreviaExcel()">Baixar prévia (.xlsx)</button>
         <a id="linkPreview" href="#" target="_blank" rel="noopener" style="display:none">Abrir original</a>
       </div>
     </div>
+    <div id="pf-download-status" class="pf-note" role="status" style="display:none"></div>
     <div id="pf-previa" class="pf-preview" hidden aria-label="Prévia do Excel anexado">
       <div class="pf-preview-head">
         <div><strong>Prévia do Excel</strong><p>Visualização de células, sem editar o arquivo anexado. Formatação avançada pode diferir do Excel.</p></div>
@@ -315,8 +317,16 @@ function pfHtmlNode(tag, cls, txt) {
 /* Prévia opcional: o painel inicia fechado e pode ser reaberto sem perder a posição. */
 var pfPreviaEstado = {aba:0,linha:0,coluna:0,busca:'',cache:{}};
 var pfPreviaUltima = null, pfPreviaToken = 0, pfPreviaTimer = null;
+var pfPreviaConjunto = null, pfPreviaConjuntoTentado = false;
+var pfDownloadToken = 0, pfBaixandoPrevia = false;
 function pfPreviaReiniciar() {
   ++pfPreviaToken;
+  ++pfDownloadToken;
+  pfPreviaConjunto = null; pfPreviaConjuntoTentado = false; pfBaixandoPrevia = false;
+  pfEl('pf-baixar-previa').disabled = false;
+  pfEl('pf-baixar-previa').textContent = 'Baixar prévia (.xlsx)';
+  pfEl('pf-download-status').textContent = '';
+  pfEl('pf-download-status').style.display = 'none';
   if (pfPreviaTimer !== null) clearTimeout(pfPreviaTimer);
   pfPreviaTimer = null;
   pfPreviaEstado = {aba:0,linha:0,coluna:0,busca:'',cache:{}};
@@ -364,15 +374,50 @@ function pfPreviaErro(msg) {
   el.textContent = msg || '';
   el.style.display = msg ? 'block' : 'none';
 }
+function pfPreviaPedido() {
+  return {origem:dadosGlobais.origem,tipoEmail:dadosGlobais.tipoEmail,
+    idChamado:dadosGlobais.idChamado,anexoHash:dadosGlobais.anexoHash || '',
+    idArquivo:dadosGlobais.idArquivo || ''};
+}
+function pfPreviaPedidoPagina() {
+  var pedido=pfPreviaPedido();
+  pedido.aba=pfPreviaEstado.aba;pedido.linha=pfPreviaEstado.linha;
+  pedido.coluna=pfPreviaEstado.coluna;pedido.busca=pfPreviaEstado.busca;
+  return pedido;
+}
+function pfPreviaPaginaLocal(conjunto,estado) {
+  var aba = conjunto.abas[estado.aba];
+  var termo = estado.busca.toLocaleLowerCase('pt-BR');
+  var filtradas = termo ? aba.linhas.filter(function(linha) {
+    return Object.keys(linha.valores).some(function(coluna) {
+      return String(linha.valores[coluna]).toLocaleLowerCase('pt-BR').indexOf(termo) !== -1;
+    });
+  }) : aba.linhas;
+  var inicio = Math.min(estado.linha,filtradas.length);
+  var coluna = Math.min(estado.coluna,Math.max(0,aba.totalColunas-1));
+  var largura = Math.min(65,aba.totalColunas-coluna), letras = [];
+  for (var i=0;i<largura;i++) {
+    var letra='',n=coluna+i+1;
+    while(n>0){n--;letra=String.fromCharCode(65+n%26)+letra;n=Math.floor(n/26);}
+    letras.push(letra);
+  }
+  var linhas = filtradas.slice(inicio,inicio+50).map(function(linha) {
+    var celulas=[];
+    for(var j=0;j<largura;j++) {
+      var valor=linha.valores[coluna+j];
+      celulas.push(String(valor == null ? '' : valor).substring(0,2400));
+    }
+    return {numero:linha.numero,celulas:celulas};
+  });
+  return {arquivo:conjunto.arquivo,abas:conjunto.abas.map(function(a){return a.nome;}),
+    aba:estado.aba,linha:inicio,coluna:coluna,totalLinhas:aba.linhas.length,
+    totalFiltradas:filtradas.length,totalColunas:aba.totalColunas,
+    colunas:letras,linhas:linhas,busca:estado.busca};
+}
 function pfPreviaCarregar() {
   if (pfEl('pf-previa').hidden || !dadosGlobais.origem) return;
   var estado = pfPreviaEstado;
-  var pedido = {
-    origem:dadosGlobais.origem, tipoEmail:dadosGlobais.tipoEmail,
-    idChamado:dadosGlobais.idChamado, anexoHash:dadosGlobais.anexoHash || '',
-    idArquivo:dadosGlobais.idArquivo || '', aba:estado.aba, linha:estado.linha,
-    coluna:estado.coluna, busca:estado.busca
-  };
+  var pedido = pfPreviaPedidoPagina();
   var chave = JSON.stringify(pedido);
   var ticket = ++pfPreviaToken;
   pfPreviaErro('');
@@ -382,9 +427,15 @@ function pfPreviaCarregar() {
     pfEl('pf-preview-carregando').style.display = 'none';
     return;
   }
+  if (pfPreviaConjunto) {
+    pfPreviaUltima = pfPreviaPaginaLocal(pfPreviaConjunto,estado);
+    pfPreviaRender(pfPreviaUltima);
+    pfEl('pf-preview-carregando').style.display = 'none';
+    return;
+  }
   pfEl('pf-preview-carregando').style.display = 'block';
   pfEl('pf-preview-status').textContent = 'Carregando a aba solicitada…';
-  google.script.run.withSuccessHandler(function(resp) {
+  function receberPagina(resp) {
     if (ticket !== pfPreviaToken) return;
     pfEl('pf-preview-carregando').style.display = 'none';
     if (!resp || !Array.isArray(resp.abas) || !Array.isArray(resp.linhas)) {
@@ -395,12 +446,51 @@ function pfPreviaCarregar() {
     estado.cache[chave] = resp;
     pfPreviaUltima = resp;
     pfPreviaRender(resp);
-  }).withFailureHandler(function(e) {
+  }
+  function falhar(e) {
     if (ticket !== pfPreviaToken) return;
     pfEl('pf-preview-carregando').style.display = 'none';
     pfPreviaErro('Não foi possível ler o Excel: ' + ((e && e.message) || e) + '. Feche e reabra para tentar novamente.');
     pfEl('pf-preview-status').textContent = 'A prévia não foi carregada.';
-  }).obterPreviaExcelEmail(pedido);
+  }
+  if (!pfPreviaConjuntoTentado) {
+    google.script.run.withSuccessHandler(function(resp) {
+      if (ticket !== pfPreviaToken) return;
+      pfPreviaConjuntoTentado = true;
+      if (resp && resp.previaExcel && Array.isArray(resp.previaExcel.abas)) {
+        pfPreviaConjunto = resp.previaExcel;
+        pfPreviaCarregar();
+      } else if (resp && resp.pagina) receberPagina(resp.pagina);
+      else pfPreviaCarregar();
+    }).withFailureHandler(falhar).obterConjuntoPreviaExcelEmail(pedido);
+  } else google.script.run.withSuccessHandler(receberPagina).withFailureHandler(falhar)
+    .obterPreviaExcelEmail(pedido);
+}
+function pfBaixarPreviaExcel() {
+  if (!dadosGlobais || !dadosGlobais.origem || pfBaixandoPrevia) return;
+  var ticket=++pfDownloadToken, botao=pfEl('pf-baixar-previa'), status=pfEl('pf-download-status');
+  pfBaixandoPrevia=true;botao.disabled=true;botao.textContent='Preparando download…';
+  status.textContent='Preparando o Excel completo para baixar…';status.style.display='block';
+  function concluir(mensagem) {
+    pfBaixandoPrevia=false;botao.disabled=false;botao.textContent='Baixar prévia (.xlsx)';
+    status.textContent=mensagem;
+  }
+  google.script.run.withSuccessHandler(function(resp) {
+    if(ticket!==pfDownloadToken)return;
+    try {
+      if(!resp || !resp.base64 || !/\.xlsx$/i.test(resp.nome || ''))throw new Error('Arquivo de download inválido.');
+      var binario=atob(resp.base64),bytes=new Uint8Array(binario.length);
+      for(var i=0;i<binario.length;i++)bytes[i]=binario.charCodeAt(i);
+      var blob=new Blob([bytes],{type:resp.mimeType});
+      var url=URL.createObjectURL(blob),link=document.createElement('a');
+      link.href=url;link.download=resp.nome;link.click();
+      setTimeout(function(){URL.revokeObjectURL(url);},1000);
+      concluir('Download iniciado: '+resp.nome);
+    } catch(e) { concluir('Não foi possível baixar o Excel: '+(e.message || e)); }
+  }).withFailureHandler(function(e) {
+    if(ticket!==pfDownloadToken)return;
+    concluir('Não foi possível baixar o Excel: '+((e && e.message) || e));
+  }).baixarPreviaExcelEmail(pfPreviaPedido());
 }
 function pfPreviaRender(resp) {
   var tabs = pfEl('pf-preview-abas');
@@ -767,6 +857,11 @@ function pfPrepararRevisao(tipoFonte,resp,manual,consulta) {
         omitirData:!(resp.dataDesejada||r.dataDesejada),
         omitirDescricao:!(resp.descricao||r.descricao)}} :
     {origem:'antigo',tipoEmail:pfTipoAtual,idChamado:id,idArquivo:resp.idExcel};
+  pfPreviaConjunto = resp.previaExcel || null;
+  pfPreviaConjuntoTentado = Object.prototype.hasOwnProperty.call(resp,'previaExcel');
+  if (resp.paginaPreviaExcel && Array.isArray(resp.paginaPreviaExcel.linhas)) {
+    pfPreviaEstado.cache[JSON.stringify(pfPreviaPedidoPagina())] = resp.paginaPreviaExcel;
+  }
   pfEl('nomeAnexo').textContent = 'Chamado ' + id + '.xlsx';
   pfEl('pf-origem-anexo').textContent = tipoFonte === 'spg' ? 'Origem: SPG / API · PPG validada' : 'Origem: fluxo antigo · arquivo do Drive';
   var link = pfEl('linkPreview');

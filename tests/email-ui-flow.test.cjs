@@ -9,6 +9,7 @@ const source = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 function makeScreen(bootstrap) {
   let doc;
+  const downloads = [], blobs = [], revoked = [];
   function matches(el, selector) {
     if (selector.includes(':checked') && !el.checked) return false;
     const tag = selector.match(/^[\w-]+/);
@@ -67,6 +68,7 @@ function makeScreen(bootstrap) {
     setAttribute(key, val) { this.attrs[key] = String(val); }
     getAttribute(key) { return this.attrs[key] === undefined ? null : this.attrs[key]; }
     removeAttribute(key) { delete this.attrs[key]; }
+    click() { if (this.tagName === 'a') downloads.push({nome:this.download,url:this.href}); }
     querySelectorAll(selectors) {
       const all = [];
       function walk(el) { el.children.forEach(child => { all.push(child); walk(child); }); }
@@ -97,7 +99,8 @@ function makeScreen(bootstrap) {
       withFailureHandler(fn) { this.failure = fn; return this; }
     };
     ['identificarTipoEmailSPG', 'obterCadastroEmailsSPG', 'salvarCadastroEmailsSPG', 'consultarPacoteEmailSPG',
-      'obterDadosChamado', 'obterPreviaExcelEmail', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
+      'obterDadosChamado', 'obterPreviaExcelEmail', 'obterConjuntoPreviaExcelEmail',
+      'baixarPreviaExcelEmail', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
       chain[method] = (...args) => requests.push({ method, args, success: chain.success, failure: chain.failure });
     });
     return chain;
@@ -105,6 +108,9 @@ function makeScreen(bootstrap) {
   const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
   const timers=new Map();let timerId=0;
   const context = { document: doc, google, alert: msg => alerts.push(msg), confirm: () => true,
+    Blob, Uint8Array, atob: value => Buffer.from(value,'base64').toString('binary'),
+    URL:{createObjectURL:blob=>{blobs.push(blob);return 'blob:preview-'+blobs.length;},
+      revokeObjectURL:url=>revoked.push(url)},
     setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id) };
   vm.createContext(context); vm.runInContext(source.replace('/*PF_EMAIL_CADASTRO_INICIAL*/null',
     JSON.stringify(bootstrap === undefined ? {graficas,versao:'v1'} : bootstrap)), context);
@@ -135,9 +141,11 @@ function makeScreen(bootstrap) {
   }
   choose();
   return { context, doc, el, requests, alerts, pending, reply, dispatch, graphic, choose, button, graficas,
+    downloads,blobs,revoked,
     runTimers(){const fns=[...timers.values()];timers.clear();fns.forEach(fn=>fn());} };
 }
 const complete = { status: 'ok', idChamado: '3100', anexoValido: true,
+  previaExcel:null,
   anexoHash: 'hash3100', dataDesejada: '15/11/2026', descricao: 'Produção 3100',
   statusChamado: 'SOLICITADO', statusProducao: 'PUBLICADA' };
 
@@ -515,4 +523,91 @@ test('cancelar chamado descarta retorno tardio da prévia sem reabrir janela', (
     totalFiltradas:0,totalColunas:1,colunas:['A'],linhas:[]});
   assert.equal(s.el('pf-previa').hidden,true);
   assert.equal(s.el('pf-preview-linhas').textContent,'');
+});
+
+function localWorkbook() {
+  return {arquivo:'Chamado 3100.xlsx',abas:[
+    {nome:'Tiragem',totalColunas:70,linhas:Array.from({length:52},(_,i)=>({numero:i+2,
+      valores:{0:'SKU-'+i,1:i===1?0:100,69:'Fim '+i}}))},
+    {nome:'Árvore',totalColunas:2,linhas:[{numero:4,valores:{0:'KIT-1',1:'<img src=x>'}}]}
+  ]};
+}
+test('conjunto inicial abre, pagina, troca colunas e busca no navegador sem chamadas extras',()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',{...complete,previaExcel:localWorkbook()});
+  const antes=s.requests.length;s.context.pfAbrirPreviaExcel();
+  assert.match(s.el('pf-preview-linhas').textContent,/SKU-0/);
+  assert.equal(s.context.pfPreviaUltima.linhas[0].numero,2);
+  assert.equal(s.context.pfPreviaUltima.linhas[1].celulas[1],'0');
+  s.context.pfPreviaMoverLinha(1);
+  assert.equal(s.context.pfPreviaUltima.linhas[0].numero,52);
+  s.context.pfPreviaMoverColuna(1);
+  assert.equal(s.context.pfPreviaUltima.colunas.at(-1),'BR');
+  s.el('pf-preview-busca').value='SKU-51';s.context.pfPreviaDebounceBusca();s.runTimers();
+  assert.equal(s.context.pfPreviaUltima.totalFiltradas,1);
+  assert.equal(s.context.pfPreviaUltima.linhas[0].numero,53);
+  s.context.pfPreviaSelecionarAba(1);
+  assert.match(s.el('pf-preview-linhas').textContent,/<img src=x>/);
+  assert.equal(s.el('pf-preview-linhas').querySelectorAll('img').length,0);
+  assert.equal(s.requests.length,antes);
+});
+test('arquivo grande também abre primeira página da consulta sem esperar outra chamada',()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();
+  const pagina={arquivo:'Chamado 3100.xlsx',abas:['Tiragem'],aba:0,linha:0,coluna:0,
+    totalLinhas:2000,totalFiltradas:2000,totalColunas:1,colunas:['A'],
+    linhas:Array.from({length:50},(_,i)=>({numero:i+1,celulas:['SKU-'+i]})),busca:''};
+  s.reply('consultarPacoteEmailSPG',{...complete,previaExcel:null,paginaPreviaExcel:pagina});
+  const antes=s.requests.length;s.context.pfAbrirPreviaExcel();
+  assert.equal(s.requests.length,antes);
+  assert.match(s.el('pf-preview-linhas').textContent,/SKU-49/);
+  s.context.pfPreviaMoverLinha(1);
+  assert.equal(s.pending('obterPreviaExcelEmail').args[0].linha,50);
+});
+test('fluxo antigo recebe conjunto uma vez e usa pagina retornada quando o conjunto é grande',()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',{...complete,anexoValido:false,status:'incompleto',erro:'indisponível'});
+  s.context.pfCarregarLegado(s.context.pfConsultaAtual);
+  s.reply('obterDadosChamado',{idExcel:'excel3100',valorF:'Legado'});
+  s.context.pfAbrirPreviaExcel();
+  const pagina={arquivo:'Chamado 3100.xlsx',abas:['PPG'],aba:0,linha:0,coluna:0,
+    totalLinhas:60,totalFiltradas:60,totalColunas:1,colunas:['A'],linhas:[{numero:1,celulas:['SKU']}]};
+  s.reply('obterConjuntoPreviaExcelEmail',{previaExcel:null,pagina});
+  assert.match(s.el('pf-preview-linhas').textContent,/SKU/);
+  assert.equal(s.requests.filter(r=>r.method==='obterPreviaExcelEmail').length,0);
+  s.context.pfPreviaMoverLinha(1);
+  assert.equal(s.requests.filter(r=>r.method==='obterConjuntoPreviaExcelEmail').length,1);
+  assert.equal(s.pending('obterPreviaExcelEmail').args[0].linha,50);
+});
+test('baixar prévia entrega bytes XLSX sem enviar email e continua ao trocar abas',async()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',{...complete,previaExcel:localWorkbook()});
+  s.context.pfBaixarPreviaExcel();s.context.pfBaixarPreviaExcel();
+  assert.equal(s.requests.filter(r=>r.method==='baixarPreviaExcelEmail').length,1);
+  assert.equal(s.el('pf-baixar-previa').disabled,true);
+  s.context.pfAbrirPreviaExcel();s.context.pfPreviaSelecionarAba(1);
+  const bytes=Buffer.from([80,75,3,4,128,255]);
+  s.reply('baixarPreviaExcelEmail',{nome:'Chamado 3100.xlsx',
+    mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',base64:bytes.toString('base64')});
+  assert.equal(s.downloads[0].nome,'Chamado 3100.xlsx');
+  assert.deepEqual(Buffer.from(await s.blobs[0].arrayBuffer()),bytes);
+  assert.equal(s.blobs[0].type,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(s.el('pf-baixar-previa').disabled,false);
+  assert.equal(s.requests.some(r=>r.method.startsWith('dispararEmail')),false);
+  s.runTimers();assert.equal(s.revoked[0],s.downloads[0].url);
+});
+test('reset descarta download atrasado e dados do chamado anterior',()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();
+  s.reply('consultarPacoteEmailSPG',{...complete,previaExcel:localWorkbook()});
+  s.context.pfBaixarPreviaExcel();s.context.pfResetar();
+  s.reply('baixarPreviaExcelEmail',{nome:'Chamado 3100.xlsx',base64:'UEsDBA=='});
+  assert.equal(s.downloads.length,0);assert.equal(s.context.pfPreviaConjunto,null);
+  assert.equal(s.el('pf-baixar-previa').disabled,false);
+  assert.equal(s.el('pf-download-status').textContent,'');
+});
+test('falha no download libera uma nova tentativa sem alterar envio',()=>{
+  const s=makeScreen();s.context.avancarParaRevisao();s.reply('consultarPacoteEmailSPG',complete);
+  s.context.pfBaixarPreviaExcel();s.reply('baixarPreviaExcelEmail',{message:'O Excel mudou'},true);
+  assert.match(s.el('pf-download-status').textContent,/O Excel mudou/);
+  s.context.pfBaixarPreviaExcel();assert.equal(s.requests.filter(r=>r.method==='baixarPreviaExcelEmail').length,2);
+  assert.equal(s.context.dadosGlobais.anexoHash,complete.anexoHash);
 });

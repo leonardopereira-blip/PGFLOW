@@ -61,12 +61,12 @@ const zip = [
   ['xl/worksheets/sheet2.xml',sheet2]
 ].map(([name,text])=>({getName:()=>name,getDataAsString:()=>text}));
 function context() {
-  const calls={spg:0,email:0,drive:0};
+  const calls={spg:0,email:0,drive:0,unzip:0};
   const sheetRows = [['SKU','Tiragem'],['SKU-11','500'],['SKU-22','250']];
   const sheet = {getName:()=> 'PPG',getLastRow:()=>3,getLastColumn:()=>2,
     getRange:(r,c,n,m)=>({getDisplayValues:()=>sheetRows.slice(r-1,r-1+n).map(row=>row.slice(c-1,c-1+m))})};
   const context={
-    Utilities:{unzip:()=>zip},
+    Utilities:{unzip:()=>{calls.unzip++;return zip;},base64Encode:bytes=>Buffer.from(bytes.map(b=>(b+256)%256)).toString('base64')},
     XmlService:{parse:parseXml,getNamespace:()=>({})},
     DriveApp:{getFileById:id=>{calls.drive++;return {getMimeType:()=> 'application/vnd.google-apps.spreadsheet'};}},
     SpreadsheetApp:{openById:()=>({getName:()=> 'Origem PPG',getSheets:()=>[sheet]})},
@@ -122,4 +122,101 @@ test('valida entradas antes de ler anexo de origem desconhecida',()=>{
   const {context:c}=context();
   assert.throws(()=>c.obterPreviaExcelEmail({origem:'qualquer'}),/Origem/);
   assert.throws(()=>c.obterPreviaExcelEmail({origem:'antigo',idArquivo:'../../'}),/ID do anexo/);
+});
+
+test('consulta inicial inclui o conjunto das abas usando o mesmo blob já validado',()=>{
+  const {context:c,calls}=context();
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','EmailSPG.js'),'utf8'),c);
+  let recebidos=0;
+  c._emailSpgPacote_=()=>{
+    recebidos++;
+    return {id:'3100',hash:'a'.repeat(64),dataDesejada:'15/11/2026',descricao:'Produção',
+      blob:{getBytes:()=>[80,75,0,0],getName:()=> 'Chamado 3100.xlsx',copyBlob(){return this},setContentType(){return this}}};
+  };
+  const r=c.consultarPacoteEmailSPG('3100','ultima','reentrada');
+  assert.equal(r.anexoValido,true);
+  assert.equal(recebidos,1,'a prévia não consulta novamente o pacote/API');
+  assert.equal(calls.unzip,1,'extrai o conjunto uma vez a partir do blob existente');
+  assert.equal(r.previaExcel.arquivo,'Chamado 3100.xlsx');
+  assert.equal(r.previaExcel.abas.length,2);
+  assert.equal(r.previaExcel.abas[0].linhas[2].numero,4);
+  assert.equal(r.previaExcel.abas[0].linhas[2].valores[0],'SKU-02');
+  assert.equal(r.previaExcel.abas[0].totalColunas,28);
+  assert.equal(calls.email,0);
+  assert.equal(calls.drive,0);
+});
+
+test('conjunto completo preserva texto e dados fora da primeira página sem truncar busca',()=>{
+  const {context:c}=context();
+  const extra = '<worksheet><sheetData>' + Array.from({length:80},(_,i)=>
+    '<row r="'+(i+1)+'"><c r="A'+(i+1)+'" t="inlineStr"><is><t>'+('SKU-'+i)+'</t></is></c></row>').join('') + '</sheetData></worksheet>';
+  c.Utilities.unzip=()=>zip.map(p=>p.getName()==='xl/worksheets/sheet1.xml' ? {getName:p.getName,getDataAsString:()=>extra} : p);
+  const conjunto=c.obterConjuntoPreviaExcelEmail({origem:'spg',idChamado:'3100',anexoHash:'a'.repeat(64)}).previaExcel;
+  assert.equal(conjunto.abas[0].linhas.length,80);
+  assert.equal(conjunto.abas[0].linhas[79].valores[0],'SKU-79');
+});
+
+test('conjunto grande retorna página inicial do mesmo blob sem repetir a API',()=>{
+  const {context:c,calls}=context();
+  c.PF_PREVIA_CONJUNTO_MAX_JSON=10;
+  const r=c.obterConjuntoPreviaExcelEmail({origem:'spg',idChamado:'3100',anexoHash:'a'.repeat(64),busca:'SKU-02'});
+  assert.equal(r.previaExcel,null);
+  assert.equal(r.pagina.totalFiltradas,1);
+  assert.equal(r.pagina.linhas[0].numero,4);
+  assert.equal(calls.spg,1);
+  assert.equal(calls.email,0);
+});
+
+test('consulta inicial não impede revisão se o conjunto ultrapassar o limite',()=>{
+  const {context:c,calls}=context();
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','EmailSPG.js'),'utf8'),c);
+  let consultas=0;
+  c._emailSpgPacote_=()=>{
+    consultas++;
+    return {id:'3100',hash:'a'.repeat(64),dataDesejada:'15/11/2026',descricao:'Produção',blob:{getBytes:()=>[80,75,0,0],getName:()=> 'Chamado.xlsx',copyBlob(){return this},setContentType(){return this}}};
+  };
+  c.PF_PREVIA_CONJUNTO_MAX_JSON=10;
+  const r=c.consultarPacoteEmailSPG('3100','ultima','reentrada');
+  assert.equal(r.anexoValido,true);
+  assert.equal(r.previaExcel,null);
+  assert.equal(r.paginaPreviaExcel.aba,0);
+  assert.equal(r.paginaPreviaExcel.linha,0);
+  assert.equal(r.paginaPreviaExcel.coluna,0);
+  assert.equal(r.paginaPreviaExcel.linhas[1].celulas[0],'SKU-01');
+  assert.equal(consultas,1,'o fallback da primeira abertura reutiliza o pacote já consultado');
+  assert.equal(calls.email,0);
+  assert.equal(calls.drive,0);
+});
+
+test('download retorna bytes XLSX do pacote confirmado e não envia email',()=>{
+  const {context:c,calls}=context();
+  const r=c.baixarPreviaExcelEmail({origem:'spg',idChamado:'3100',anexoHash:'a'.repeat(64)});
+  assert.equal(r.mimeType,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.deepEqual(Array.from(Buffer.from(r.base64,'base64')),[80,75,0,0]);
+  assert.equal(calls.spg,1);
+  assert.equal(calls.email,0);
+  assert.equal(calls.drive,0);
+});
+
+test('download bloqueia pacote alterado desde a consulta e entrada inválida',()=>{
+  const {context:c,calls}=context();
+  assert.throws(()=>c.baixarPreviaExcelEmail({origem:'spg',idChamado:'3100',anexoHash:'b'.repeat(64)}),/mudaram/i);
+  assert.throws(()=>c.baixarPreviaExcelEmail({origem:'antigo',idArquivo:'../../',idChamado:'3100'}),/ID do anexo/);
+  assert.equal(calls.email,0);
+});
+
+test('download de Sheets legado exporta XLSX sem criar nem alterar arquivo no Drive',()=>{
+  const {context:c,calls}=context();
+  let nome='',url='';
+  c.ScriptApp={getOAuthToken:()=> 'autorizacao-teste'};
+  c.UrlFetchApp={fetch:(destino,options)=>{
+    url=destino;
+    assert.equal(options.headers.Authorization,'Bearer autorizacao-teste');
+    return {getResponseCode:()=>200,getBlob:()=>({setName(n){nome=n;return this;},getName:()=>nome,getBytes:()=>[80,75,3,4]})};
+  }};
+  const r=c.baixarPreviaExcelEmail({origem:'antigo',idArquivo:'abcDEF1234567890',idChamado:'3100'});
+  assert.match(url,/\/files\/abcDEF1234567890\/export\?mimeType=/);
+  assert.equal(r.nome,'Chamado 3100.xlsx');
+  assert.equal(calls.email,0);
+  assert.equal(calls.drive,1);
 });

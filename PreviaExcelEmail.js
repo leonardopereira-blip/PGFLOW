@@ -76,12 +76,20 @@ function _pfPreviaResultado_(nome, nomes, selecionada, linhas, colunas, total, f
 function _pfPreviaLivroXlsx_(blob) {
   if (blob.getBytes().length > 18 * 1024 * 1024) throw new Error('Excel grande demais para a prévia do portal.');
   var partes = Utilities.unzip(blob.copyBlob().setContentType('application/zip'));
-  var arquivos = {};
+  // As partes não utilizadas pela prévia não precisam virar texto.
+  var arquivos = {}, porNome = {};
   partes.forEach(function(parte) {
     if (/^(?:xl\/|_rels\/)/i.test(parte.getName()) && /\.(?:xml|rels)$/i.test(parte.getName())) {
-      arquivos[parte.getName()] = parte.getDataAsString('UTF-8');
+      porNome[parte.getName()] = parte;
     }
   });
+  function ler(nome) {
+    if (porNome[nome] && arquivos[nome] === undefined)
+      arquivos[nome] = porNome[nome].getDataAsString('UTF-8');
+    return arquivos[nome];
+  }
+  ler('xl/workbook.xml');
+  ler('xl/_rels/workbook.xml.rels');
   if (!arquivos['xl/workbook.xml'] || !arquivos['xl/_rels/workbook.xml.rels']) {
     throw new Error('O Excel não contém a estrutura de abas necessária para a prévia.');
   }
@@ -107,15 +115,16 @@ function _pfPreviaLivroXlsx_(blob) {
   });
   if (!nomes.length) throw new Error('O Excel não contém abas acessíveis.');
   var compartilhadas = [];
-  if (arquivos['xl/sharedStrings.xml']) {
-    var tabela = _emailSpgXlsxRaiz_(arquivos['xl/sharedStrings.xml']);
+  if (porNome['xl/sharedStrings.xml']) {
+    var tabela = _emailSpgXlsxRaiz_(ler('xl/sharedStrings.xml'));
     compartilhadas = tabela.getChildren('si', tabela.getNamespace()).map(_emailSpgXlsxTexto_);
   }
+  caminhos.forEach(ler);
   return {nomes: nomes, caminhos: caminhos, arquivos: arquivos, compartilhadas: compartilhadas};
 }
-function _pfPreviaXlsx_(blob, pedido) {
+function _pfPreviaXlsx_(blob, pedido, livroPronto) {
   var consulta = _pfPreviaConsulta_(pedido);
-  var livro = _pfPreviaLivroXlsx_(blob);
+  var livro = livroPronto || _pfPreviaLivroXlsx_(blob);
   var nomes = livro.nomes, caminhos = livro.caminhos;
   var arquivos = livro.arquivos, compartilhadas = livro.compartilhadas;
   if (consulta.aba >= nomes.length) throw new Error('Aba da prévia não encontrada.');
@@ -161,8 +170,8 @@ function _pfPreviaXlsx_(blob, pedido) {
     selecionadas, Math.max(1, colunas), total, selecionadas, consulta);
 }
 
-function _pfPreviaConjuntoXlsx_(blob) {
-  var livro = _pfPreviaLivroXlsx_(blob);
+function _pfPreviaConjuntoXlsx_(blob, livroPronto) {
+  var livro = livroPronto || _pfPreviaLivroXlsx_(blob);
   var tamanhoXml = livro.caminhos.reduce(function(total, caminho) {
     return total + String(livro.arquivos[caminho] || '').length;
   }, 0);
@@ -251,8 +260,9 @@ function obterConjuntoPreviaExcelEmail(pedido) {
   if (!pedido || (pedido.origem !== 'spg' && pedido.origem !== 'antigo')) throw new Error('Origem da prévia inválida.');
   if (pedido.origem === 'spg') {
     var blobSpg = _pfPreviaPacoteSpg_(pedido).blob;
-    var conjuntoSpg = _pfPreviaConjuntoXlsx_(blobSpg);
-    return {previaExcel: conjuntoSpg, pagina: conjuntoSpg ? null : _pfPreviaXlsx_(blobSpg, pedido)};
+    var livroSpg = _pfPreviaLivroXlsx_(blobSpg);
+    var conjuntoSpg = _pfPreviaConjuntoXlsx_(blobSpg, livroSpg);
+    return {previaExcel: conjuntoSpg, pagina: conjuntoSpg ? null : _pfPreviaXlsx_(blobSpg, pedido, livroSpg)};
   }
   var fonte = _pfPreviaArquivoAntigo_(pedido);
   if (fonte.arquivo.getMimeType() === 'application/vnd.google-apps.spreadsheet') {
@@ -260,8 +270,9 @@ function obterConjuntoPreviaExcelEmail(pedido) {
     return {previaExcel: conjuntoSheets, pagina: conjuntoSheets ? null : _pfPreviaSheets_(fonte.id, pedido)};
   }
   var blobAntigo = fonte.arquivo.getBlob().setName(fonte.arquivo.getName());
-  var conjuntoAntigo = _pfPreviaConjuntoXlsx_(blobAntigo);
-  return {previaExcel: conjuntoAntigo, pagina: conjuntoAntigo ? null : _pfPreviaXlsx_(blobAntigo, pedido)};
+  var livroAntigo = _pfPreviaLivroXlsx_(blobAntigo);
+  var conjuntoAntigo = _pfPreviaConjuntoXlsx_(blobAntigo, livroAntigo);
+  return {previaExcel: conjuntoAntigo, pagina: conjuntoAntigo ? null : _pfPreviaXlsx_(blobAntigo, pedido, livroAntigo)};
 }
 
 function baixarPreviaExcelEmail(pedido) {

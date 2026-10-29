@@ -299,19 +299,69 @@ function _emailSpgLerJson_(path, token) {
 }
 
 function _emailSpgResolverId_(numero, token) {
-  var ids = [], paginas = 1;
-  // O nome da rota e "sheets", mas esta consulta e diretamente na API.
-  // O relatorio so resolve a identidade; dados do email vem do detalhe do chamado.
-  for (var pagina = 1; pagina <= paginas; pagina++) {
-    var r = _emailSpgLerJson_('/api/reentradas/sheets/relatorio?page=' + pagina + '&limit=100', token);
-    var totalPaginas = Number(r.totalPages);
-    if (!Array.isArray(r.rows) || !isFinite(totalPaginas) || totalPaginas < 1 ||
-        totalPaginas % 1 !== 0 || totalPaginas > 1000 || Number(r.page) !== pagina ||
-        (pagina > 1 && totalPaginas !== paginas)) {
+  // A primeira página determina o total. Todas as outras continuam sendo lidas
+  // e conferidas, inclusive quando o número já foi encontrado na primeira.
+  var caminho = '/api/reentradas/sheets/relatorio?page=1&limit=100';
+  var primeira = _emailSpgLerJson_(caminho, token);
+  var paginas = Number(primeira.totalPages);
+  function validar(resposta, pagina) {
+    var total = Number(resposta && resposta.totalPages);
+    if (!resposta || !Array.isArray(resposta.rows) || !isFinite(total) || total < 1 ||
+        total % 1 !== 0 || total > 1000 || Number(resposta.page) !== pagina ||
+        (pagina > 1 && total !== paginas)) {
       throw new Error('O SPG retornou um relatorio ou paginacao invalidos.');
     }
-    paginas = totalPaginas;
-    r.rows.forEach(function(linha) {
+  }
+  validar(primeira, 1);
+  var mapa = {1: primeira};
+  if (paginas > 1) {
+    var paraleloConcluido = false;
+    if (typeof UrlFetchApp.fetchAll === 'function') {
+      try {
+        var candidato = {1: primeira}, loteMaximo = 6;
+        for (var inicio = 2; inicio <= paginas; inicio += loteMaximo) {
+          var fim = Math.min(paginas, inicio + loteMaximo - 1), requisicoes = {}, pedidos = [];
+          for (var pag = inicio; pag <= fim; pag++) {
+            requisicoes[pag] = true;
+            pedidos.push({url: EMAIL_SPG_BASE +
+              '/api/reentradas/sheets/relatorio?page=' + pag + '&limit=100',
+              method: 'get', headers: {Authorization: 'Bearer ' + token},
+              muteHttpExceptions: true, followRedirects: false});
+          }
+          var respostas = UrlFetchApp.fetchAll(pedidos);
+          if (!Array.isArray(respostas) || respostas.length !== pedidos.length)
+            throw new Error('Resposta incompleta da consulta em lote.');
+          respostas.forEach(function(http) {
+            var resultado = _emailSpgJson_(http), pagAtual = Number(resultado && resultado.page);
+            if (!requisicoes[pagAtual] || candidato[pagAtual]) throw new Error('Página de relatório inesperada.');
+            validar(resultado, pagAtual);
+            candidato[pagAtual] = resultado;
+          });
+          for (var esperado = inicio; esperado <= fim; esperado++) {
+            if (!candidato[esperado]) throw new Error('Faltou uma página na consulta em lote.');
+          }
+        }
+        mapa = candidato;
+        paraleloConcluido = true;
+      } catch (falhaLote) {
+        // Se o SPG limitar requisições simultâneas ou variar a paginação,
+        // retoma a consulta sequencial já existente, sem aceitar dados parciais.
+        paraleloConcluido = false;
+      }
+    }
+    if (!paraleloConcluido) {
+      mapa = {1: primeira};
+      for (var pagina = 2; pagina <= paginas; pagina++) {
+        var dado = _emailSpgLerJson_('/api/reentradas/sheets/relatorio?page=' + pagina +
+          '&limit=100', token);
+        validar(dado, pagina);
+        mapa[pagina] = dado;
+      }
+    }
+  }
+  var ids = [];
+  for (var indice = 1; indice <= paginas; indice++) {
+    mapa[indice].rows.forEach(function(linha) {
       if (String(linha.Chamado) !== numero) return;
       var id = _emailSpgUuid_(linha['ID Chamado']);
       if (ids.indexOf(id) === -1) ids.push(id);
@@ -453,14 +503,18 @@ function consultarPacoteEmailSPG(idChamado, opcaoVersao, tipoEmail) {
     if (!p.descricao) faltantes.push('Descricao da producao');
     // Reaproveita o Excel desta consulta. Navegar na prévia não precisa repetir a API.
     // A prévia é opcional; o envio continua validando o pacote atual no SPG.
-    var previaExcel = null, paginaPreviaExcel = null;
+    var previaExcel = null, paginaPreviaExcel = null, livroPrevia = null;
     if (typeof _pfPreviaConjuntoXlsx_ === 'function') {
-      try { previaExcel = _pfPreviaConjuntoXlsx_(p.blob); }
-      catch (erroPrevia) { previaExcel = null; }
+      try {
+        livroPrevia = _pfPreviaLivroXlsx_(p.blob);
+        previaExcel = _pfPreviaConjuntoXlsx_(p.blob, livroPrevia);
+      } catch (erroPrevia) { previaExcel = null; }
     }
     if (!previaExcel && typeof _pfPreviaXlsx_ === 'function') {
-      try { paginaPreviaExcel = _pfPreviaXlsx_(p.blob, {aba: 0, linha: 0, coluna: 0, busca: ''}); }
-      catch (erroPaginaPrevia) { paginaPreviaExcel = null; }
+      try {
+        paginaPreviaExcel = _pfPreviaXlsx_(p.blob,
+          {aba: 0, linha: 0, coluna: 0, busca: ''}, livroPrevia);
+      } catch (erroPaginaPrevia) { paginaPreviaExcel = null; }
     }
     return {status: faltantes.length ? 'incompleto' : 'ok',
       idChamado: p.id, anexoValido: true, anexoHash: p.hash,

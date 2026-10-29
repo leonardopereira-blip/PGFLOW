@@ -220,3 +220,31 @@ test('download de Sheets legado exporta XLSX sem criar nem alterar arquivo no Dr
   assert.equal(calls.email,0);
   assert.equal(calls.drive,1);
 });
+
+test('prévia ignora XML não utilizado e reutiliza o ZIP na paginação de fallback',()=>{
+  const {context:c,calls}=context();
+  c.PF_PREVIA_CONJUNTO_MAX_JSON=1;
+  c.Utilities.unzip=()=>{
+    calls.unzip++;
+    return zip.concat([{getName:()=> 'xl/calcChain.xml',
+      getDataAsString:()=>{throw Error('XML de cálculo não deve ser lido pela prévia');}}]);
+  };
+  const r=c.obterConjuntoPreviaExcelEmail({origem:'spg',idChamado:'3100',anexoHash:'a'.repeat(64),aba:0});
+  assert.equal(r.previaExcel,null);
+  assert.ok(r.pagina && r.pagina.linhas.length>0);
+  assert.equal(r.pagina.linhas[0].celulas[0],'Código do SKU');
+  assert.equal(calls.unzip,1);
+});
+test('primeira consulta de E-mail reaproveita a mesma leitura do Excel no fallback',()=>{
+  const {context:c,calls}=context();
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'..','EmailSPG.js'),'utf8'),c);
+  c.PF_PREVIA_CONJUNTO_MAX_JSON=1;
+  c._emailSpgPacote_=()=>({id:'3100',hash:'a'.repeat(64),dataDesejada:'15/11/2026',
+    descricao:'Produção',blob:{getBytes:()=>[80,75,0,0],getName:()=> 'Chamado 3100.xlsx',
+      copyBlob(){return this},setContentType(){return this}}});
+  const r=c.consultarPacoteEmailSPG('3100','ultima','reentrada');
+  assert.equal(r.anexoValido,true);
+  assert.equal(r.previaExcel,null);
+  assert.ok(r.paginaPreviaExcel && r.paginaPreviaExcel.linhas.length>0);
+  assert.equal(calls.unzip,1);
+});

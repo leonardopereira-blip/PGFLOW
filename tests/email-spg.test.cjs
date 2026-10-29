@@ -717,3 +717,43 @@ test('validacao de reentradas recusa chamado Principal antes de baixar OP',()=>{
   assert.throws(()=>h.c._emailSpgPacote_('3100',true,'reentrada','reentrada'),/não é uma REENTRADA/);
   assert.equal(h.state.network.some(r=>r.url.endsWith('/op')),false);
 });
+
+test('relatório paginado em lotes mantém ordem lógica e confere todas as páginas',()=>{
+  const h=apiHarness({mutate(d){
+    d.pages=Array.from({length:14},(_,i)=>({page:i+1,totalPages:14,rows:
+      i===12?[{Chamado:3100,'ID Chamado':UUID_CHAMADO}]:
+      [{Chamado:1000+i,'ID Chamado':UUID_CHAMADO}]}));
+  }});
+  const batches=[];
+  h.c.UrlFetchApp.fetchAll=reqs=>{
+    batches.push(reqs.length);
+    return reqs.map(req=>h.c.UrlFetchApp.fetch(req.url,req)).reverse();
+  };
+  assert.equal(h.c._emailSpgResolverId_('3100','token'),UUID_CHAMADO);
+  assert.deepEqual(batches,[6,6,1]);
+  assert.equal(h.state.network.length,14);
+  assert.equal(h.state.network.every(n=>n.method==='get'),true);
+  assert.equal(h.state.emails.length,0);
+});
+test('consulta em lote indisponível usa páginas sequenciais sem perder validação',()=>{
+  const h=apiHarness({mutate(d){
+    d.pages=[
+      {page:1,totalPages:3,rows:[]},
+      {page:2,totalPages:3,rows:[{Chamado:3100,'ID Chamado':UUID_CHAMADO}]},
+      {page:3,totalPages:3,rows:[]}
+    ];
+  }});
+  h.c.UrlFetchApp.fetchAll=()=>{throw Error('Lote temporariamente indisponível');};
+  assert.equal(h.c._emailSpgResolverId_('3100','token'),UUID_CHAMADO);
+  assert.equal(h.state.network.filter(x=>x.url.includes('/sheets/relatorio')).length,3);
+});
+test('consulta paralela não aceita IDs divergentes para o mesmo número',()=>{
+  const h=apiHarness({mutate(d){
+    d.pages=[
+      {page:1,totalPages:2,rows:[{Chamado:3100,'ID Chamado':UUID_CHAMADO}]},
+      {page:2,totalPages:2,rows:[{Chamado:3100,'ID Chamado':'b06fe3e4-6233-4e52-907d-093e161ed69e'}]}
+    ];
+  }});
+  h.c.UrlFetchApp.fetchAll=reqs=>reqs.map(req=>h.c.UrlFetchApp.fetch(req.url,req));
+  assert.throws(()=>h.c._emailSpgResolverId_('3100','token'),/identificacoes diferentes/);
+});

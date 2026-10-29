@@ -7,6 +7,7 @@
     <span style="font-weight: 700; font-family: Helvetica, Arial, sans-serif; font-size: 13px; color: #0038A8;">ARCO </span>
     <span class="vc-brand-tt">PG Flow</span>
   </div>
+    <button type="button" class="vc-rx-link" onclick="rxAbrirLista()">Arquivos da pasta · Proteção</button>
   <div class="vc-layout-container">
     <div class="vc-main-panel" id="painelEsquerdo">
       <div id="telaFase1">
@@ -80,6 +81,8 @@
           <div id="resumoGerado" style="display:none; margin-top:18px;"></div>
 
           <div id="finishArea" style="display:none; text-align:center; margin-top:25px;">
+             <button id="rxBtnResultado" class="vc-btn-primary" type="button" onclick="rxAbrirUltimo()">Conferir e editar Excel</button>
+             <button type="button" class="vc-rx-soft" onclick="rxVoltarAjustes()">Voltar aos ajustes</button>
              <button id="btnNovaCalc" class="vc-btn-primary" onclick="resetarParaNovaCalculadora()">Gerar nova calculadora</button>
           </div>
           <div id="erroFase3" style="display:none; margin-top: 20px; font-size: 13px; line-height: 1.5; color: #b5341f; text-align: center;"></div>
@@ -100,6 +103,42 @@
         <button class="btn-cancelar" onclick="cancelarResumo()">Voltar</button>
         <button id="btnTentarResumo" class="btn-cancelar" onclick="abrirResumoAntesDeAvancar()" style="display:none;">Tentar novamente</button>
         <button class="btn-continuar" onclick="continuarPosResumo()">Avançar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="rxOverlay" class="rx-overlay" hidden>
+  <div class="rx-window">
+    <div class="rx-head">
+      <div><strong id="rxTitulo">Arquivos de Reentradas</strong><span id="rxSubtitulo"></span></div>
+      <div class="rx-actions">
+        <button type="button" class="vc-rx-soft" onclick="rxVoltarLista()" id="rxVoltarListaBtn" hidden>Voltar à pasta</button>
+        <button type="button" class="vc-rx-soft" onclick="rxFechar()">Fechar / voltar</button>
+      </div>
+    </div>
+    <div id="rxListaPane">
+      <div class="rx-toolbar"><input id="rxFiltro" type="search" placeholder="Buscar chamado, gráfica ou arquivo…" oninput="rxRenderLista()">
+        <button type="button" class="vc-rx-soft" onclick="rxCarregarLista()">Atualizar lista</button>
+        <button type="button" class="vc-rx-soft" onclick="rxFechar()">Cancelar</button></div>
+      <div id="rxListaStatus" role="status"></div><div id="rxListaArquivos"></div>
+    </div>
+    <div id="rxEditorPane" hidden>
+      <div class="rx-toolbar">
+        <button type="button" class="vc-rx-soft" onclick="rxAlternarExpandir()" id="rxExpandir">Expandir</button>
+        <input id="rxBuscarCelulas" type="search" placeholder="Buscar nesta aba…" oninput="rxAgendarBusca()">
+        <button type="button" class="vc-rx-soft" onclick="rxLimparBusca()">Limpar</button>
+        <button type="button" class="vc-rx-save" id="rxSalvar" onclick="rxSalvarEdicoes()" disabled>Salvar alterações no arquivo</button>
+      </div>
+      <div id="rxAbas" class="rx-tabs" role="tablist"></div>
+      <div id="rxMsg" role="status"></div>
+      <div class="rx-grid" id="rxGrid"><table aria-label="Prévia editável do Excel"><thead id="rxCab"></thead><tbody id="rxCorpo"></tbody></table></div>
+      <div class="rx-bottom">
+        <button type="button" class="vc-rx-soft" onclick="rxMoverLinha(-1)">← Linhas</button>
+        <button type="button" class="vc-rx-soft" onclick="rxMoverLinha(1)">Linhas →</button>
+        <button type="button" class="vc-rx-soft" onclick="rxMoverColuna(-1)">← Colunas</button>
+        <button type="button" class="vc-rx-soft" onclick="rxMoverColuna(1)">Colunas →</button>
+        <a id="rxLinkDrive" href="#" target="_blank" rel="noopener">Abrir arquivo no Drive</a>
       </div>
     </div>
   </div>
@@ -205,6 +244,37 @@
   .vc-recentes-lista th,.vc-recentes-lista td{padding:8px;border-bottom:1px solid #e6e8ef;white-space:nowrap;}
   .vc-recentes-lista th{background:#f7f9fd;color:#54607d;position:sticky;top:0;}
   .vc-recentes-lista button{border:0;padding:0;background:transparent;color:#284081;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;}
+
+  .vc-rx-link{float:right;border:0;background:transparent;color:#284081;text-decoration:underline;font:600 11px Poppins,Arial;cursor:pointer;padding:10px}
+  .vc-rx-soft{border:1px solid #d3d9e6;background:#f7f9fd;color:#284081;font:600 12px Poppins,Arial;border-radius:7px;padding:9px 12px;cursor:pointer}
+  .rx-overlay{position:fixed;inset:0;z-index:1010;background:rgba(17,30,58,.65);display:flex;align-items:stretch;justify-content:center;padding:12px}
+  .rx-overlay[hidden],.rx-window [hidden]{display:none!important}
+  .rx-window{background:#fff;border-radius:12px;box-shadow:0 10px 35px rgba(0,0,0,.25);width:min(1380px,100%);display:flex;flex-direction:column;min-height:0;padding:15px}
+  .rx-overlay.rx-wide{padding:0}.rx-overlay.rx-wide .rx-window{width:100%;border-radius:0}
+  .rx-head,.rx-toolbar,.rx-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .rx-head{border-bottom:1px solid #e2e7ef;padding:3px 2px 12px}.rx-head strong{color:#284081;display:block}
+  #rxSubtitulo{font-size:11px;color:#667085;display:block;margin-top:4px}
+  .rx-actions{display:flex;gap:8px}
+  #rxListaPane,#rxEditorPane{min-height:0;flex:1;display:flex;flex-direction:column}
+  .rx-toolbar{padding:12px 0;justify-content:flex-start}.rx-toolbar input{flex:1;min-width:140px;padding:8px 10px;border:1px solid #cdd6e4;border-radius:7px}
+  .rx-file{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px;border:1px solid #e4eaf3;border-radius:8px;margin:6px 0}
+  .rx-file strong{display:block;overflow-wrap:anywhere}.rx-file small{display:block;color:#667085;margin-top:3px}
+  .rx-file-buttons{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}.rx-file-buttons button{font-size:11px}
+  #rxListaArquivos{overflow:auto;min-height:0;flex:1}.rx-tabs{display:flex;overflow-x:auto;gap:4px;padding:8px 0}
+  .rx-tabs button{border:1px solid #d9e0ea;background:#f3f6fa;white-space:nowrap;border-radius:6px;padding:6px 9px;font:600 11px Poppins;cursor:pointer}
+  .rx-tabs button[aria-selected=true]{color:#fff;background:#284081}
+  #rxMsg,#rxListaStatus{font:12px Poppins;color:#607089;min-height:28px;padding:5px 1px}
+  .rx-grid{min-height:0;flex:1;overflow:auto;border:1px solid #d9e0ea;border-radius:6px;cursor:cell}
+  .rx-grid table{border-collapse:collapse;table-layout:fixed;font:12px Arial,sans-serif}
+  .rx-grid th,.rx-grid td{padding:5px 8px;border:1px solid #e5e9ee;min-width:100px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rx-grid th{position:sticky;top:0;z-index:2;background:#eef2fa;color:#284081}
+  .rx-grid .rx-row{position:sticky;left:0;z-index:1;background:#f4f6fa;min-width:50px}
+  .rx-grid td.rx-mod{background:#fff0bd}.rx-grid td.rx-formula{background:#f7f9fc;color:#5b677a}
+  .rx-grid td input{width:100%;font:inherit;border:1px solid #049fec;border-radius:3px;padding:4px}
+  .rx-bottom{justify-content:flex-start;padding:10px 0}.rx-bottom a{margin-left:auto;color:#284081;font-weight:600;font-size:12px}
+  .vc-rx-save{border:0;background:#168449;color:#fff;font:600 12px Poppins;border-radius:7px;padding:9px 13px;cursor:pointer}
+  .vc-rx-save:disabled{background:#acb7c7;cursor:default}
+  @media(max-width:650px){.rx-overlay{padding:0}.rx-window{border-radius:0}.rx-file{display:block}.rx-file-buttons{margin-top:8px}}
 </style>
 <script>
   var FORNECEDORES = ["GRÁFICA", "ATHOS", "FELK", "HR"];
@@ -862,12 +932,16 @@
     var idPastaOuNome=document.getElementById('selectGraficas').value;
 
     _resumo = [];
+    rxUltimo=null;
     google.script.run.withSuccessHandler(function(res) {
       if (!res || res.erro || !res.sucesso || !Array.isArray(res.arquivos) || !res.arquivos.length) {
         return mostrarErroCustos(res && res.erro || 'O Apps Script não confirmou a geração dos arquivos.');
       }
       _resumo = res.resumo || [];
       concluirTracker();
+      // Abre a prévia do próprio XLSX recém-gerado, sem procurar novamente no SPG.
+      rxUltimo=(res.arquivos||[]).filter(function(item){return item.calculadoraId||item.deparaId;})[0]||null;
+      if(rxUltimo)rxAbrirArquivo(rxUltimo);
       var avisos = _avisosValidacaoReentradas.slice();
       (Array.isArray(res.avisos) ? res.avisos : []).forEach(function(item) {
         if (avisos.indexOf(item) === -1) avisos.push(item);
@@ -881,7 +955,7 @@
       mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
     }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
-  function resetarParaNovaCalculadora(){
+  function resetarParaNovaCalculadora(){rxUltimo=null;
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
     cacheChamadosValidos=[];
     document.getElementById('telaFase3').style.display='none';
@@ -907,6 +981,199 @@
     err.textContent = 'Erro na geração: ' + String(e && e.message || e || 'Erro desconhecido');
     document.getElementById('finishArea').style.display = 'block';
     document.getElementById('stepTotal').style.display = 'none';
+  }
+
+
+  // Reentradas: prévia local, edição revisável e restauração sob demanda.
+  var rxArquivo=null,rxUltimo=null,rxArquivos=[],rxConjunto=null,rxConjuntoTentado=false;
+  var rxEstado={aba:0,linha:0,coluna:0,busca:''},rxPagina=null,rxPendente={};
+  var rxToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false;
+  function rxEl(id){return document.getElementById(id);}
+  function rxMsg(t){rxEl('rxMsg').textContent=t||'';}
+  function rxTemEdicoes(){return Object.keys(rxPendente).length>0;}
+  function rxConfirmarSair(){if(rxOcupado){rxMsg('Aguarde a confirmação do salvamento antes de sair.');return false;}return !rxTemEdicoes()||confirm('Existem alterações não salvas. Descartar e voltar?');}
+  function rxFechar(){
+    if(!rxConfirmarSair())return;
+    rxToken++;rxEl('rxOverlay').hidden=true;rxEl('rxOverlay').classList.remove('rx-wide');
+    rxPendente={};rxEl('rxExpandir').textContent='Expandir';
+  }
+  function rxAbrirLista(){
+    if(!rxConfirmarSair())return;
+    rxToken++;rxPendente={};rxArquivo=null;rxConjunto=null;rxPagina=null;
+    rxEl('rxOverlay').hidden=false;rxEl('rxEditorPane').hidden=true;rxEl('rxListaPane').hidden=false;
+    rxEl('rxVoltarListaBtn').hidden=true;rxEl('rxTitulo').textContent='Arquivos de Reentradas';
+    rxEl('rxSubtitulo').textContent='Pasta de calculadoras e De-Para. O bloqueio restaura a proteção da calculadora.';
+    if(rxListaCarregada)rxRenderLista();else rxCarregarLista();
+  }
+  function rxCarregarLista(){
+    rxEl('rxListaStatus').textContent='Carregando arquivos da pasta…';
+    google.script.run.withSuccessHandler(function(r){
+      if(rxEl('rxOverlay').hidden||rxEl('rxListaPane').hidden)return;
+      if(!r||r.erro){rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao listar arquivos.';return;}
+      rxArquivos=r.arquivos||[];rxListaCarregada=true;rxRenderLista();
+    }).withFailureHandler(function(e){rxEl('rxListaStatus').textContent='Falha: '+(e.message||e);})
+      .listarArquivosReentradasExcel();
+  }
+  function rxRenderLista(){
+    var filtro=rxEl('rxFiltro').value.toLocaleLowerCase('pt-BR');
+    var achados=rxArquivos.filter(function(a){return a.nome.toLocaleLowerCase('pt-BR').includes(filtro);});
+    rxEl('rxListaStatus').textContent=achados.length+' arquivo(s) encontrado(s).';
+    var host=rxEl('rxListaArquivos');host.textContent='';
+    achados.forEach(function(a){
+      var box=document.createElement('div');box.className='rx-file';
+      var info=document.createElement('div'),nome=document.createElement('strong');
+      nome.textContent=a.nome;info.appendChild(nome);
+      var det=document.createElement('small');
+      det.textContent='Atualizado '+new Date(a.atualizadoEm).toLocaleString('pt-BR')+(a.motivo?' · '+a.motivo:'');
+      info.appendChild(det);box.appendChild(info);
+      var buttons=document.createElement('div');buttons.className='rx-file-buttons';
+      var abrir=document.createElement('button');abrir.className='vc-rx-soft';abrir.textContent='Conferir / editar';
+      abrir.disabled=!a.editavel;abrir.onclick=function(){rxAbrirArquivo(a);};buttons.appendChild(abrir);
+      var bloqueio=document.createElement('button');bloqueio.className='vc-rx-soft';bloqueio.textContent='Restaurar proteção';
+      bloqueio.disabled=!a.bloqueavel;bloqueio.onclick=function(){rxBloquear(a);};buttons.appendChild(bloqueio);
+      box.appendChild(buttons);host.appendChild(box);
+    });
+    if(!achados.length)host.textContent='Nenhum arquivo corresponde à busca.';
+  }
+  function rxBloquear(a){
+    if(!confirm('Restaurar a proteção do modelo em '+a.nome+'? Os valores e fórmulas serão preservados.'))return;
+    rxEl('rxListaStatus').textContent='Restaurando proteção…';
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||r.erro){rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao restaurar proteção.';return;}
+      rxEl('rxListaStatus').textContent='Proteção restaurada e conferida: '+r.nome;
+      rxListaCarregada=false;rxCarregarLista();
+    }).withFailureHandler(function(e){rxEl('rxListaStatus').textContent='Erro: '+(e.message||e);})
+      .bloquearArquivoReentradasExcel(a.id,a.atualizadoEm);
+  }
+  function rxAbrirUltimo(){if(rxUltimo)rxAbrirArquivo(rxUltimo);else rxAbrirLista();}
+  function rxAbrirArquivo(a){
+    if(!rxConfirmarSair())return;
+    rxArquivo={id:a.id||a.calculadoraId||a.deparaId,
+      atualizadoEm:a.atualizadoEm||null,nome:a.nome||a.arquivo||''};
+    if(!rxArquivo.id){rxAbrirLista();return;}
+    rxToken++;rxPendente={};rxConjunto=null;rxPagina=null;rxConjuntoTentado=false;
+    rxEstado={aba:0,linha:0,coluna:0,busca:''};rxEl('rxBuscarCelulas').value='';
+    rxEl('rxOverlay').hidden=false;rxEl('rxListaPane').hidden=true;rxEl('rxEditorPane').hidden=false;
+    rxEl('rxVoltarListaBtn').hidden=false;rxEl('rxTitulo').textContent='Conferir e editar Excel';
+    rxEl('rxSubtitulo').textContent=rxArquivo.nome;
+    rxEl('rxAbas').textContent='';rxEl('rxCab').textContent='';rxEl('rxCorpo').textContent='';
+    rxEl('rxSalvar').disabled=true;rxPedirPagina();
+  }
+  function rxVoltarLista(){if(!rxConfirmarSair())return;rxPendente={};rxAbrirLista();}
+  function rxAlternarExpandir(){
+    var b=rxEl('rxOverlay'),on=!b.classList.contains('rx-wide');
+    b.classList.toggle('rx-wide',on);rxEl('rxExpandir').textContent=on?'Reduzir':'Expandir';
+  }
+  function rxLetra(n){var s='';while(n>0){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
+  function rxPaginaLocal(){
+    var aba=rxConjunto.abas[rxEstado.aba];if(!aba)return null;
+    var termo=rxEstado.busca.toLocaleLowerCase('pt-BR');
+    var filtradas=termo?aba.linhas.filter(function(r){
+      return Object.keys(r.valores).some(function(k){return String(r.valores[k]).toLocaleLowerCase('pt-BR').includes(termo);});
+    }):aba.linhas;
+    var start=Math.min(rxEstado.linha,filtradas.length),col=Math.min(rxEstado.coluna,Math.max(0,aba.totalColunas-1));
+    var largura=Math.min(65,aba.totalColunas-col),colunas=[],linhas=[];
+    for(var j=0;j<largura;j++)colunas.push(rxLetra(col+j+1));
+    filtradas.slice(start,start+50).forEach(function(r){
+      var values=[];for(var k=0;k<largura;k++)values.push(String(r.valores[col+k]??''));
+      linhas.push({numero:r.numero,celulas:values});
+    });
+    return {arquivo:rxConjunto.arquivo,abas:rxConjunto.abas.map(function(x){return x.nome;}),
+      aba:rxEstado.aba,linha:start,coluna:col,totalLinhas:aba.linhas.length,
+      totalFiltradas:filtradas.length,totalColunas:aba.totalColunas,
+      colunas:colunas,linhas:linhas};
+  }
+  function rxPedirPagina(){
+    if(!rxArquivo||rxEl('rxOverlay').hidden)return;
+    var token=++rxToken;
+    rxMsg('Carregando células do arquivo…');
+    if(rxConjunto){rxPagina=rxPaginaLocal();rxRenderPagina();return;}
+    var pedido={id:rxArquivo.id,atualizadoEm:rxArquivo.atualizadoEm,
+      aba:rxEstado.aba,linha:rxEstado.linha,coluna:rxEstado.coluna,busca:rxEstado.busca,
+      apenasPagina:rxConjuntoTentado};
+    google.script.run.withSuccessHandler(function(r){
+      if(token!==rxToken)return;
+      if(!r||!r.arquivo){rxMsg('Prévia indisponível. Tente reabrir o arquivo.');return;}
+      rxArquivo=r.arquivo;
+      rxEl('rxSubtitulo').textContent=r.arquivo.nome;
+      rxEl('rxLinkDrive').href=r.arquivo.url;
+      rxConjuntoTentado=true;
+      if(r.previaExcel&&Array.isArray(r.previaExcel.abas)){
+        rxConjunto=r.previaExcel;rxPagina=rxPaginaLocal();
+      }else rxPagina=r.pagina;
+      if(rxPagina)rxRenderPagina();else rxMsg('Prévia vazia.');
+    }).withFailureHandler(function(e){if(token===rxToken)rxMsg('Falha ao ler Excel: '+(e.message||e));})
+      .obterPreviaReentradasExcel(pedido);
+  }
+  function rxRenderPagina(){
+    var p=rxPagina;if(!p)return;
+    var tabHost=rxEl('rxAbas');tabHost.textContent='';
+    p.abas.forEach(function(nome,i){
+      var b=document.createElement('button');b.type='button';b.setAttribute('role','tab');
+      b.setAttribute('aria-selected',String(i===p.aba));b.textContent=nome;
+      b.onclick=function(){rxEstado.aba=i;rxEstado.linha=0;rxEstado.coluna=0;rxPedirPagina();};
+      tabHost.appendChild(b);
+    });
+    var cab=rxEl('rxCab'),corpo=rxEl('rxCorpo');cab.textContent='';corpo.textContent='';
+    var tr=document.createElement('tr'),th=document.createElement('th');th.className='rx-row';th.textContent='#';tr.appendChild(th);
+    p.colunas.forEach(function(letra){var th=document.createElement('th');th.textContent=letra;tr.appendChild(th);});cab.appendChild(tr);
+    p.linhas.forEach(function(l){
+      var tr=document.createElement('tr'),indice=document.createElement('td');
+      indice.className='rx-row';indice.textContent=l.numero;tr.appendChild(indice);
+      l.celulas.forEach(function(valor,i){
+        var td=document.createElement('td'),col=p.coluna+i+1;
+        var key=p.aba+':'+l.numero+':'+col,pend=rxPendente[key];
+        var texto=pend?pend.valor:String(valor??'');
+        td.textContent=texto;td.title=texto;
+        if(pend)td.className='rx-mod';
+        if(/^=/.test(texto))td.className+=' rx-formula';
+        td.ondblclick=function(){rxEditarCelula(td,p.aba,l.numero,col,texto);};
+        tr.appendChild(td);
+      });
+      corpo.appendChild(tr);
+    });
+    rxMsg('Aba '+p.abas[p.aba]+' · '+p.totalFiltradas+' linhas · duplo clique na célula para editar. '+
+      Object.keys(rxPendente).length+' alteração(ões) pendentes.');
+    rxEl('rxSalvar').disabled=!rxTemEdicoes()||rxOcupado;
+  }
+  function rxEditarCelula(td,aba,linha,coluna,valor){
+    if(rxOcupado||td.querySelector('input'))return;
+    if(/^=/.test(valor)){rxMsg('Fórmulas não podem ser alteradas pela prévia.');return;}
+    var input=document.createElement('input');input.value=valor;td.textContent='';td.appendChild(input);input.focus();input.select();
+    var terminando=false;
+    function terminar(cancelar){
+      if(terminando)return;terminando=true;
+      var novo=input.value,key=aba+':'+linha+':'+coluna;
+      if(!cancelar&&novo!==valor){rxPendente[key]={aba:aba,linha:linha,coluna:coluna,valor:novo};}
+      rxRenderPagina();
+    }
+    input.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();terminar(false);}
+      else if(e.key==='Escape'){e.preventDefault();terminar(true);}};
+    input.onblur=function(){terminar(false);};
+  }
+  function rxAgendarBusca(){
+    if(rxTimer)clearTimeout(rxTimer);
+    rxTimer=setTimeout(function(){rxEstado.busca=rxEl('rxBuscarCelulas').value.trim().substring(0,100);rxEstado.linha=0;rxPedirPagina();},180);
+  }
+  function rxLimparBusca(){rxEl('rxBuscarCelulas').value='';rxEstado.busca='';rxEstado.linha=0;rxPedirPagina();}
+  function rxMoverLinha(sentido){if(!rxPagina)return;rxEstado.linha=Math.max(0,Math.min(rxPagina.totalFiltradas-1,rxEstado.linha+sentido*50));rxPedirPagina();}
+  function rxMoverColuna(sentido){if(!rxPagina)return;rxEstado.coluna=Math.max(0,Math.min(rxPagina.totalColunas-1,rxEstado.coluna+sentido*65));rxPedirPagina();}
+  function rxSalvarEdicoes(){
+    if(rxOcupado||!rxArquivo||!rxTemEdicoes())return;
+    var itens=Object.keys(rxPendente).map(function(k){return rxPendente[k];});
+    if(itens.length>200){rxMsg('Salve em grupos de até 200 alterações.');return;}
+    rxOcupado=true;rxEl('rxSalvar').disabled=true;rxMsg('Salvando no mesmo XLSX do Drive…');
+    google.script.run.withSuccessHandler(function(r){
+      rxOcupado=false;
+      if(!r||r.erro){rxMsg('Não foi possível confirmar o salvamento: '+(r&&r.erro||'Erro não informado.'));rxEl('rxSalvar').disabled=false;return;}
+      rxArquivo.atualizadoEm=r.atualizadoEm;rxPendente={};rxConjunto=null;rxConjuntoTentado=false;
+      rxListaCarregada=false;rxPedirPagina();
+    }).withFailureHandler(function(e){rxOcupado=false;rxMsg('Falha ao salvar: '+(e.message||e));rxEl('rxSalvar').disabled=false;})
+      .salvarEdicoesReentradasExcel(rxArquivo.id,rxArquivo.atualizadoEm,itens);
+  }
+  function rxVoltarAjustes(){
+    if(_timers.interval)return;
+    rxToken++;rxEl('telaFase3').style.display='none';rxEl('telaFase2').style.display='block';
   }
 
   function setMsg(id,t,c){ var d=document.getElementById(id); if(d){ d.style.color=c; d.innerHTML=t; } }

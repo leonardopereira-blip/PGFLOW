@@ -729,7 +729,7 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   if(!bySku.length){
     var tecnico=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
     return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',
-      skus:0,tiragem:0,depara:tecnico.getUrl(),calculadora:'',arquivo:nomeD,somenteEspecificacao:true,
+      skus:0,tiragem:0,depara:tecnico.getUrl(),deparaId:tecnico.getId(),calculadora:'',arquivo:nomeD,somenteEspecificacao:true,
       skusSomenteEspecificacao:somenteEspec,avisos:avisos,
       skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],skusIgnorados:api.skusIgnorados||[]};
   }
@@ -759,7 +759,7 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC);
   return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',skus:bySku.length,
     tiragem:bySku.reduce(function(s,k){return s+nc.porSku[k].total;},0),
-    depara:fd.getUrl(),calculadora:fc.getUrl(),arquivo:nomeC,
+    depara:fd.getUrl(),deparaId:fd.getId(),calculadora:fc.getUrl(),calculadoraId:fc.getId(),arquivo:nomeC,
     skusEspecificacaoGeral:api.skusEspecificacaoGeral||[],avisos:avisos,skusSomenteEspecificacao:somenteEspec,
     skusIgnorados:api.skusIgnorados||[],tiragemIgnorada:api.tiragemIgnorada||0,
     aviso:'O Excel recalcula custos ao abrir; precos nao homologados sem abrir e validar.'};

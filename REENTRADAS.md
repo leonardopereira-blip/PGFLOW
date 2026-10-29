@@ -50,6 +50,18 @@ Para bloquear novamente uma calculadora pronta, executar `abrirBloqueioCalculado
 
 Calculadoras antigas XLSM tambem podem ser escolhidas: somente nesse momento o VBA e seus relacionamentos sao retirados, e o arquivo escolhido passa a XLSX. A pasta, o nome, o tipo e a ultima alteracao sao conferidos novamente antes da gravacao. Nenhum arquivo da pasta e alterado somente por abrir a lista.
 
+## Previa editavel no aplicativo
+
+Apos gerar, a tela abre a conferencia do Excel. O botao Arquivos da pasta / Protecao tambem lista os arquivos existentes, permite conferir os XLSX reconhecidos e restaurar a protecao de uma calculadora selecionada. Voltar, cancelar ou iniciar outra calculadora preservam uma operacao de gravacao em andamento e pedem confirmacao antes de descartar edicoes pendentes.
+
+O salvamento aceita ate 200 celulas por vez, substitui os bytes do mesmo arquivo com nova revisao no Drive e confere o SHA-256 por releitura. Exige a data de alteracao obtida na previa e recusa um arquivo que ja mudou. O ScriptLock coordena gravacoes feitas por este script; nao torna atomicas as edicoes simultaneas feitas diretamente por outras ferramentas no Drive.
+
+Formulas, intervalos matriciais e celulas cobertas por mesclagens ficam protegidos contra substituicao. Apenas a primeira celula de uma area mesclada pode receber valor. Texto invalido para XML e metadados especiais nao suportados sao recusados antes da gravacao. A previa e o salvamento usam os mesmos indices de worksheets, ignorando abas de grafico e relacoes externas. Estilos, tarifas e demais partes do XLSX permanecem preservados.
+
+O arquivo editado fica marcado para recalculo integral ao abrir no Excel. A previa nao executa formulas; valores calculados podem permanecer em cache ate essa abertura. Os parametros de iteracao existentes sao conservados.
+
+Os testes de `reentradas-excel-*.test.cjs` verificam o contrato da previa, rejeicoes antes de gravar e uma edicao/restauracao em ZIP real do molde META, comparando todas as partes e mais de 375 mil formulas. Os testes de interface tambem verificam callbacks antigos, voltar/cancelar, salvamento e bloqueio de formulas/mesclagens.
+
 ## SKUs somente tecnicos
 
 Antes de preencher os custos, o gerador confere as colunas dedicadas Grafico e Editorial da especificacao e da tiragem originais, ainda antes do mapeamento do molde. Negativos explicitos (Nao Grafico, Nao Editorial, Nao ou false na coluna correspondente) excluem o SKU da calculadora e dos totais calculaveis. Classificacao do produto, descricao, campos ausentes e valores desconhecidos nao permitem inferir exclusao.

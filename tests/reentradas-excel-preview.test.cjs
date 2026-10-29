@@ -54,8 +54,8 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
   const refs={};
   const mk=(name,contents)=>({getName(){return name},getDataAsString(){return contents}});
   let partes=[
-    mk('xl/workbook.xml','<workbook/>'),
-    mk('xl/_rels/workbook.xml.rels','<Relationships/>'),
+    mk('xl/workbook.xml','<workbook><sheets><sheet name="CALC Geral" r:id="r1"/></sheets></workbook>'),
+    mk('xl/_rels/workbook.xml.rels','<Relationships><Relationship Id="r1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>'),
     mk('xl/worksheets/sheet1.xml',xml),
     mk('xl/styles.xml','<styles intact="sim"/>')
   ];
@@ -85,7 +85,7 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
     _reLpAbas_(){return[{nome:'CALC Geral',caminho:'xl/worksheets/sheet1.xml'}]},
     _bcDigest_:mkHash
   };
-  vm.createContext(env);vm.runInContext(gerador,env);vm.runInContext(b,env);
+  vm.createContext(env);vm.runInContext(gerador,env);vm.runInContext(fs.readFileSync(path.join(root,'MacroProtecao.js'),'utf8'),env);vm.runInContext(b,env);
   const result=env.salvarEdicoesReentradasExcel(id,1700000000000,[
     {aba:0,linha:2,coluna:2,valor:'Alterado'}
   ]);
@@ -102,4 +102,8 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
   const badFormula=env.salvarEdicoesReentradasExcel(id,1700000001000,[{aba:0,linha:2,coluna:3,valor:'3'}]);
   assert.match(badFormula.erro,/fórmula/);
   assert.equal(quantidade,1);
+  for(const stamp of [undefined,null,NaN,'',0,'invalido',1700000001000.5,9999999999999999]){
+    const invalido=env.salvarEdicoesReentradasExcel(id,stamp,[{aba:0,linha:2,coluna:1,valor:'3'}]);
+    assert.match(invalido.erro,/Atualize a prévia/);assert.equal(quantidade,1);
+  }
 });

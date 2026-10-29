@@ -32,6 +32,10 @@
           <div id="painelChips" class="vc-chips"></div>
           <div id="painelInvalidos" class="vc-invalid"></div>
           <button id="btnConcluir" class="vc-btn-coral" onclick="executarFase2()">⚙️ Gerar Calculadora</button>
+          <div class="rx-actions" style="margin-top:10px;flex-wrap:wrap;">
+            <button type="button" class="vc-rx-soft" onclick="rxVoltarChamados()">Voltar aos chamados</button>
+            <button type="button" class="vc-rx-soft" onclick="resetarParaNovaCalculadora()">Cancelar e iniciar nova</button>
+          </div>
           <div id="ctaHint" class="vc-cta-hint"></div>
         </div>
         <div class="vc-section">
@@ -270,6 +274,7 @@
   .rx-grid th{position:sticky;top:0;z-index:2;background:#eef2fa;color:#284081}
   .rx-grid .rx-row{position:sticky;left:0;z-index:1;background:#f4f6fa;min-width:50px}
   .rx-grid td.rx-mod{background:#fff0bd}.rx-grid td.rx-formula{background:#f7f9fc;color:#5b677a}
+  .rx-grid td.rx-merged{background:#eef1f5;color:#5b677a;cursor:default}
   .rx-grid td input{width:100%;font:inherit;border:1px solid #049fec;border-radius:3px;padding:4px}
   .rx-bottom{justify-content:flex-start;padding:10px 0}.rx-bottom a{margin-left:auto;color:#284081;font-weight:600;font-size:12px}
   .vc-rx-save{border:0;background:#168449;color:#fff;font:600 12px Poppins;border-radius:7px;padding:9px 13px;cursor:pointer}
@@ -955,10 +960,15 @@
       mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
     }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
-  function resetarParaNovaCalculadora(){rxUltimo=null;
+  function resetarParaNovaCalculadora(){
+    if(_timers.interval||!rxConfirmarSair())return;
+    rxUltimo=null;rxToken++;rxListaToken++;
+    rxPendente={};rxFormulas={};rxFaixasFormulas=[];rxMesclagens=[];rxEl('rxOverlay').hidden=true;
     if(_timers.interval) { clearInterval(_timers.interval); _timers.interval=null; }
     cacheChamadosValidos=[];
     document.getElementById('telaFase3').style.display='none';
+    document.getElementById('telaFase2').style.display='none';
+    document.getElementById('painelResumo').classList.remove('active');
    
     document.getElementById('txtChamados').disabled=false;
     document.getElementById('selectGraficas').disabled=false;
@@ -967,6 +977,15 @@
     document.getElementById('telaFase1').style.display='block';
     setMsg('mensagemFase1','', '#333');
     verificarLiberacaoBotao();
+  }
+  function rxVoltarChamados(){
+    if(_timers.interval||!rxConfirmarSair())return;
+    cacheChamadosValidos=[];
+    document.getElementById('telaFase2').style.display='none';
+    document.getElementById('telaFase3').style.display='none';
+    document.getElementById('telaFase1').style.display='block';
+    cancelarResumo();
+    setMsg('mensagemFase1','', '#333');
   }
   function mostrarErroCustos(e){
     if (_timers.interval) { clearInterval(_timers.interval); _timers.interval = null; }
@@ -986,15 +1005,30 @@
 
   // Reentradas: prévia local, edição revisável e restauração sob demanda.
   var rxArquivo=null,rxUltimo=null,rxArquivos=[],rxConjunto=null,rxConjuntoTentado=false;
-  var rxEstado={aba:0,linha:0,coluna:0,busca:''},rxPagina=null,rxPendente={};
-  var rxToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false;
+  var rxEstado={aba:0,linha:0,coluna:0,busca:''},rxPagina=null,rxPendente={},rxFormulas={},rxFaixasFormulas=[],rxMesclagens=[];
+  var rxToken=0,rxListaToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false;
   function rxEl(id){return document.getElementById(id);}
   function rxMsg(t){rxEl('rxMsg').textContent=t||'';}
   function rxTemEdicoes(){return Object.keys(rxPendente).length>0;}
-  function rxConfirmarSair(){if(rxOcupado){rxMsg('Aguarde a confirmação do salvamento antes de sair.');return false;}return !rxTemEdicoes()||confirm('Existem alterações não salvas. Descartar e voltar?');}
+  function rxEhFormula(aba,linha,coluna){
+    return !!rxFormulas[aba+':'+linha+':'+coluna]||rxFaixasFormulas.some(function(f){
+      return f.aba===aba&&coluna>=f.x1&&coluna<=f.x2&&linha>=f.y1&&linha<=f.y2;
+    });
+  }
+  function rxMesclagemCoberta(aba,linha,coluna){
+    return rxMesclagens.find(function(f){
+      return f.aba===aba&&coluna>=f.x1&&coluna<=f.x2&&linha>=f.y1&&linha<=f.y2&&
+        (coluna!==f.x1||linha!==f.y1);
+    })||null;
+  }
+  function rxConfirmarSair(){if(rxOcupado){
+    var aviso='Aguarde a confirmação da operação no arquivo antes de sair.';
+    rxMsg(aviso);rxEl('rxListaStatus').textContent=aviso;return false;
+  }return !rxTemEdicoes()||confirm('Existem alterações não salvas. Descartar e voltar?');}
   function rxFechar(){
     if(!rxConfirmarSair())return;
-    rxToken++;rxEl('rxOverlay').hidden=true;rxEl('rxOverlay').classList.remove('rx-wide');
+    rxToken++;rxListaToken++;if(rxTimer)clearTimeout(rxTimer);
+    rxEl('rxOverlay').hidden=true;rxEl('rxOverlay').classList.remove('rx-wide');
     rxPendente={};rxEl('rxExpandir').textContent='Expandir';
   }
   function rxAbrirLista(){
@@ -1006,12 +1040,18 @@
     if(rxListaCarregada)rxRenderLista();else rxCarregarLista();
   }
   function rxCarregarLista(){
+    if(rxOcupado)return;
+    var token=++rxListaToken;
     rxEl('rxListaStatus').textContent='Carregando arquivos da pasta…';
     google.script.run.withSuccessHandler(function(r){
-      if(rxEl('rxOverlay').hidden||rxEl('rxListaPane').hidden)return;
+      if(token!==rxListaToken||rxEl('rxOverlay').hidden||rxEl('rxListaPane').hidden)return;
       if(!r||r.erro){rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao listar arquivos.';return;}
-      rxArquivos=r.arquivos||[];rxListaCarregada=true;rxRenderLista();
-    }).withFailureHandler(function(e){rxEl('rxListaStatus').textContent='Falha: '+(e.message||e);})
+      if(!Array.isArray(r.arquivos)){rxEl('rxListaStatus').textContent='Lista de arquivos não confirmada. Tente atualizar.';return;}
+      rxArquivos=r.arquivos;rxListaCarregada=true;rxRenderLista();
+    }).withFailureHandler(function(e){
+      if(token!==rxListaToken||rxEl('rxOverlay').hidden||rxEl('rxListaPane').hidden)return;
+      rxEl('rxListaStatus').textContent='Falha: '+(e.message||e);
+    })
       .listarArquivosReentradasExcel();
   }
   function rxRenderLista(){
@@ -1028,21 +1068,24 @@
       info.appendChild(det);box.appendChild(info);
       var buttons=document.createElement('div');buttons.className='rx-file-buttons';
       var abrir=document.createElement('button');abrir.className='vc-rx-soft';abrir.textContent='Conferir / editar';
-      abrir.disabled=!a.editavel;abrir.onclick=function(){rxAbrirArquivo(a);};buttons.appendChild(abrir);
+      abrir.disabled=rxOcupado||!a.editavel;abrir.onclick=function(){rxAbrirArquivo(a);};buttons.appendChild(abrir);
       var bloqueio=document.createElement('button');bloqueio.className='vc-rx-soft';bloqueio.textContent='Restaurar proteção';
-      bloqueio.disabled=!a.bloqueavel;bloqueio.onclick=function(){rxBloquear(a);};buttons.appendChild(bloqueio);
+      bloqueio.disabled=rxOcupado||!a.bloqueavel;bloqueio.onclick=function(){rxBloquear(a);};buttons.appendChild(bloqueio);
       box.appendChild(buttons);host.appendChild(box);
     });
     if(!achados.length)host.textContent='Nenhum arquivo corresponde à busca.';
   }
   function rxBloquear(a){
+    if(rxOcupado)return;
     if(!confirm('Restaurar a proteção do modelo em '+a.nome+'? Os valores e fórmulas serão preservados.'))return;
+    rxOcupado=true;rxListaToken++;rxRenderLista();
     rxEl('rxListaStatus').textContent='Restaurando proteção…';
     google.script.run.withSuccessHandler(function(r){
-      if(!r||r.erro){rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao restaurar proteção.';return;}
+      rxOcupado=false;
+      if(!r||r.erro||r.sucesso!==true||r.id!==a.id){rxRenderLista();rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao confirmar a restauração da proteção.';return;}
       rxEl('rxListaStatus').textContent='Proteção restaurada e conferida: '+r.nome;
       rxListaCarregada=false;rxCarregarLista();
-    }).withFailureHandler(function(e){rxEl('rxListaStatus').textContent='Erro: '+(e.message||e);})
+    }).withFailureHandler(function(e){rxOcupado=false;rxRenderLista();rxEl('rxListaStatus').textContent='Erro: '+(e.message||e);})
       .bloquearArquivoReentradasExcel(a.id,a.atualizadoEm);
   }
   function rxAbrirUltimo(){if(rxUltimo)rxAbrirArquivo(rxUltimo);else rxAbrirLista();}
@@ -1051,7 +1094,8 @@
     rxArquivo={id:a.id||a.calculadoraId||a.deparaId,
       atualizadoEm:a.atualizadoEm||null,nome:a.nome||a.arquivo||''};
     if(!rxArquivo.id){rxAbrirLista();return;}
-    rxToken++;rxPendente={};rxConjunto=null;rxPagina=null;rxConjuntoTentado=false;
+    rxToken++;rxListaToken++;if(rxTimer)clearTimeout(rxTimer);
+    rxPendente={};rxFormulas={};rxFaixasFormulas=[];rxMesclagens=[];rxConjunto=null;rxPagina=null;rxConjuntoTentado=false;
     rxEstado={aba:0,linha:0,coluna:0,busca:''};rxEl('rxBuscarCelulas').value='';
     rxEl('rxOverlay').hidden=false;rxEl('rxListaPane').hidden=true;rxEl('rxEditorPane').hidden=false;
     rxEl('rxVoltarListaBtn').hidden=false;rxEl('rxTitulo').textContent='Conferir e editar Excel';
@@ -1084,7 +1128,7 @@
       colunas:colunas,linhas:linhas};
   }
   function rxPedirPagina(){
-    if(!rxArquivo||rxEl('rxOverlay').hidden)return;
+    if(!rxArquivo||rxEl('rxOverlay').hidden||rxOcupado)return;
     var token=++rxToken;
     rxMsg('Carregando células do arquivo…');
     if(rxConjunto){rxPagina=rxPaginaLocal();rxRenderPagina();return;}
@@ -1095,6 +1139,9 @@
       if(token!==rxToken)return;
       if(!r||!r.arquivo){rxMsg('Prévia indisponível. Tente reabrir o arquivo.');return;}
       rxArquivo=r.arquivo;
+      rxFormulas=r.formulas||{};
+      rxFaixasFormulas=Array.isArray(r.faixasFormulas)?r.faixasFormulas:[];
+      rxMesclagens=Array.isArray(r.mesclagens)?r.mesclagens:[];
       rxEl('rxSubtitulo').textContent=r.arquivo.nome;
       rxEl('rxLinkDrive').href=r.arquivo.url;
       rxConjuntoTentado=true;
@@ -1126,25 +1173,34 @@
         var texto=pend?pend.valor:String(valor??'');
         td.textContent=texto;td.title=texto;
         if(pend)td.className='rx-mod';
-        if(/^=/.test(texto))td.className+=' rx-formula';
+        if(rxEhFormula(p.aba,l.numero,col)||/^=/.test(texto))td.className+=' rx-formula';
+        var mescla=rxMesclagemCoberta(p.aba,l.numero,col);
+        if(mescla){td.className+=' rx-merged';td.title='Célula mesclada. Edite '+rxLetra(mescla.x1)+mescla.y1+'.';}
         td.ondblclick=function(){rxEditarCelula(td,p.aba,l.numero,col,texto);};
         tr.appendChild(td);
       });
       corpo.appendChild(tr);
     });
     rxMsg('Aba '+p.abas[p.aba]+' · '+p.totalFiltradas+' linhas · duplo clique na célula para editar. '+
-      Object.keys(rxPendente).length+' alteração(ões) pendentes.');
+      Object.keys(rxPendente).length+' alteração(ões) pendentes. Os custos e fórmulas são recalculados ao abrir no Excel.');
     rxEl('rxSalvar').disabled=!rxTemEdicoes()||rxOcupado;
   }
   function rxEditarCelula(td,aba,linha,coluna,valor){
     if(rxOcupado||td.querySelector('input'))return;
-    if(/^=/.test(valor)){rxMsg('Fórmulas não podem ser alteradas pela prévia.');return;}
+    if(rxEhFormula(aba,linha,coluna)||/^=/.test(valor)){rxMsg('Fórmulas não podem ser alteradas pela prévia.');return;}
+    var mescla=rxMesclagemCoberta(aba,linha,coluna);
+    if(mescla){rxMsg('Esta célula faz parte de uma mesclagem. Edite '+rxLetra(mescla.x1)+mescla.y1+'.');return;}
     var input=document.createElement('input');input.value=valor;td.textContent='';td.appendChild(input);input.focus();input.select();
     var terminando=false;
     function terminar(cancelar){
       if(terminando)return;terminando=true;
       var novo=input.value,key=aba+':'+linha+':'+coluna;
-      if(!cancelar&&novo!==valor){rxPendente[key]={aba:aba,linha:linha,coluna:coluna,valor:novo};}
+      if(!cancelar&&novo!==valor){
+        if(!rxPendente[key]&&Object.keys(rxPendente).length>=200){
+          rxRenderPagina();rxMsg('Salve as 200 alterações pendentes antes de editar outra célula.');return;
+        }
+        rxPendente[key]={aba:aba,linha:linha,coluna:coluna,valor:novo};
+      }
       rxRenderPagina();
     }
     input.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();terminar(false);}
@@ -1155,17 +1211,21 @@
     if(rxTimer)clearTimeout(rxTimer);
     rxTimer=setTimeout(function(){rxEstado.busca=rxEl('rxBuscarCelulas').value.trim().substring(0,100);rxEstado.linha=0;rxPedirPagina();},180);
   }
-  function rxLimparBusca(){rxEl('rxBuscarCelulas').value='';rxEstado.busca='';rxEstado.linha=0;rxPedirPagina();}
+  function rxLimparBusca(){if(rxTimer)clearTimeout(rxTimer);rxEl('rxBuscarCelulas').value='';rxEstado.busca='';rxEstado.linha=0;rxPedirPagina();}
   function rxMoverLinha(sentido){if(!rxPagina)return;rxEstado.linha=Math.max(0,Math.min(rxPagina.totalFiltradas-1,rxEstado.linha+sentido*50));rxPedirPagina();}
   function rxMoverColuna(sentido){if(!rxPagina)return;rxEstado.coluna=Math.max(0,Math.min(rxPagina.totalColunas-1,rxEstado.coluna+sentido*65));rxPedirPagina();}
   function rxSalvarEdicoes(){
     if(rxOcupado||!rxArquivo||!rxTemEdicoes())return;
     var itens=Object.keys(rxPendente).map(function(k){return rxPendente[k];});
     if(itens.length>200){rxMsg('Salve em grupos de até 200 alterações.');return;}
-    rxOcupado=true;rxEl('rxSalvar').disabled=true;rxMsg('Salvando no mesmo XLSX do Drive…');
+    var arquivoId=rxArquivo.id;
+    rxOcupado=true;rxToken++;rxEl('rxSalvar').disabled=true;rxMsg('Salvando no mesmo XLSX do Drive…');
     google.script.run.withSuccessHandler(function(r){
       rxOcupado=false;
-      if(!r||r.erro){rxMsg('Não foi possível confirmar o salvamento: '+(r&&r.erro||'Erro não informado.'));rxEl('rxSalvar').disabled=false;return;}
+      if(!r||r.erro||r.sucesso!==true||r.id!==arquivoId||!Number.isFinite(r.atualizadoEm)){
+        rxMsg('Não foi possível confirmar o salvamento: '+(r&&r.erro||'Resposta incompleta. Reabra o arquivo para conferir.'));
+        rxEl('rxSalvar').disabled=false;return;
+      }
       rxArquivo.atualizadoEm=r.atualizadoEm;rxPendente={};rxConjunto=null;rxConjuntoTentado=false;
       rxListaCarregada=false;rxPedirPagina();
     }).withFailureHandler(function(e){rxOcupado=false;rxMsg('Falha ao salvar: '+(e.message||e));rxEl('rxSalvar').disabled=false;})

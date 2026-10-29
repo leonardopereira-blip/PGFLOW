@@ -11,6 +11,8 @@ on:
       - ReentradasRecentes.js
       - ReentradasEspecificacaoGeral.js
       - ReentradasElegibilidade.js
+      - ReentradasExcel.js
+      - PreviaExcelEmail.js
       - ProtecaoCalculadoras.js
       - BloquearCalculadoras.html
       - MacroProtecao*.js

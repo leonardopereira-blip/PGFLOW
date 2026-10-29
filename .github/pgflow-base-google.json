@@ -1,6 +1,6 @@
 {
   "scriptId": "1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu",
-  "lido_em": "2026-10-29T02:57:51.389Z",
+  "lido_em": "2026-10-29T03:13:26.410Z",
   "files": {
     "SERVER_JS:Ajusta_API": "66e97e7d8e378d73d9710b5a2d699fc51cdb34a6b66856767c712d71faabcfbc",
     "SERVER_JS:AlertaSPG": "3f35f4298b9b120397af4371af56b573320761bfae34898eece2ba9f682f10f5",
@@ -33,7 +33,7 @@
     "HTML:ValidaInterface": "9c1c7fc25bf6753c8c052c2d013fc6949ae5418cb6dcc74f6165b748ffbb1584",
     "SERVER_JS:ValidaPrincipal": "485ad7dec5e61a8ea9b0a7cf319a6815dc28384da8a1356451d1bd61b472e886",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
-    "SERVER_JS:ValidaReentradasSPG": "50e2cee0850995ded45604238ed9f58e96ff2a486cf52e5f8263556c817c24f7",
+    "SERVER_JS:ValidaReentradasSPG": "f9ae0e264999977eccc3784bf96fe5d929e38e6b3729547b9751709364ad3fd0",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82"
   }
 }

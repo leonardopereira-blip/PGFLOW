@@ -383,8 +383,8 @@ var info = mapSkuData[skuVal];
  var resumoAnos = formatSummary(seriesArr);
  var nomeArquivo = "PLANILHA DE PARA PPG " + graf + " V127 " + marcasArr.join(" E ") + (resumoAnos ? " " + resumoAnos : "");
  
- // Sem restrição de sobrescrita: manda o homônimo antigo para a lixeira antes de copiar.
- removerHomonimos(pastaDest, nomeArquivo);
+ // O Google Drive permite homonimos: cada execucao cria uma nova copia com ID proprio.
+ // Nunca sobrescrever ou enviar versoes anteriores para a lixeira.
  var arquivoCopia = DriveApp.getFileById(ID_PLANILHA).makeCopy(nomeArquivo, pastaDest);
  var ssCopia = SpreadsheetApp.openById(arquivoCopia.getId());
  var sheetsCopia = ssCopia.getSheets();
@@ -424,7 +424,8 @@ MailApp.sendEmail(EMAIL_FILA_GMAIL, assunto, corpo, { attachments: [anexoJson] }
  series: resumoAnos || seriesArr.join(", "),
  skus: lote.dadosSkus.length,
  tiragem: lote.tiragemTotal,
- arquivo: nomeArquivoCalculadora
+ arquivo: nomeArquivoCalculadora,
+ depara: arquivoCopia.getUrl()
  });
  qtdLotes++;
  }

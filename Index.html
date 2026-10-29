@@ -844,6 +844,31 @@ let html = '';
  // Resumo do que foi gerado (gráfica / marca / série), devolvido pelo backend.
  let _resumoPrin = [];
 
+ // Resumo exclusivo da Principal, sem depender de funcoes de Reentradas.
+ function renderResumoPrincipal(lista, destino) {
+   var el = document.getElementById(destino);
+   if (!el) return;
+   lista = Array.isArray(lista) ? lista : [];
+   var esc = function(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+   }); };
+   var html = '<div style="font-weight:700;margin-bottom:8px">Arquivos da Validação Principal</div>';
+   lista.forEach(function(item) {
+     html += '<div style="border:1px solid #dde3ea;border-radius:8px;padding:10px;margin:8px 0;font-size:12px;">' +
+       '<div><b>' + esc(item.grafica) + '</b> · ' + esc(item.marcas) +
+       (item.series ? ' · ' + esc(item.series) : '') + '</div>' +
+       '<div>' + esc(item.skus) + ' SKUs · Tiragem ' + esc(item.tiragem) + '</div>';
+     if (item.depara && /^https:\/\/(?:docs|drive)\.google\.com\//.test(item.depara)) {
+       html += '<div style="margin-top:6px"><a href="' + esc(item.depara) +
+         '" target="_blank" rel="noopener noreferrer">Abrir De-Para</a></div>';
+     }
+     if (item.arquivo) html += '<div style="margin-top:5px">Calculadora enviada para geração: ' + esc(item.arquivo) + '</div>';
+     html += '</div>';
+   });
+   el.innerHTML = html;
+   el.style.display = lista.length ? 'block' : 'none';
+ }
+
  function fmtTime(s) {
  if (s < 60) return s + 's';
  let m = Math.floor(s / 60);
@@ -955,7 +980,7 @@ let html = '';
  let totEl = document.getElementById('stepTotalPrin');
  totEl.innerHTML = 'Tempo Total: ' + fmtTime(sTotal);
  totEl.style.display = 'block';
- renderResumo(_resumoPrin, 'resumoGeradoPrin');
+ renderResumoPrincipal(_resumoPrin, 'resumoGeradoPrin');
  document.getElementById('finishAreaPrin').style.display = 'block';
  }
  }

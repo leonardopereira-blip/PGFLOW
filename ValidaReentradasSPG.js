@@ -157,6 +157,7 @@ function _reSpNormalizarDimensoesAPI_(espec) {
     bFechado:indice('3, DIM_B (Fechado)(mm)'),
     aFechado:indice('3, DIM_A (Fechado)(mm)'),
     espessura:indice('3. DIM_E (mm)'),
+    peso:indice('3. DIM_Peso (Kg)'),
     bxFechado:indice('3.DIM_BXA(Fechado)'),
     acabada:indice('3.DIM_Dimensãoacabada(BxAxE)')
   };
@@ -173,6 +174,12 @@ function _reSpNormalizarDimensoesAPI_(espec) {
     var bAberto=normalizado('bAberto',false),aAberto=normalizado('aAberto',false);
     var bFechado=normalizado('bFechado',false),aFechado=normalizado('aFechado',false);
     var espessura=normalizado('espessura',true);
+    // Repete a regra de peso do SPG: escala antiga /100000, sem arredondamento.
+    if(col.peso>=0){
+      var peso=_reSpNumeroFonte_(original[col.peso]);
+      if(typeof peso==='number'&&isFinite(peso))
+        linha[col.peso]=Math.abs(peso)>=1000?peso/100000:peso;
+    }
     var aberto=bAberto!==''&&aAberto!==''?bAberto+'X'+aAberto:'';
     var fechado=bFechado!==''&&aFechado!==''?bFechado+'X'+aFechado:'';
     if(col.bxAberto>=0&&col.bAberto>=0&&col.aAberto>=0)linha[col.bxAberto]=aberto;

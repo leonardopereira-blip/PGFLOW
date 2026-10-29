@@ -40,6 +40,17 @@ test('API de Reentradas aplica a normalizacao de dimensoes da aba Espec sem alte
   assert.equal(typeof numericos[6],'number');
   assert.equal(numericos[8],'205X275X15,7');
 });
+test('API de Reentradas normaliza escala do peso sem eliminar casas decimais',()=>{
+  const cab=['1. ID_Código SKU','3. DIM_Peso (Kg)','2. INF_Marca'];
+  const orig={headers:cab,linhas:[
+    ['SKU-A','145.900','SAE'],['SKU-B',98100,'SAS'],
+    ['SKU-C','1,89','COC'],['SKU-D',0.99,'SAS'],['SKU-E','-','SAE']
+  ]};
+  const out=context._reSpNormalizarDimensoesAPI_(orig);
+  assert.deepEqual(Array.from(out.linhas,x=>x[1]),[1.459,0.981,1.89,0.99,'-']);
+  assert.deepEqual(Array.from(out.linhas,x=>x[2]),['SAE','SAS','COC','SAS','SAE']);
+  assert.equal(orig.linhas[0][1],'145.900','nao muta dados da API');
+});
 test('Reentradas usa as referencias da Tiragem do proprio SKU sem travar duplicatas',()=>{
   const espec={headers:['1. ID_Código SKU','11. REF_Referência troca de chapa',
     '11. REF_Referência personalização','1. ID_Descrição'],

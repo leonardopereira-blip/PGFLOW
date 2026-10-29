@@ -70,7 +70,7 @@ for(const g of GRAFICAS){
       DriveApp:{getFileById(){throw Error('SPG nao pode ler modelo ou dados externos no Drive');},
         getFolderById(id){pastas.push(id);return {createFile(blob){
           const file={blob,setName(nome){assert.equal(nome,blob.getName());return file;},
-            getUrl:()=>'arquivo:'+blob.getName()};criados.push(file);return file;
+            getUrl:()=>'arquivo:'+blob.getName(),getId:()=>'id:'+blob.getName()};criados.push(file);return file;
         }};}},
       SpreadsheetApp:new Proxy({},{get(){throw Error('SPG nao pode consultar Google Sheets');}}),
       UrlFetchApp:new Proxy({},{get(){throw Error('geracao nao pode buscar modelos externos');}})

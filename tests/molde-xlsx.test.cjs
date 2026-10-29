@@ -57,7 +57,7 @@ test('geracao completa usa somente moldes e preserva abas sem entrada identicas 
   const app=mx.carregarApps(code,{
     DriveApp:{
       getFileById(){throw Error('nao pode ler planilha modelo no Drive');},
-      getFolderById:()=>({createFile(b){const f={blob:b,setName(){return f;},getUrl:()=>'url:'+b.getName()};criados.push(f);return f;}})
+      getFolderById:()=>({createFile(b){const f={blob:b,setName(){return f;},getUrl:()=>'url:'+b.getName(),getId:()=>'id:'+b.getName()};criados.push(f);return f;}})
     }
   });
   app.Utilities.zip=(blobs,nome)=>app.Utilities.newBlob(mx.escreverZip(blobs.map(b=>({nome:b.getName(),dados:b.getBytes()}))),'application/zip',nome);

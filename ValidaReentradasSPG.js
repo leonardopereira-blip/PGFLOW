@@ -186,7 +186,7 @@ function _reSpNormalizarDimensoesAPI_(espec) {
 }
 
 // A Tiragem do proprio chamado e a fonte das duas referencias. Nunca usar
-// dados de outro SKU nem aceitar arbitrariamente valores conflitantes.
+// dados de outro SKU; em repeticoes usa o primeiro valor preenchido.
 function _reSpAplicarReferenciasTiragemAPI_(espec,tiragem) {
   var nomeSku='1. ID_Código SKU';
   var nomes=['11. REF_Referência troca de chapa','11. REF_Referência personalização'];
@@ -205,9 +205,7 @@ function _reSpAplicarReferenciasTiragemAPI_(espec,tiragem) {
       if(i<0)return;
       var valor=String(linha[i]==null?'':linha[i]).trim();
       if(!valor)return;
-      if(atual[j]&&atual[j]!==valor)throw Error(
-        'SKU '+sku+': '+nomes[j]+' divergente entre linhas da Tiragem.');
-      atual[j]=valor;
+      if(!atual[j])atual[j]=valor;
     });
   });
   var headers=espec.headers.slice(),idx=nomes.map(function(nome,j){

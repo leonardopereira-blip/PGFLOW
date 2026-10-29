@@ -40,7 +40,7 @@ test('API de Reentradas aplica a normalizacao de dimensoes da aba Espec sem alte
   assert.equal(typeof numericos[6],'number');
   assert.equal(numericos[8],'205X275X15,7');
 });
-test('Reentradas usa as referencias da Tiragem do proprio SKU e protege conflitos',()=>{
+test('Reentradas usa as referencias da Tiragem do proprio SKU sem travar duplicatas',()=>{
   const espec={headers:['1. ID_Código SKU','11. REF_Referência troca de chapa',
     '11. REF_Referência personalização','1. ID_Descrição'],
     linhas:[['SKU-A','ANTIGA','ANTIGA','Livro A'],['SKU-B','ANTIGA','ANTIGA','Livro B']]};
@@ -63,7 +63,8 @@ test('Reentradas usa as referencias da Tiragem do proprio SKU e protege conflito
   assert.equal(incompleta.linhas[0][1],'CHAPA-A');
   assert.equal(incompleta.linhas[0][2],'PERSON-A');
   const divergente={headers:cab,linhas:[['KIT-1','SKU-A','CHAPA-1',''],['KIT-2','SKU-A','CHAPA-2','']]};
-  assert.throws(()=>context._reSpAplicarReferenciasTiragemAPI_(espec,divergente),/divergente/);
+  const repetido=context._reSpAplicarReferenciasTiragemAPI_(espec,divergente);
+  assert.equal(repetido.linhas[0][1],'CHAPA-1');
 });
 
 test('somente a leitura de chamado da API aplica a normalizacao de dimensoes',()=>{

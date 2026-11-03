@@ -27,6 +27,11 @@ function screen() {
     if (!elements.has(id)) {
       const classes = new Set();
       elements.set(id, { value: '', disabled: false, innerHTML: '', textContent: '', style: {},
+        attributes: {},
+        setAttribute(name, value) { this.attributes[name] = String(value); },
+        getAttribute(name) { return this.attributes[name] ?? null; },
+        removeAttribute(name) { delete this.attributes[name]; },
+        focus() {},
         classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) } });
     }
     return elements.get(id);

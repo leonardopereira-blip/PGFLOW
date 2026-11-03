@@ -12,6 +12,7 @@ on:
       - ReentradasEspecificacaoGeral.js
       - ReentradasElegibilidade.js
       - ReentradasExcel.js
+      - ReentradasRevisao.js
       - PreviaExcelEmail.js
       - ProtecaoCalculadoras.js
       - BloquearCalculadoras.html

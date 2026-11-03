@@ -153,3 +153,156 @@ test('a edição 201 é recusada antes de entrar no lote, mantendo as 200 pendê
   assert.match(s.el('rxMsg').textContent,/Salve as 200/);c.rxSalvarEdicoes();
   assert.equal(s.request().method,'salvarEdicoesReentradasExcel');assert.equal(s.request().args[2].length,200);
 });
+
+const nomesAbas=['Primeira aba','Segunda aba'];
+function sheetResponse(indice,options={}){
+  return {arquivo:options.arquivo||file,nomesAbas:nomesAbas,
+    abaCompleta:{indice,nome:nomesAbas[indice],totalColunas:options.totalColunas||2,
+      linhas:options.linhas||[{numero:5,valores:{0:'20',1:'texto da aba '+indice}}]},
+    previaExcel:null,pagina:null,formulas:options.formulas||{},
+    faixasFormulas:options.faixasFormulas||[],mesclagens:options.mesclagens||[]};
+}
+function pageResponse(aba,linha=0){
+  const colunas=Array.from({length:65},(_,i)=>{
+    let n=i+1,s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26)}return s;
+  });
+  return {arquivo:file,nomesAbas:nomesAbas,abaCompleta:null,previaExcel:null,formulas:{},
+    faixasFormulas:[],mesclagens:[],pagina:{arquivo:file.nome,abas:nomesAbas,aba,linha,coluna:0,
+      totalLinhas:120,totalFiltradas:120,totalColunas:70,colunas,
+      linhas:Array.from({length:50},(_,i)=>({numero:linha+i+1,
+        celulas:Array.from({length:65},(_,c)=>'L'+(linha+i+1)+'C'+(c+1))}))}};
+}
+
+test('abas carregadas voltam sem consulta e preservam edição, fórmulas e mesclagens por coordenada',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);
+  s.request().success(sheetResponse(0,{formulas:{'0:5:1':true},
+    mesclagens:[{aba:0,x1:1,x2:2,y1:8,y2:8}]}));
+  const texto=s.el('rxCorpo').children[0].children[2];texto.ondblclick();
+  texto.children[0].value='edição mantida';texto.children[0].onblur();
+  c.rxSelecionarAba(1);const second=s.request();
+  assert.equal(second.args[0].aba,1);second.success(sheetResponse(1,{
+    faixasFormulas:[{aba:1,x1:2,x2:2,y1:5,y2:8}]}));
+  const requests=s.requests.length;c.rxSelecionarAba(0);
+  assert.equal(s.requests.length,requests);assert.equal(c.rxPagina.aba,0);
+  assert.equal(s.el('rxCorpo').children[0].children[2].textContent,'edição mantida');
+  assert.equal(c.rxEhFormula(0,5,1),true);assert.equal(c.rxEhFormula(0,5,2),false);
+  assert.equal(c.rxEhFormula(1,5,2),true);
+  assert.equal(c.rxMesclagemCoberta(0,8,2).x1,1);assert.equal(c.rxMesclagemCoberta(1,8,2),null);
+  c.rxSelecionarAba(1);assert.equal(s.requests.length,requests);
+});
+
+test('voltar a uma aba restaura sua busca e posição sem depender de consulta remota',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);
+  const linhas=Array.from({length:120},(_,i)=>({numero:i+1,valores:{0:'linha '+(i+1),12:'campo '+(i+1)}}));
+  s.request().success(sheetResponse(0,{linhas,totalColunas:24}));
+  c.rxEstado.linha=50;c.rxEstado.coluna=12;c.rxEstado.busca='linha';c.rxPedirPagina();
+  c.rxSelecionarAba(1);s.request().success(sheetResponse(1));
+  const requests=s.requests.length;c.rxSelecionarAba(0);
+  assert.equal(s.requests.length,requests);
+  assert.deepEqual(plain(c.rxEstado),{aba:0,linha:50,coluna:12,busca:'linha'});
+  assert.equal(s.el('rxBuscarCelulas').value,'linha');assert.equal(c.rxPagina.linha,50);
+  assert.equal(c.rxPagina.coluna,12);
+});
+
+test('página de arquivo grande é reutilizada ao navegar por colunas cobertas e voltar linhas',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(pageResponse(0));
+  const firstCount=s.requests.length;
+  c.rxMoverColuna(1);assert.equal(c.rxPagina.coluna,12);
+  assert.equal(s.requests.length,firstCount);assert.equal(c.rxPagina.colunas.length,12);
+  c.rxMoverColuna(-1);assert.equal(c.rxPagina.coluna,0);assert.equal(s.requests.length,firstCount);
+  c.rxMoverLinha(1);assert.equal(s.requests.length,firstCount+1);
+  assert.equal(s.request().args[0].linha,50);s.request().success(pageResponse(0,50));
+  c.rxMoverLinha(-1);assert.equal(s.requests.length,firstCount+1);
+  assert.equal(c.rxPagina.linha,0);assert.equal(c.rxPagina.linhas[0].numero,1);
+});
+
+test('trocas rápidas reutilizam leitura em andamento e resposta atrasada não troca a aba atual',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
+  c.rxSelecionarAba(1);const delayed=s.request(),count=s.requests.length;
+  c.rxPedirPagina();assert.equal(s.requests.length,count,'a mesma aba não deve disparar leitura duplicada');
+  c.rxSelecionarAba(0);delayed.success(sheetResponse(1));
+  assert.equal(c.rxEstado.aba,0);assert.equal(c.rxPagina.aba,0);
+  c.rxSelecionarAba(1);assert.equal(s.requests.length,count,'resposta atrasada válida fica disponível no cache');
+  assert.equal(c.rxPagina.aba,1);
+});
+
+test('novo arquivo e salvamento confirmado descartam cache e respostas da revisão anterior',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
+  c.rxSelecionarAba(1);const oldSheet=s.request();c.rxSelecionarAba(0);
+  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};
+  c.rxSalvarEdicoes();s.request().success({sucesso:true,id:file.id,atualizadoEm:2000});
+  const reloaded=s.request();assert.equal(reloaded.args[0].atualizadoEm,2000);
+  oldSheet.success(sheetResponse(1));reloaded.success(sheetResponse(0,{arquivo:{...file,atualizadoEm:2000}}));
+  const count=s.requests.length;c.rxSelecionarAba(1);
+  assert.equal(s.requests.length,count+1,'a aba da revisão antiga precisa ser lida novamente');
+  const previousFileRequest=s.request(),other={...file,id:'OUTRO_ARQUIVO_1234567890',atualizadoEm:3000};
+  c.rxAbrirArquivo(other);const otherRequest=s.request();
+  previousFileRequest.success(sheetResponse(1));
+  assert.equal(c.rxArquivo.id,other.id);assert.equal(c.rxPagina,null);
+  otherRequest.success(sheetResponse(0,{arquivo:other}));
+  assert.equal(c.rxArquivo.id,other.id);assert.equal(c.rxPagina.aba,0);
+});
+
+for(const codigo of ['REVISAO_AUSENTE','REVISAO_DESATUALIZADA']){
+  test(codigo+': preparar revisão exige clique e retoma leitura sem salvar o XLSX',()=>{
+    const s=screen(),c=s.context;c.rxAbrirArquivo(file);
+    s.request().success({erro:'Prepare a revisão deste arquivo.',codigo});
+    assert.equal(s.el('rxPrepararPane').hidden,false);
+    assert.equal(s.requests.length,1,'a falta de revisão não deve abrir ou preparar o Excel automaticamente');
+    assert.equal(c.rxArquivo.id,file.id);assert.equal(c.rxTemEdicoes(),false);
+    c.rxPrepararRevisao();const prepare=s.request();
+    assert.equal(prepare.method,'prepararRevisaoReentradasExcel');
+    assert.deepEqual(prepare.args,[file.id,file.atualizadoEm]);assert.equal(c.rxOcupado,true);
+    assert.equal(s.el('rxPrepararBtn').disabled,true);
+    c.rxPrepararRevisao();assert.equal(s.requests.length,2,'clique repetido não duplica preparação');
+    prepare.success({sucesso:true,id:file.id,atualizadoEm:file.atualizadoEm});
+    assert.equal(c.rxOcupado,false);assert.equal(s.el('rxPrepararBtn').disabled,false);
+    assert.equal(s.el('rxPrepararPane').hidden,true);
+    assert.equal(s.request().method,'obterPreviaReentradasExcel');
+    assert.equal(s.request().args[0].id,file.id);
+    assert.equal(s.request().args[0].atualizadoEm,file.atualizadoEm);
+    s.request().success(sheetResponse(0));assert.equal(c.rxPagina.aba,0);
+    assert.equal(s.requests.some(r=>r.method==='salvarEdicoesReentradasExcel'),false);
+  });
+}
+
+test('clique simples e Enter respeitam fórmulas e mesclagens e permitem editar campo livre pelo teclado',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);
+  s.request().success(sheetResponse(0,{totalColunas:3,
+    linhas:[{numero:5,valores:{0:'20',1:'mesclada',2:'campo livre'}}],formulas:{'0:5:1':true},
+    mesclagens:[{aba:0,x1:1,x2:2,y1:5,y2:5}]}));
+  const row=s.el('rxCorpo').children[0],formula=row.children[1],covered=row.children[2],free=row.children[3];
+  let prevented=0;const enter={key:'Enter',preventDefault(){prevented++}};
+  formula.onclick();assert.equal(formula.children.length,0);assert.match(s.el('rxMsg').textContent,/Fórmulas/);
+  formula.onkeydown(enter);assert.equal(formula.children.length,0);
+  covered.onclick();assert.equal(covered.children.length,0);assert.match(s.el('rxMsg').textContent,/Edite A5/);
+  covered.onkeydown(enter);assert.equal(covered.children.length,0);assert.equal(c.rxTemEdicoes(),false);
+  free.onkeydown(enter);assert.equal(free.children[0].tag,'input');
+  free.children[0].value='valor novo';free.children[0].onkeydown(enter);
+  assert.equal(c.rxPendente['0:5:3'].valor,'valor novo');assert.equal(prevented,4);
+});
+
+test('Excel salvo com revisão pendente confirma dados e oferece preparação sem nova leitura automática',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
+  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'salvo'}};
+  c.rxSalvarEdicoes();const save=s.request(),count=s.requests.length;
+  save.success({sucesso:true,id:file.id,atualizadoEm:2000,revisaoPendente:true,
+    aviso:'O Excel foi salvo e conferido. Prepare a revisão novamente para continuar.'});
+  assert.equal(s.requests.length,count,'revisão pendente deve aguardar preparação explícita');
+  assert.equal(c.rxTemEdicoes(),false);assert.equal(c.rxArquivo.atualizadoEm,2000);
+  assert.equal(c.rxOcupado,false);assert.equal(s.el('rxSalvar').disabled,true);
+  assert.equal(s.el('rxPrepararPane').hidden,false);assert.match(s.el('rxMsg').textContent,/salvo e conferido/);
+  c.rxPrepararRevisao();assert.equal(s.request().method,'prepararRevisaoReentradasExcel');
+  assert.deepEqual(s.request().args,[file.id,2000]);
+});
+
+test('busca cancelada ao fechar não reinicia a posição de uma nova sessão do arquivo',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
+  s.el('rxBuscarCelulas').value='busca cancelada';c.rxAgendarBusca();c.rxFechar();
+  c.rxAbrirArquivo(file);
+  const linhas=Array.from({length:120},(_,i)=>({numero:i+1,valores:{0:'linha '+(i+1)}}));
+  s.request().success(sheetResponse(0,{linhas}));c.rxMoverLinha(1);
+  assert.equal(c.rxEstado.linha,50);c.rxSelecionarAba(1);s.request().success(sheetResponse(1));
+  c.rxSelecionarAba(0);assert.equal(c.rxEstado.linha,50);
+  assert.equal(c.rxEstado.busca,'');assert.equal(s.el('rxBuscarCelulas').value,'');
+});

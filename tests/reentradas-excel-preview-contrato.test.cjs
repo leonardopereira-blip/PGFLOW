@@ -55,13 +55,6 @@ test('fórmula cacheada tem metadado independente de seu valor e ranges não sã
   const paginaFormulas={};app._rxPreviaPagina_(livro,'Calculadora.xlsx',{busca:'achado',coluna:0},paginaFormulas);
   assert.deepEqual(Object.keys(paginaFormulas),['0:5:2']);
 });
-test('RPC RX lê livro uma vez e devolve metadados isolados de fórmulas',()=>{
-  const {app,blob,leituras}=ambiente();app._rxArquivo_=()=>({id:'teste',nome:'Calculadora.xlsx',url:'url',atualizadoEm:1,calculadora:true,arquivo:{getBlob:()=>({...blob,setName(){return this;}})}});
-  const r=app.obterPreviaReentradasExcel({id:'teste'});
-  assert.equal(leituras(),1);assert.equal(r.formulas['0:1:3'],true);assert.equal(r.faixasFormulas[0].aba,0);
-  const p=app.obterPreviaReentradasExcel({id:'teste',apenasPagina:true,busca:'achado'});
-  assert.equal(leituras(),2);assert.equal(p.previaExcel,null);assert.equal(p.pagina.totalFiltradas,2);assert.equal(p.formulas['0:5:2'],true);
-});
 test('marca recálculo após edição sem perder parâmetros de iteração do arquivo',()=>{
   const {app}=ambiente();
   const xml='<workbook><calcPr calcId="123" calcMode="manual" fullCalcOnLoad="0" forceFullCalc="0" iterate="1" iterateCount="10"/><extLst/></workbook>';
@@ -92,6 +85,7 @@ test('índice de salvamento acompanha somente worksheets da prévia e ignora cha
   let mtime=1800000000000,updates=0;
   app._rxArquivo_=()=>({arquivo:{getBlob:()=>blob},id,nome,url:'url',atualizadoEm:mtime});
   app._bcDigest_=b=>Buffer.from(b.getBytes()).toString('base64');
+  app._rxRevisaoMontar_=()=>({});app._rxRevisaoSalvar_=()=>{};
   app.LockService={getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})};
   app.Drive={Files:{update(meta,fileId,novo){assert.equal(fileId,id);blob=novo;mtime++;updates++;}}};
   const r=app.salvarEdicoesReentradasExcel(id,mtime,[{aba:1,linha:1,coluna:1,valor:'99'}]);

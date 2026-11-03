@@ -76,6 +76,7 @@ for(const g of GRAFICAS){
       UrlFetchApp:new Proxy({},{get(){throw Error('geracao nao pode buscar modelos externos');}})
     });
     app.Utilities.newBlob=blobLeve;
+    app._rxRevisaoMontar_=()=>({});app._rxRevisaoSalvar_=()=>{};
     app.Utilities.zip=(blobs,nome)=>{
       const mapa=Object.fromEntries(blobs.map(b=>[b.getName(),b]));
       assert.equal(Object.keys(mapa).length,blobs.length,'partes duplicadas no XLSX');

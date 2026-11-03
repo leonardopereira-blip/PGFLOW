@@ -39,24 +39,10 @@ function listarArquivosReentradasExcel(){
 }
 
 function obterPreviaReentradasExcel(pedido){
-  var arq=_rxArquivo_(pedido&&pedido.id,pedido&&pedido.atualizadoEm);
-  var blob=arq.arquivo.getBlob().setName(arq.nome);
-  var consulta={aba:pedido.aba||0,linha:pedido.linha||0,coluna:pedido.coluna||0,busca:pedido.busca||''};
-  var livro=_pfPreviaLivroXlsx_(blob),formulas={},faixas=[],mesclagens=[];
-  var conjunto=pedido.apenasPagina?null:_rxPreviaConjunto_(livro,arq.nome,formulas);
-  if(!conjunto)formulas={};
-  var pagina=conjunto?null:_rxPreviaPagina_(livro,arq.nome,consulta,formulas);
-  (conjunto?livro.caminhos:[livro.caminhos[pagina.aba]]).forEach(function(caminho,i){
-    _rxFaixasFormulas_(livro.arquivos[caminho]).forEach(function(r){
-      r.aba=conjunto?i:pagina.aba;faixas.push(r);
-    });
-    _rxFaixasMesclagens_(livro.arquivos[caminho]).forEach(function(r){
-      r.aba=conjunto?i:pagina.aba;mesclagens.push(r);
-    });
-  });
-  return {arquivo:{id:arq.id,nome:arq.nome,url:arq.url,atualizadoEm:arq.atualizadoEm,
-      calculadora:arq.calculadora},
-    previaExcel:conjunto,pagina:pagina,formulas:formulas,faixasFormulas:faixas,mesclagens:mesclagens};
+  try{
+    var arq=_rxArquivo_(pedido&&pedido.id,pedido&&pedido.atualizadoEm);
+    return _rxRevisaoResposta_(arq,_rxRevisaoLer_(arq),pedido);
+  }catch(e){return {erro:e.message,codigo:e.codigo||'REVISAO_FALHOU'};}
 }
 
 // O formato e os limites sao os mesmos da previa existente. O livro e lido
@@ -298,6 +284,7 @@ function salvarEdicoesReentradasExcel(id,atualizadoEm,edicoes){
       alter[caminho]=_rxEditarAba_(parte.getDataAsString('UTF-8'),porAba[indice]);
     });
     alter['xl/workbook.xml']=_rxMarcarRecalculo_(p.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
+    var revisao=_rxRevisaoMontar_(p,alter);
     var zipped=Utilities.zip(p.partes.map(function(part){
       return alter[part.getName()]===undefined?part:
         Utilities.newBlob(alter[part.getName()],'application/xml',part.getName());
@@ -309,8 +296,11 @@ function salvarEdicoesReentradasExcel(id,atualizadoEm,edicoes){
     gravou=true;
     var final=_rxArquivo_(id);
     if(_bcDigest_(final.arquivo.getBlob())!==hash)throw Error('Conferência do XLSX salvo não corresponde.');
+    var revisaoPendente=false,aviso='';
+    try{_rxRevisaoSalvar_(final,revisao,true);}
+    catch(e){revisaoPendente=true;aviso='O Excel foi salvo e conferido. Prepare a revisao novamente para continuar a navegacao. '+e.message;}
     return {sucesso:true,id:final.id,nome:final.nome,url:final.url,
-      atualizadoEm:final.atualizadoEm,celulas:edicoes.length};
+      atualizadoEm:final.atualizadoEm,celulas:edicoes.length,revisaoPendente:revisaoPendente,aviso:aviso};
   }catch(e){return {erro:(gravou?'Arquivo salvo, mas a releitura não confirmou: ':'')+e.message};}
   finally{if(pegou)lock.releaseLock();}
 }

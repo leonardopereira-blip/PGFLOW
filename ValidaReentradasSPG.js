@@ -330,13 +330,17 @@ function _reSpFullCalc_(xml) {
   if(/<calcPr\b[^>]*\/>/.test(xml))return xml.replace(/<calcPr\b[^>]*\/>/,pr);
   return xml.replace(/(?=<pivotCaches\b|<extLst\b|<\/workbook>)/,pr);
 }
-function _reSpSalvarZip_(arquivo,partes,alteradas,nome) {
+function _reSpSalvarZip_(arquivo,partes,alteradas,nome,avisos) {
   var saida=partes.partes.map(function(p){
     var val=alteradas[p.getName()];
     return val===undefined?p:Utilities.newBlob(val,'text/xml',p.getName());
   });
+  var revisao=_rxRevisaoMontar_(saida);
   var xlsx=Utilities.zip(saida,nome).setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  return DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
+  var criado=DriveApp.getFolderById(RE_SP_CONFIG.pastaDestino).createFile(xlsx).setName(nome);
+  try{_rxRevisaoSalvar_(criado,revisao);}
+  catch(e){if(Array.isArray(avisos))avisos.push('Arquivo '+nome+' criado. Nao foi possivel preparar sua revisao; use Preparar revisao ao abri-lo. '+e.message);}
+  return criado;
 }
 function _reSpPrepararDados_(numero,grafica) {
   if(!RE_SP_MOLDES[_reSpNormal_(grafica)])throw Error('Modelo ainda nao disponivel para esta grafica.');
@@ -731,7 +735,7 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   somenteEspec.forEach(function(item){avisos.push('SKU '+item.sku+': '+item.motivos.join(' e ')+'. Mantido somente na especificacao tecnica; excluido dos custos.');});
   alterDepara['xl/workbook.xml']=_reSpFullCalc_(deparaOrig.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
   if(!bySku.length){
-    var tecnico=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
+    var tecnico=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD,avisos);
     return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',
       skus:0,tiragem:0,depara:tecnico.getUrl(),deparaId:tecnico.getId(),calculadora:'',arquivo:nomeD,somenteEspecificacao:true,
       skusSomenteEspecificacao:somenteEspec,avisos:avisos,
@@ -759,8 +763,8 @@ function _reSpGerarUm_(chamado,grafica,respostas,fornecimento,origensLegado,espe
   var protegerLogprint=_reSpNormal_(grafica)==='LOGPRINT';
   if(protegerLogprint)_reSpAplicarProtecaoLogprint_(calcOrig,alterCalc);
   // Somente aqui os arquivos sao criados, depois de validar todas as matrizes.
-  var fd=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD);
-  var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC);
+  var fd=_reSpSalvarZip_(null,deparaOrig,alterDepara,nomeD,avisos);
+  var fc=_reSpSalvarZip_(null,calcOrig,alterCalc,nomeC,avisos);
   return {chamado:chamado,grafica:nomeGrafica,origem:api.pacote.origem==='legado'?'legado':'spg',skus:bySku.length,
     tiragem:bySku.reduce(function(s,k){return s+nc.porSku[k].total;},0),
     depara:fd.getUrl(),deparaId:fd.getId(),calculadora:fc.getUrl(),calculadoraId:fc.getId(),arquivo:nomeC,

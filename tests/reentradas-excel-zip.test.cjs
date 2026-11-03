@@ -9,6 +9,7 @@ function ambiente(){
   const app=mx.carregarApps(['MoldeXlsx.js','MoldeMetaCalc.js','ValidaReentradasSPG.js',
     'MacroProtecao.js','ProtecaoLogprint.js','ProtecaoCalculadoras.js','ReentradasExcel.js']);
   const u=app.Utilities;
+  app._rxRevisaoMontar_=()=>({});app._rxRevisaoSalvar_=()=>{};
   u.zip=(partes,nome)=>u.newBlob(mx.escreverZip(partes.map(p=>({nome:p.getName(),dados:Buffer.from(p.getBytes())}))),app.RX_MIME,nome);
   u.unzip=b=>mx.lerZip(Buffer.from(b.getBytes())).map(p=>u.newBlob(p.dados,'application/xml',p.nome));
   u.DigestAlgorithm={SHA_256:'sha256'};

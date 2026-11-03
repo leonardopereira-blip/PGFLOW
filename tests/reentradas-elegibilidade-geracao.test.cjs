@@ -40,6 +40,7 @@ function ambiente(todosExcluidos) {
     UrlFetchApp: new Proxy({}, { get() { throw Error('Nao pode consultar fontes externas'); } })
   });
   app.Utilities.newBlob = blobLeve;
+  app._rxRevisaoMontar_=()=>({});app._rxRevisaoSalvar_=()=>{};
   app.Utilities.zip = (blobs, nome) => {
     const mapa = Object.fromEntries(blobs.map(blob => [blob.getName(), blob]));
     assert.equal(Object.keys(mapa).length, blobs.length);

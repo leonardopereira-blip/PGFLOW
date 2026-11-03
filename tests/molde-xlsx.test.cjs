@@ -61,6 +61,7 @@ test('geracao completa usa somente moldes e preserva abas sem entrada identicas 
     }
   });
   app.Utilities.zip=(blobs,nome)=>app.Utilities.newBlob(mx.escreverZip(blobs.map(b=>({nome:b.getName(),dados:b.getBytes()}))),'application/zip',nome);
+  app._rxRevisaoMontar_=()=>({});app._rxRevisaoSalvar_=()=>{};
   const dep=app._reSpMolde_('LOGPRINT','depara');
   const cab=n=>app._reSpMatriz_(dep,n).headers;
   const linha=(h,valores)=>h.map(c=>valores[c]===undefined?'':valores[c]);

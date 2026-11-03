@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..');
 const b=fs.readFileSync(path.join(root,'ReentradasExcel.js'),'utf8');
 const gerador=fs.readFileSync(path.join(root,'ValidaReentradasSPG.js'),'utf8');
 const interfaceHtml=fs.readFileSync(path.join(root,'ValidaInterface.html'),'utf8');
-const context={};vm.createContext(context);
+const context={_rxRevisaoMontar_:()=>({}),_rxRevisaoSalvar_:()=>{}};vm.createContext(context);
 vm.runInContext(gerador,context);vm.runInContext(b,context);
 const xml='<worksheet><sheetData><row r="2">'+
   '<c r="A2" s="7"><v>1</v></c>'+
@@ -20,7 +20,9 @@ test('prévia não modifica planilha nem consulta fluxos Principal/Email',()=>{
   assert.match(b,/function listarArquivosReentradasExcel\(/);
   assert.doesNotMatch(b,/GmailApp|MailApp|ValidaPrincipal|SpreadsheetApp/);
   assert.match(interfaceHtml,/id="rxOverlay"/);
-  assert.match(interfaceHtml,/Salvar alterações no arquivo/);
+  const salvar=(/<button\b[^>]*\bid="rxSalvar"[^>]*>[\s\S]*?<\/button>/.exec(interfaceHtml)||[])[0]||'';
+  assert.match(salvar,/onclick="rxSalvarEdicoes\(\)"/);
+  assert.match(salvar,/>Salvar alterações<\/button>/);
   assert.match(interfaceHtml,/rxVoltarAjustes\(\)/);
   assert.match(interfaceHtml,/rxFechar\(\)/);
   assert.match(interfaceHtml,/rxAbrirArquivo\(rxUltimo\)/);
@@ -85,6 +87,7 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
     _reLpAbas_(){return[{nome:'CALC Geral',caminho:'xl/worksheets/sheet1.xml'}]},
     _bcDigest_:mkHash
   };
+  env._rxRevisaoMontar_=()=>({});env._rxRevisaoSalvar_=()=>{};
   vm.createContext(env);vm.runInContext(gerador,env);vm.runInContext(fs.readFileSync(path.join(root,'MacroProtecao.js'),'utf8'),env);vm.runInContext(b,env);
   const result=env.salvarEdicoesReentradasExcel(id,1700000000000,[
     {aba:0,linha:2,coluna:2,valor:'Alterado'}
@@ -106,4 +109,9 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
     const invalido=env.salvarEdicoesReentradasExcel(id,stamp,[{aba:0,linha:2,coluna:1,valor:'3'}]);
     assert.match(invalido.erro,/Atualize a prévia/);assert.equal(quantidade,1);
   }
+  env._rxRevisaoSalvar_=()=>{throw Error('Falha controlada na revisao');};
+  const salvoSemModelo=env.salvarEdicoesReentradasExcel(id,1700000001000,[{aba:0,linha:2,coluna:2,valor:'Salvo confirmado'}]);
+  assert.equal(salvoSemModelo.sucesso,true);assert.equal(salvoSemModelo.revisaoPendente,true);
+  assert.equal(salvoSemModelo.atualizadoEm,1700000002000);assert.match(salvoSemModelo.aviso,/Excel foi salvo e conferido/);
+  assert.equal(quantidade,2,'uma falha do modelo nao pode repetir a gravacao do Excel');
 });

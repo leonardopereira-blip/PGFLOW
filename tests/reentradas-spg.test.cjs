@@ -248,6 +248,28 @@ test('NC especificacoes replica regras do exemplo real 2740: 0 numerico onde nao
  assert.equal(result[44-3],'OFFSET 70G');
 });
 
+test('papeis da capa e do forro usam os nomes do catalogo sem alterar o tipo de capa ou a origem',()=>{
+  const cab=Array(80).fill('');cab[1]='1. ID_Código SKU';
+  const ar={headers:['1. ID_Código Kit'],linhas:[['SKU-CAPA-DURA']]};
+  const tr={headers:['1. ID_Código Kit','1. ID_Código SKU','16. TIR_SKU'],
+    linhas:[['SKU-CAPA-DURA','SKU-CAPA-DURA',100]]};
+  for(const [papelCapa,papelForro,capaEsperada,forroEsperado] of [
+    ['CAPA DURA - COUCHÉ BRILHO 150G','CAPA DURA - OFFSET 120G','COUCHE BRILHO 150G','OFFSET 120G'],
+    ['COUCHE BRILHO 150G','OFFSET 120G','COUCHE BRILHO 150G','OFFSET 120G'],
+    ['-','NULL',0,0],['',0,0,0]
+  ]){
+    const linha=Array(80).fill('-');
+    linha[1]='SKU-CAPA-DURA';linha[27]='Dura';
+    linha[31]=papelCapa;linha[32]=papelForro;
+    const original=linha.slice();
+    const result=context._reSpConstrucaoNC_({headers:cab,linhas:[linha]},ar,tr,[]).especificacoes[0];
+    assert.equal(result[24-3],capaEsperada,'papel da capa');
+    assert.equal(result[41-3],forroEsperado,'papel do forro');
+    assert.equal(result[21-3],'CAPA DURA','o tipo de capa continua separado do nome do papel');
+    assert.deepEqual(linha,original,'a especificacao de origem deve permanecer intacta');
+  }
+});
+
 test('resumo nao oculta falhas de API como chamado com tiragem zero',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
   assert.match(ui,/var resumoComFalha = resumosArr\.some/);

@@ -409,7 +409,11 @@ function _reSpConstrucaoNC_(espec,arvore,tiragem,respostas) {
     else p.kit+=x.quant;
     p.total+=x.quant;
   });
-  var normPapel=function(s){s=String(s==null?'':s).trim().toUpperCase();if(!s||s==='-'||s==='NULL')return 0;return s.replace(/^CARTÃO (\d+)G$/,'CARTÃO TRIPLEX $1G').replace(/^OFFSET (\d+)G$/,'OFFSET $1G').replace(/^LAMINAÇÃO BOPP BRILHO$/,'LAMINAÇÃO BRILHO').replace(/^LAMINAÇÃO BOPP FOSCO$/,'LAMINAÇÃO FOSCA');};
+  var normPapel=function(s){
+    s=String(s==null?'':s).trim().toUpperCase().replace(/^CAPA DURA\s*-\s*/,'').replace(/^COUCHÉ(?=\s|$)/,'COUCHE');
+    if(!s||s==='-'||s==='NULL')return 0;
+    return s.replace(/^CARTÃO (\d+)G$/,'CARTÃO TRIPLEX $1G').replace(/^OFFSET (\d+)G$/,'OFFSET $1G').replace(/^LAMINAÇÃO BOPP BRILHO$/,'LAMINAÇÃO BRILHO').replace(/^LAMINAÇÃO BOPP FOSCO$/,'LAMINAÇÃO FOSCA');
+  };
   var capa=function(s){s=String(s||'').trim().toUpperCase();return s==='DURA'?'CAPA DURA':s;};
   var enc=function(s){s=String(s||'').toUpperCase();return s==='CANOA'?'GRAMPO CANOA':s==='LOMBADA_QUADRADA_PUR'?'PUR':s;};
   var manual=function(col,def){return man[col]===undefined?def:man[col];};

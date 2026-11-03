@@ -85,7 +85,7 @@
           <div id="resumoGerado" style="display:none; margin-top:18px;"></div>
 
           <div id="finishArea" style="display:none; text-align:center; margin-top:25px;">
-             <button id="rxBtnResultado" class="vc-btn-primary" type="button" onclick="rxAbrirUltimo()">Conferir e editar Excel</button>
+             <button id="rxBtnResultado" class="vc-btn-primary" type="button" onclick="rxAbrirUltimo()">Validar custos</button>
              <button type="button" class="vc-rx-soft" onclick="rxVoltarAjustes()">Voltar aos ajustes</button>
              <button id="btnNovaCalc" class="vc-btn-primary" onclick="resetarParaNovaCalculadora()">Gerar nova calculadora</button>
           </div>
@@ -137,32 +137,32 @@
       </div>
       <div class="rx-workspace">
         <aside class="rx-sidebar" aria-label="Navegação do arquivo">
-          <div class="rx-sidebar-title">Abas do arquivo</div>
-          <div id="rxAbas" class="rx-tabs" role="tablist" aria-label="Abas do arquivo" aria-orientation="vertical"></div>
+          <div class="rx-sidebar-title">Etapas da validação</div>
+          <div id="rxAbas" class="rx-tabs" role="tablist" aria-label="Etapas da validação" aria-orientation="vertical"></div>
         </aside>
         <div class="rx-editor-content">
           <div class="rx-sheet-heading">
-            <div><h2 id="rxAbaTitulo">Revisar arquivo</h2><p id="rxAbaDescricao">Escolha uma aba para conferir os dados.</p></div>
+            <div><h2 id="rxAbaTitulo">Validar custos</h2><p id="rxAbaDescricao">Selecione uma etapa para conferir os dados e ajustar os custos.</p></div>
             <a id="rxLinkDrive" href="#" target="_blank" rel="noopener">Abrir no Drive <span aria-hidden="true">↗</span></a>
           </div>
-          <label class="rx-mobile-tabs" for="rxSelecionarAba">Aba do arquivo
+          <label class="rx-mobile-tabs" for="rxSelecionarAba">Etapa da validação
             <select id="rxSelecionarAba" onchange="rxSelecionarAba(Number(this.value))" aria-label="Selecionar aba do arquivo"></select>
           </label>
           <div class="rx-editor-toolbar">
             <div class="rx-search-field">
-              <label for="rxBuscarCelulas">Buscar nesta aba</label>
+              <label for="rxBuscarCelulas">Buscar nesta etapa</label>
               <div class="rx-search-control"><input id="rxBuscarCelulas" type="search" placeholder="SKU, papel ou qualquer informação…" oninput="rxAgendarBusca()"><button type="button" class="vc-rx-soft" onclick="rxLimparBusca()">Limpar</button></div>
             </div>
             <label class="rx-section-field" id="rxSecaoCampo" for="rxSecao" hidden>Ir para seção
               <select id="rxSecao" onchange="rxIrSecao(this.value)"></select>
             </label>
           </div>
-          <div class="rx-guide">Clique em uma célula para editar. Fórmulas protegidas.</div>
+          <div class="rx-guide">Selecione um campo para ajustar. Valores calculados permanecem protegidos. As letras pequenas identificam a posição original para orientar a gráfica.</div>
           <div id="rxMsg" role="status" aria-live="polite"></div>
           <div id="rxPrepararPane" class="rx-prepare" hidden>
-            <strong>Prepare a revisão deste arquivo</strong>
-            <p>Este arquivo ainda não tem uma revisão preparada. Prepare uma vez para navegar pelos dados.</p>
-            <button type="button" class="vc-rx-soft" id="rxPrepararBtn" onclick="rxPrepararRevisao()">Preparar revisão</button>
+            <strong>Prepare os dados para validação</strong>
+            <p>Esta validação precisa ser preparada uma única vez para carregar os dados de forma rápida.</p>
+            <button type="button" class="vc-rx-soft" id="rxPrepararBtn" onclick="rxPrepararRevisao()">Preparar validação</button>
           </div>
           <div class="rx-grid" id="rxGrid"><table aria-label="Dados do arquivo para revisão"><thead id="rxCab"></thead><tbody id="rxCorpo"></tbody></table></div>
           <div class="rx-bottom">
@@ -172,13 +172,13 @@
               <button type="button" class="vc-rx-soft" id="rxProxima" onclick="rxMoverLinha(1)" title="Próxima página">Próxima →</button>
               <span class="rx-range" id="rxLinhasStatus"></span>
             </div>
-            <div class="rx-column-controls" aria-label="Navegação entre colunas">
+            <div class="rx-column-controls" aria-label="Rolagem horizontal" hidden>
               <button type="button" class="vc-rx-soft" id="rxColAnterior" onclick="rxMoverColuna(-1)" aria-label="Colunas anteriores">←</button>
               <span class="rx-range" id="rxColunasStatus"></span>
               <button type="button" class="vc-rx-soft" id="rxColProxima" onclick="rxMoverColuna(1)" aria-label="Próximas colunas">→</button>
             </div>
           </div>
-          <p class="rx-calculation-note">Os custos são recalculados ao abrir o arquivo no Excel.</p>
+          <p class="rx-calculation-note">Os valores calculados serão atualizados na abertura do arquivo final pela gráfica.</p>
         </div>
       </div>
     </div>
@@ -377,6 +377,28 @@
   .rx-calculation-note{color:#8a98a8;font-size:10px;line-height:1.5;margin:10px 0 0;flex:0 0 auto}
   @media(max-width:1000px){.rx-overlay{padding:12px}.rx-sidebar{width:190px;flex-basis:190px;padding:18px 9px}.rx-head,.rx-editor-actions{padding-left:18px;padding-right:18px}.rx-editor-content{padding:18px 18px 10px}.rx-sheet-heading h2{font-size:18px}.rx-section-field{flex-basis:180px}.rx-page-controls .rx-range{flex-basis:100%}}
   @media(max-width:760px){.rx-overlay{padding:0}.rx-window{border-radius:0}.rx-head{padding:14px 16px;align-items:flex-start}.rx-head strong{font-size:16px}.rx-head .rx-actions{flex-wrap:wrap;justify-content:flex-end;max-width:140px;gap:5px}.rx-head .vc-rx-soft{font-size:11px;padding:7px 9px}.rx-editor-actions{padding:10px 16px}.rx-sidebar{display:none}.rx-mobile-tabs{display:block;margin-bottom:14px}.rx-mobile-tabs select{margin-top:5px}.rx-editor-content{padding:16px 16px 10px}.rx-sheet-heading{margin-bottom:12px;gap:10px}.rx-sheet-heading h2{font-size:17px}.rx-sheet-heading p{font-size:11px}.rx-editor-toolbar{flex-wrap:wrap}.rx-section-field{flex:1 0 100%}.rx-section-field select{padding:8px 10px}.rx-search-field{flex-basis:100%}.rx-grid th,.rx-grid td{padding:9px 10px}.rx-guide{font-size:10px}.rx-bottom{gap:10px}.rx-page-controls{gap:6px}.rx-page-controls .vc-rx-soft{padding:7px 9px;font-size:11px}.rx-column-controls{margin-left:auto}.rx-pending{font-size:10px;max-width:130px}.rx-editor-actions .rx-actions{gap:6px}.rx-window .vc-rx-save{padding:9px 12px}.rx-calculation-note{font-size:9px}#rxListaPane{padding:8px 16px 14px}.rx-file{display:block}.rx-file-buttons{margin-top:10px}}
+
+  /* Interface de validacao, com categorias e campos em lugar da grade crua. */
+  .rx-grid{background:#f7f9fc;border:1px solid #dce6f1;cursor:default;scroll-behavior:auto}
+  .rx-grid table{width:max-content;min-width:100%;table-layout:fixed;border-collapse:separate;background:#fff}
+  .rx-grid th,.rx-grid td{width:168px;min-width:168px;max-width:168px;border-right:1px solid #edf1f5;padding:12px 14px}
+  .rx-grid th{font-size:11px;color:#193c62}
+  .rx-grid .rx-band th{height:31px;padding:6px 14px;background:#e9f1fa;border-bottom:1px solid #d7e5f4;font-size:10px;color:#45648a;text-transform:uppercase;letter-spacing:.45px}
+  .rx-grid .rx-band-1 th{top:0;z-index:6;background:#0C2340;color:#f5f9ff}
+  .rx-grid .rx-band-2 th{top:31px;z-index:5}
+  .rx-grid .rx-field-row th{top:var(--rx-head-top,0px);z-index:4;background:#f5f8fc;border-bottom:2px solid #dae5f2;font-size:11px;line-height:1.5}
+  .rx-grid .rx-field-row .rx-col-code{display:block;margin-top:5px;font-size:9px;color:#94a8ba;font-weight:400;letter-spacing:.4px}
+  .rx-grid .rx-row{width:48px;min-width:48px;max-width:48px;background:#f0f4f8;color:#93a3b5}
+  .rx-grid .rx-field-row .rx-row{z-index:8;background:#e5edf6}
+  .rx-grid .rx-band .rx-row{z-index:9;background:#0C2340}
+  .rx-grid .rx-fixed-one{position:sticky;left:48px;z-index:2;background:#fff;font-weight:600;color:#193c62;border-right:1px solid #d6e5f3}
+  .rx-grid .rx-fixed-two{position:sticky;left:216px;z-index:2;background:#fff;border-right:2px solid #cbdff0;box-shadow:3px 0 7px rgba(15,44,75,.05)}
+  .rx-grid .rx-field-row .rx-fixed-one,.rx-grid .rx-field-row .rx-fixed-two{z-index:7;background:#edf4fc}
+  .rx-grid tbody tr:nth-child(even) td.rx-fixed-one,.rx-grid tbody tr:nth-child(even) td.rx-fixed-two{background:#f8fbfe}
+  .rx-grid tbody tr:hover td.rx-fixed-one,.rx-grid tbody tr:hover td.rx-fixed-two{background:#edf5ff}
+  .rx-grid td{cursor:pointer;color:#273b50}
+  .rx-grid td.rx-formula{color:#74879b;cursor:default}
+  .rx-column-controls{display:none!important}
 </style>
 <script>
   var FORNECEDORES = ["GRÁFICA", "ATHOS", "FELK", "HR"];
@@ -1104,14 +1126,14 @@
   var rxArquivo=null,rxUltimo=null,rxArquivos=[],rxConjunto=null,rxConjuntoTentado=false;
   var rxEstado={aba:0,linha:0,coluna:0,busca:''},rxPagina=null,rxPendente={},rxFormulas={},rxFaixasFormulas=[],rxMesclagens=[];
   var rxToken=0,rxListaToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false;
-  var rxAbasCache={},rxPaginasCache={},rxPosicoes={},rxNomesAbas=[],rxLeituras={},rxSessao=0,rxNavAssinatura='';
+  var rxAbasCache={},rxPaginasCache={},rxQuadrosCache={},rxPosicoes={},rxNomesAbas=[],rxLeituras={},rxSessao=0,rxNavAssinatura='';
   var RX_COLUNAS_VISIVEIS=12;
   function rxEl(id){return document.getElementById(id);}
   function rxMsg(t){rxEl('rxMsg').textContent=t||'';}
   function rxTemEdicoes(){return Object.keys(rxPendente).length>0;}
   function rxLimparCache(){
     if(rxTimer)clearTimeout(rxTimer);rxTimer=null;
-    rxSessao++;rxAbasCache={};rxPaginasCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';
+    rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';
   }
   function rxEhFormula(aba,linha,coluna){
     var cache=rxAbasCache[aba],formulas=cache?cache.formulas||{}:rxFormulas,faixas=cache?cache.faixasFormulas||[]:rxFaixasFormulas;
@@ -1203,7 +1225,7 @@
     rxLimparCache();rxPendente={};rxFormulas={};rxFaixasFormulas=[];rxMesclagens=[];rxConjunto=null;rxPagina=null;rxConjuntoTentado=false;
     rxEstado={aba:0,linha:0,coluna:0,busca:''};rxEl('rxBuscarCelulas').value='';
     rxEl('rxOverlay').hidden=false;rxEl('rxListaPane').hidden=true;rxEl('rxEditorPane').hidden=false;
-    rxEl('rxVoltarListaBtn').hidden=false;rxEl('rxTitulo').textContent='Revisar arquivo';
+    rxEl('rxVoltarListaBtn').hidden=false;rxEl('rxTitulo').textContent='Validar custos';
     rxEl('rxSubtitulo').textContent=rxArquivo.nome;
     rxEl('rxAbas').textContent='';rxEl('rxCab').textContent='';rxEl('rxCorpo').textContent='';
     rxEl('rxSalvar').disabled=true;rxEl('rxPrepararPane').hidden=true;rxPedirPagina();
@@ -1214,7 +1236,7 @@
     b.classList.toggle('rx-wide',on);rxEl('rxExpandir').textContent=on?'Reduzir':'Expandir';if(rxPagina)rxPedirPagina();
   }
   function rxLetra(n){var s='';while(n>0){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
-  function rxLarguraPagina(){var largura=rxEl('rxGrid').clientWidth;return largura?Math.max(3,Math.min(RX_COLUNAS_VISIVEIS,Math.floor((largura-48)/160))):RX_COLUNAS_VISIVEIS;}
+  function rxLarguraPagina(){return Math.max(1,Math.floor((rxEl('rxGrid').clientWidth||960)/160));}
   function rxGuardarPosicao(){
     var grid=rxEl('rxGrid');
     rxPosicoes[rxEstado.aba]={aba:rxEstado.aba,linha:rxEstado.linha,coluna:rxEstado.coluna,busca:rxEstado.busca,
@@ -1229,13 +1251,13 @@
     rxEstado={aba:indice,linha:anterior?anterior.linha:0,coluna:anterior?anterior.coluna:0,busca:anterior?anterior.busca:''};
     rxEl('rxBuscarCelulas').value=rxEstado.busca;rxEl('rxGrid').scrollTop=anterior&&anterior.scrollTop||0;rxEl('rxGrid').scrollLeft=anterior&&anterior.scrollLeft||0;rxPedirPagina();
   }
-  function rxGrupoAba(nome){return /^TAB(?:\s|-)/i.test(nome)?'Referências':/^(?:CALC|IMPUT|INPUT|NC - CALC)/i.test(nome)?'Cálculos':'Dados do arquivo';}
-  function rxTituloAba(nome){return nome.replace(/^(?:TAB|CALC)\s*-?\s*/i,'').replace(/^NC - /,'');}
+  function rxGrupoAba(nome){return /^TAB(?:\s|-)/i.test(nome)?'Tabelas de apoio':/^(?:CALC|IMPUT|INPUT|NC - CALC)/i.test(nome)?'Composição de custos':'Validação técnica';}
+  function rxTituloAba(nome){if(/^CALC[\s-]*Geral$/i.test(nome))return 'Resumo de custos';if(/Acabamento/i.test(nome))return 'Acabamentos';if(/PPG[ -]+Especifica/i.test(nome))return 'Especificações técnicas';return nome.replace(/^(?:TAB|CALC)\s*-?\s*/i,'').replace(/^NC - /,'');}
   function rxAtualizarAbas(){
     var host=rxEl('rxAbas'),seletor=rxEl('rxSelecionarAba'),assinatura=JSON.stringify(rxNomesAbas);
     if(assinatura!==rxNavAssinatura){
       host.textContent='';seletor.textContent='';rxNavAssinatura=assinatura;
-      ['Dados do arquivo','Cálculos','Referências'].forEach(function(grupo){
+      ['Validação técnica','Composição de custos','Tabelas de apoio'].forEach(function(grupo){
         var indices=[];rxNomesAbas.forEach(function(nome,i){if(rxGrupoAba(nome)===grupo)indices.push(i);});
         if(!indices.length)return;
         var titulo=document.createElement('div');titulo.className='rx-tab-group';titulo.textContent=grupo;host.appendChild(titulo);
@@ -1255,8 +1277,8 @@
     rxNomesAbas.forEach(function(nome,i){var b=rxEl('rxTab'+i);b.setAttribute('aria-selected',String(i===rxEstado.aba));b.tabIndex=i===rxEstado.aba?0:-1;});
     seletor.value=String(rxEstado.aba);
     var nome=rxNomesAbas[rxEstado.aba]||'Preparando revisão';
-    rxEl('rxAbaTitulo').textContent=nome;
-    rxEl('rxAbaDescricao').textContent=rxGrupoAba(nome)==='Referências'?'Tabelas de apoio ao cálculo':rxGrupoAba(nome)==='Cálculos'?'Dados e cálculos do fornecedor':'Especificações e dados dos itens';
+    rxEl('rxAbaTitulo').textContent=rxTituloAba(nome);
+    rxEl('rxAbaDescricao').textContent=rxGrupoAba(nome)==='Tabelas de apoio'?'Parâmetros e referências utilizados nos custos':rxGrupoAba(nome)==='Composição de custos'?'Composição e conferência de valores':'Especificações e dados dos itens';
   }
   function rxAtualizarSecoes(){
     var p=rxPagina,nome=p.abas[p.aba]||'',campo=rxEl('rxSecaoCampo'),select=rxEl('rxSecao');
@@ -1265,48 +1287,48 @@
     var secoes=[[0,'Início'],[2,'Identificação'],[20,'Capa'],[38,'Forro / Guardas'],[41,'Miolo principal'],
       [51,'Miolo professor'],[57,'Encartes'],[63,'Adesivos'],[69,'Acabamentos e embalagem']];
     select.textContent='';
-    secoes.forEach(function(s){if(s[0]<p.totalColunas){var o=document.createElement('option');o.value=s[0];o.textContent=s[1];select.appendChild(o);}});
+    var indices=p.indices||p.colunas.map(function(_,i){return p.coluna+i;});
+    secoes.forEach(function(s){if(indices.some(function(c){return c>=s[0];})){var o=document.createElement('option');o.value=s[0];o.textContent=s[1];select.appendChild(o);}});
     var atual=0;secoes.forEach(function(s){if(s[0]<=p.coluna)atual=s[0];});select.value=String(atual);
   }
-  function rxIrSecao(coluna){if(rxOcupado||!rxPagina)return;rxEstado.coluna=Math.max(0,Number(coluna)||0);rxPedirPagina();}
+  function rxIrSecao(coluna){
+    if(rxOcupado||!rxPagina)return;
+    rxEstado.coluna=Math.max(0,Number(coluna)||0);
+    var alvo=rxEl('rxGrid').querySelector('[data-col="'+(rxEstado.coluna+1)+'"]');
+    if(alvo)rxEl('rxGrid').scrollLeft=Math.max(0,(alvo.offsetLeft||0)-220);
+    rxGuardarPosicao();
+  }
   function rxIrPagina(numero){if(rxOcupado||!rxPagina)return;var total=Math.max(1,Math.ceil(rxPagina.totalFiltradas/50));rxEstado.linha=(Math.max(1,Math.min(total,Math.floor(Number(numero)||1)))-1)*50;rxPedirPagina();}
   function rxPaginaLocal(){
     var cache=rxAbasCache[rxEstado.aba],aba=rxConjunto?rxConjunto.abas[rxEstado.aba]:cache&&cache.aba;
     if(!aba)return null;
+    var q=rxQuadrosCache[rxEstado.aba]||null,indices=q&&q.indices&&q.indices.length?
+      q.indices:Array.from({length:aba.totalColunas},function(_,i){return i;});
+    var originais=aba.linhas||[],linhasUteis=q?originais.filter(function(r){
+      return r.numero>q.cabecalhoAte&&r.numero<=q.ultimaLinha;
+    }):originais;
     var termo=rxEstado.busca.toLocaleLowerCase('pt-BR');
-    var filtradas=termo?aba.linhas.filter(function(r){
+    var filtradas=termo?linhasUteis.filter(function(r){
       return Object.keys(r.valores).some(function(k){return String(r.valores[k]).toLocaleLowerCase('pt-BR').includes(termo);});
-    }):aba.linhas;
-    var start=Math.min(rxEstado.linha,filtradas.length),col=Math.min(rxEstado.coluna,Math.max(0,aba.totalColunas-1));
-    var largura=Math.min(rxLarguraPagina(),aba.totalColunas-col),colunas=[],linhas=[];
-    for(var j=0;j<largura;j++)colunas.push(rxLetra(col+j+1));
+    }):linhasUteis;
+    var start=Math.min(rxEstado.linha,filtradas.length),linhas=[];
     filtradas.slice(start,start+50).forEach(function(r){
-      var values=[];for(var k=0;k<largura;k++)values.push(String(r.valores[col+k]??''));
-      linhas.push({numero:r.numero,celulas:values});
+      linhas.push({numero:r.numero,celulas:indices.map(function(c){return String(r.valores[c]??'');})});
     });
-    return {arquivo:rxArquivo.nome,abas:rxNomesAbas,
-      aba:rxEstado.aba,linha:start,coluna:col,totalLinhas:aba.linhas.length,
-      totalFiltradas:filtradas.length,totalColunas:aba.totalColunas,
-      colunas:colunas,linhas:linhas};
+    return {arquivo:rxArquivo.nome,abas:rxNomesAbas,aba:rxEstado.aba,linha:start,coluna:0,
+      totalLinhas:linhasUteis.length,totalFiltradas:filtradas.length,totalColunas:aba.totalColunas,
+      indices:indices,colunas:indices.map(function(c){return rxLetra(c+1);}),linhas:linhas};
   }
   function rxAplicarMetadados(r){
     rxFormulas=r.formulas||{};rxFaixasFormulas=Array.isArray(r.faixasFormulas)?r.faixasFormulas:[];
     rxMesclagens=Array.isArray(r.mesclagens)?r.mesclagens:[];
   }
-  function rxChavePagina(estado){return JSON.stringify([estado.aba,estado.linha,estado.coluna,estado.busca]);}
+  function rxChavePagina(estado){return JSON.stringify([estado.aba,estado.linha,estado.busca]);}
   function rxPaginaEmCache(){
-    var keys=Object.keys(rxPaginasCache);
-    for(var i=keys.length-1;i>=0;i--){
-      var item=rxPaginasCache[keys[i]],q=item.pedido,p=item.resposta.pagina;
-      if(q.aba!==rxEstado.aba||q.linha!==rxEstado.linha||q.busca!==rxEstado.busca)continue;
-      var col=Math.min(rxEstado.coluna,Math.max(0,p.totalColunas-1)),inicio=col-p.coluna;
-      var largura=Math.min(rxLarguraPagina(),p.totalColunas-col);
-      if(inicio<0||inicio+largura>p.colunas.length)continue;
-      rxAplicarMetadados(item.resposta);
-      return Object.assign({},p,{coluna:col,colunas:p.colunas.slice(inicio,inicio+largura),
-        linhas:p.linhas.map(function(l){return {numero:l.numero,celulas:l.celulas.slice(inicio,inicio+largura)};})});
-    }
-    return null;
+    var chave=rxChavePagina(rxEstado),item=rxPaginasCache[chave];
+    if(!item)return null;
+    rxAplicarMetadados(item.resposta);
+    return item.resposta.pagina;
   }
   function rxPedirPagina(){
     if(!rxArquivo||rxEl('rxOverlay').hidden||rxOcupado)return;
@@ -1320,7 +1342,7 @@
     celula.textContent='Preparando esta aba…';linha.appendChild(celula);rxEl('rxCorpo').appendChild(linha);
     rxMsg('Carregando dados da revisão…');
     var pedido={id:rxArquivo.id,atualizadoEm:rxArquivo.atualizadoEm,
-      aba:rxEstado.aba,linha:rxEstado.linha,coluna:rxEstado.coluna,busca:rxEstado.busca,
+      aba:rxEstado.aba,linha:rxEstado.linha,coluna:0,busca:rxEstado.busca,
       porAba:true,apenasPagina:rxConjuntoTentado};
     var chave=rxChavePagina(pedido),sessao=rxSessao;
     if(rxLeituras[chave])return;rxLeituras[chave]=true;
@@ -1328,7 +1350,7 @@
       if(sessao!==rxSessao)return;delete rxLeituras[chave];
       var atual=rxEstado.aba===pedido.aba;
       if(r&&(r.codigo==='REVISAO_AUSENTE'||r.codigo==='REVISAO_DESATUALIZADA')){
-        if(atual){rxEl('rxPrepararPane').hidden=false;rxEl('rxCorpo').textContent='';rxEl('rxGrid').setAttribute('aria-busy','false');rxMsg(r.erro||'Prepare a revisão deste arquivo para continuar.');}return;
+        if(atual){rxEl('rxPrepararPane').hidden=false;rxEl('rxCorpo').textContent='';rxEl('rxGrid').setAttribute('aria-busy','false');rxMsg(r.erro||'Prepare os dados para validação para continuar.');}return;
       }
       if(!r||r.erro||!r.arquivo){if(atual){rxEl('rxGrid').setAttribute('aria-busy','false');rxEl('rxCorpo').textContent='';rxMsg(r&&r.erro||'Revisão indisponível. Tente reabrir o arquivo.');}return;}
       if(r.arquivo.id!==pedido.id){if(atual)rxMsg('O arquivo da resposta não corresponde à revisão aberta.');return;}
@@ -1337,6 +1359,7 @@
       rxEl('rxLinkDrive').href=r.arquivo.url;
       rxNomesAbas=r.nomesAbas||(r.previaExcel&&r.previaExcel.abas.map(function(x){return x.nome;}))||(r.pagina&&r.pagina.abas)||rxNomesAbas;
       rxConjuntoTentado=true;
+      if(r.quadro)rxQuadrosCache[pedido.aba]=r.quadro;
       if(r.previaExcel&&Array.isArray(r.previaExcel.abas)){
         rxConjunto=r.previaExcel;rxAplicarMetadados(r);
       }else if(r.abaCompleta){rxAbasCache[r.abaCompleta.indice]={aba:r.abaCompleta,formulas:r.formulas,faixasFormulas:r.faixasFormulas,mesclagens:r.mesclagens};}
@@ -1360,32 +1383,64 @@
     }).withFailureHandler(function(e){if(sessao!==rxSessao)return;rxOcupado=false;rxEl('rxPrepararBtn').disabled=false;rxMsg('Falha ao preparar revisão: '+(e.message||e));})
       .prepararRevisaoReentradasExcel(rxArquivo.id,rxArquivo.atualizadoEm);
   }
+  function rxTopoValores(aba){
+    var q=rxQuadrosCache[aba];if(q&&q.topo)return q.topo;
+    var dados=rxConjunto?rxConjunto.abas[aba]:rxAbasCache[aba]&&rxAbasCache[aba].aba;
+    if(!dados||!/\bCALC[\s-]*GERAL\b/i.test(dados.nome||''))return [];
+    return (dados.linhas||[]).filter(function(r){return r.numero<=5;});
+  }
+  function rxTextoValor(valor){
+    var s=String(valor??'');
+    return /^-?\d+\.\d{1,2}$/.test(s)?s.replace('.',','):s;
+  }
   function rxRenderPagina(){
     var p=rxPagina;if(!p)return;
     rxNomesAbas=p.abas;rxAtualizarAbas();rxAtualizarSecoes();
     rxEl('rxGrid').setAttribute('aria-busy','false');
     var cab=rxEl('rxCab'),corpo=rxEl('rxCorpo');cab.textContent='';corpo.textContent='';
-    var tr=document.createElement('tr'),th=document.createElement('th');th.className='rx-row';th.textContent='#';tr.appendChild(th);
-    var dados=rxConjunto?rxConjunto.abas[p.aba]:rxAbasCache[p.aba]&&rxAbasCache[p.aba].aba;
-    var cabecalho=/^(?:NC - )?PPG[ -]+Especifica/i.test(p.abas[p.aba])&&dados&&dados.linhas.find(function(l){return l.numero===3;});
-    p.colunas.forEach(function(letra,i){
-      var th=document.createElement('th'),nome=cabecalho&&String(cabecalho.valores[p.coluna+i]||'').trim();
-      th.textContent=nome||letra;th.title=nome||letra;
-      if(nome){var codigo=document.createElement('small');codigo.textContent=letra;th.appendChild(codigo);}tr.appendChild(th);
+    var indices=p.indices||p.colunas.map(function(_,i){return p.coluna+i;});
+    var topo=rxTopoValores(p.aba),linhasTopo={};
+    topo.forEach(function(r){linhasTopo[r.numero]=r.valores||{};});
+    var bandas=topo.filter(function(r){return r.numero<=2&&Object.keys(r.valores||{}).some(function(k){
+      return String(r.valores[k]||'').trim();
+    });});
+    bandas.forEach(function(b,bi){
+      var tr=document.createElement('tr');tr.className='rx-band rx-band-'+(bi+1);
+      var marcador=document.createElement('th');marcador.className='rx-row';marcador.textContent='';tr.appendChild(marcador);
+      var j=0;
+      while(j<indices.length){
+        var val=String(b.valores[indices[j]]??'').trim();
+        var fim=j+1;
+        while(fim<indices.length&&!String(b.valores[indices[fim]]??'').trim())fim++;
+        var grupo=document.createElement('th');grupo.colSpan=fim-j;grupo.className='rx-group-label';
+        grupo.textContent=val||'Dados complementares';tr.appendChild(grupo);j=fim;
+      }
+      cab.appendChild(tr);
+    });
+    rxEl('rxGrid').style.setProperty&&rxEl('rxGrid').style.setProperty('--rx-head-top',(bandas.length*31)+'px');
+    var tr=document.createElement('tr');tr.className='rx-field-row';
+    var th=document.createElement('th');th.className='rx-row';th.textContent='Item';tr.appendChild(th);
+    indices.forEach(function(col,i){
+      var th=document.createElement('th'),nome='';
+      for(var n=5;n>=1;n--)if(linhasTopo[n]&&String(linhasTopo[n][col]??'').trim()){nome=String(linhasTopo[n][col]).trim();break;}
+      th.className=i===0?'rx-fixed-one':i===1?'rx-fixed-two':'';
+      th.textContent=nome||'Campo '+(i+1);th.title=(nome||'Campo')+' · '+rxLetra(col+1);
+      th.setAttribute('data-col',String(col+1));
+      var codigo=document.createElement('small');codigo.className='rx-col-code';codigo.textContent=rxLetra(col+1);th.appendChild(codigo);
+      tr.appendChild(th);
     });cab.appendChild(tr);
     p.linhas.forEach(function(l){
-      var tr=document.createElement('tr'),indice=document.createElement('td');
-      if(cabecalho&&l.numero<=4)tr.className='rx-sheet-header';
-      indice.className='rx-row';indice.textContent=l.numero;tr.appendChild(indice);
+      var tr=document.createElement('tr'),marcador=document.createElement('td');
+      marcador.className='rx-row';marcador.textContent=l.numero;tr.appendChild(marcador);
       l.celulas.forEach(function(valor,i){
-        var td=document.createElement('td'),col=p.coluna+i+1;
-        var key=p.aba+':'+l.numero+':'+col,pend=rxPendente[key];
-        var texto=pend?pend.valor:String(valor??'');
-        td.textContent=texto;td.title=texto;
-        if(pend)td.className='rx-mod';
+        var td=document.createElement('td'),col=indices[i]+1;
+        var key=p.aba+':'+l.numero+':'+col,pend=rxPendente[key],texto=pend?pend.valor:String(valor??'');
+        td.textContent=rxTextoValor(texto);td.title=texto+' · '+rxLetra(col)+l.numero;
+        if(i===0)td.className='rx-fixed-one';else if(i===1)td.className='rx-fixed-two';
+        if(pend)td.className+=' rx-mod';
         if(rxEhFormula(p.aba,l.numero,col)||/^=/.test(texto))td.className+=' rx-formula';
         var mescla=rxMesclagemCoberta(p.aba,l.numero,col);
-        if(mescla){td.className+=' rx-merged';td.title='Célula mesclada. Edite '+rxLetra(mescla.x1)+mescla.y1+'.';}
+        if(mescla){td.className+=' rx-merged';td.title='Campo agrupado. Edite '+rxLetra(mescla.x1)+mescla.y1+'.';}
         td.tabIndex=0;td.setAttribute('aria-label',rxLetra(col)+l.numero+': '+texto);
         td.onclick=td.ondblclick=function(){rxEditarCelula(td,p.aba,l.numero,col,texto);};
         td.onkeydown=function(e){if(e.key==='Enter'||e.key==='F2'){e.preventDefault();rxEditarCelula(td,p.aba,l.numero,col,texto);}};
@@ -1393,18 +1448,20 @@
       });
       corpo.appendChild(tr);
     });
-    if(!p.linhas.length){var vazia=document.createElement('tr'),td=document.createElement('td');td.colSpan=p.colunas.length+1;td.className='rx-loading';td.textContent=rxEstado.busca?'Nenhum resultado nesta aba. Tente outra busca.':'Esta aba está vazia.';vazia.appendChild(td);corpo.appendChild(vazia);}
+    if(!p.linhas.length){var vazia=document.createElement('tr'),td=document.createElement('td');td.colSpan=indices.length+1;td.className='rx-loading';
+      td.textContent=rxEstado.busca?'Nenhum resultado nesta etapa. Tente outra busca.':'Não há dados para validar nesta etapa.';vazia.appendChild(td);corpo.appendChild(vazia);}
     var totalPaginas=Math.max(1,Math.ceil(p.totalFiltradas/50)),pagina=Math.floor(p.linha/50)+1,pendentes=Object.keys(rxPendente).length;
     rxEl('rxPendencias').textContent=pendentes?pendentes+' alteraç'+(pendentes===1?'ão não salva':'ões não salvas'):'Nenhuma alteração pendente';
     rxEl('rxPendencias').classList.toggle('rx-has-pending',!!pendentes);
-    rxEl('rxLinhasStatus').textContent=p.totalFiltradas?(p.linha+1)+'–'+Math.min(p.linha+p.linhas.length,p.totalFiltradas)+' de '+p.totalFiltradas+' linhas':'0 linhas';
+    rxEl('rxLinhasStatus').textContent=p.totalFiltradas?(p.linha+1)+'–'+Math.min(p.linha+p.linhas.length,p.totalFiltradas)+' de '+p.totalFiltradas+' itens':'0 itens';
     rxEl('rxNumeroPagina').value=pagina;rxEl('rxNumeroPagina').max=totalPaginas;rxEl('rxTotalPaginas').textContent='de '+totalPaginas;
     rxEl('rxAnterior').disabled=p.linha===0;rxEl('rxProxima').disabled=p.linha+50>=p.totalFiltradas;
-    rxEl('rxColAnterior').disabled=p.coluna===0;rxEl('rxColProxima').disabled=p.coluna+p.colunas.length>=p.totalColunas;
-    rxEl('rxColunasStatus').textContent=p.colunas.length?p.colunas[0]+'–'+p.colunas[p.colunas.length-1]+' de '+rxLetra(p.totalColunas):'';
+    rxEl('rxColAnterior').disabled=true;rxEl('rxColProxima').disabled=true;
+    rxEl('rxColunasStatus').textContent=indices.length?indices.length+' campos disponíveis':'';
     rxMsg(rxEstado.busca?'Resultados para “'+rxEstado.busca+'”':'');
     rxEl('rxSalvar').disabled=!rxTemEdicoes()||rxOcupado;
-    var posicao=rxPosicoes[p.aba];rxEl('rxGrid').scrollTop=posicao&&posicao.scrollTop||0;rxEl('rxGrid').scrollLeft=posicao&&posicao.scrollLeft||0;
+    var posicao=rxPosicoes[p.aba];rxEl('rxGrid').scrollTop=posicao&&posicao.scrollTop||0;
+    rxEl('rxGrid').scrollLeft=posicao&&posicao.scrollLeft||0;
   }
   function rxEditarCelula(td,aba,linha,coluna,valor){
     if(rxOcupado||td.querySelector('input'))return;
@@ -1434,7 +1491,12 @@
   }
   function rxLimparBusca(){if(rxTimer)clearTimeout(rxTimer);rxTimer=null;rxEl('rxBuscarCelulas').value='';rxEstado.busca='';rxEstado.linha=0;rxEl('rxGrid').scrollTop=0;rxPedirPagina();}
   function rxMoverLinha(sentido){if(rxOcupado||!rxPagina)return;rxEstado.linha=Math.max(0,Math.min(Math.max(0,Math.ceil(rxPagina.totalFiltradas/50)-1)*50,rxEstado.linha+sentido*50));rxPedirPagina();}
-  function rxMoverColuna(sentido){if(rxOcupado||!rxPagina)return;rxEstado.coluna=Math.max(0,Math.min(Math.max(0,rxPagina.totalColunas-rxLarguraPagina()),rxEstado.coluna+sentido*rxLarguraPagina()));rxPedirPagina();}
+  function rxMoverColuna(sentido){
+    if(rxOcupado||!rxPagina)return;
+    var grid=rxEl('rxGrid');
+    grid.scrollLeft=Math.max(0,(grid.scrollLeft||0)+sentido*(grid.clientWidth||960)*.75);
+    rxGuardarPosicao();
+  }
   function rxSalvarEdicoes(){
     if(rxOcupado||!rxArquivo||!rxTemEdicoes())return;
     var itens=Object.keys(rxPendente).map(function(k){return rxPendente[k];});

@@ -109,24 +109,80 @@ function _rxRevisaoLer_(arq){
     throw _rxRevisaoErro_('REVISAO_DESATUALIZADA','O arquivo mudou depois da revisao preparada. Prepare a revisao novamente para conferir a versao atual.');
   return modelo;
 }
+// Organiza apenas a leitura visual. Coordenadas e conteudo do XLSX permanecem intactos.
+function _rxRevisaoLayout_(aba,modelo,indice){
+  var linhas=aba.linhas||[],nome=String(aba.nome||''),mapa={};
+  linhas.forEach(function(r){mapa[r.numero]=r.valores||{};});
+  var geral=/\bCALC[\s-]*GERAL\b/i.test(nome);
+  var merges=(modelo.mesclagens||[]).filter(function(m){return m.aba===indice&&m.y1<=2&&m.y2<=5;});
+  var cabecalhoAte=geral?5:(merges.length&&linhas.some(function(r){return r.numero>2;})?2:0);
+  var campos=mapa[5]||mapa[4]||mapa[3]||mapa[2]||mapa[1]||{};
+  var skuCol=-1;
+  Object.keys(campos).some(function(k){
+    var valor=String(campos[k]||'').toUpperCase();
+    if(/\b(SKU|COD(?:IGO)?(?: DO)? (?:ITEM|PRODUTO)|ITEM|PRODUTO)\b/.test(valor)){skuCol=Number(k);return true;}
+    return false;
+  });
+  var ultima=0,minCol=Infinity,maxCol=-1,semFormulas=/^=/;
+  linhas.forEach(function(r){
+    if(r.numero<=cabecalhoAte)return;
+    var vals=r.valores||{},chaves=Object.keys(vals);
+    var colSku=skuCol>=0?String(vals[skuCol]??'').trim():'';
+    var contemDado=skuCol>=0?!!colSku&&!semFormulas.test(colSku):
+      chaves.some(function(k){var v=String(vals[k]??'').trim();return v!==''&&!semFormulas.test(v)&&!/^0(?:[.,]0+)?$/.test(v);});
+    if(!contemDado)return;
+    ultima=Math.max(ultima,r.numero);
+    chaves.forEach(function(k){
+      var v=String(vals[k]??'').trim();
+      if(v!==''&&!semFormulas.test(v)&&!/^0(?:[.,]0+)?$/.test(v)){
+        minCol=Math.min(minCol,Number(k));maxCol=Math.max(maxCol,Number(k));
+      }
+    });
+  });
+  if(!ultima){
+    linhas.forEach(function(r){if(Object.keys(r.valores||{}).length)ultima=Math.max(ultima,r.numero);});
+  }
+  if(maxCol<0){
+    linhas.forEach(function(r){if(r.numero>ultima)return;
+      Object.keys(r.valores||{}).forEach(function(k){if(String(r.valores[k]||'').trim()){minCol=Math.min(minCol,Number(k));maxCol=Math.max(maxCol,Number(k));}});
+    });
+  }
+  if(maxCol<0){minCol=0;maxCol=0;}
+  // Mesclagens e cabecalhos nao ampliam as margens vazias do quadro.
+  var indices=[];for(var c=minCol;c<=maxCol;c++)indices.push(c);
+  return {indices:indices,cabecalhoAte:cabecalhoAte,ultimaLinha:ultima,
+    topo:linhas.filter(function(r){return r.numero<=cabecalhoAte;}).map(function(r){return {numero:r.numero,valores:r.valores};}),
+    mesclagens:merges};
+}
 function _rxRevisaoResposta_(arq,modelo,pedido){
+  pedido=pedido||{};
   var consulta=_pfPreviaConsulta_(pedido),aba=modelo.abas[consulta.aba];
   if(!aba)throw Error('Aba da revisao nao encontrada.');
   var nomes=modelo.abas.map(function(a){return a.nome;}),formulas={};
   Object.keys(modelo.formulas||{}).forEach(function(k){if(k.split(':')[0]===String(consulta.aba))formulas[k]=modelo.formulas[k];});
   var faixas=(modelo.faixasFormulas||[]).filter(function(f){return f.aba===consulta.aba;}),mesclas=(modelo.mesclagens||[]).filter(function(f){return f.aba===consulta.aba;});
-  var completa=null,pagina=null,limite=typeof PF_PREVIA_CONJUNTO_MAX_JSON==='number'?PF_PREVIA_CONJUNTO_MAX_JSON:1000000;
+  var quadro=_rxRevisaoLayout_(aba,modelo,consulta.aba),completa=null,pagina=null;
+  var limite=typeof PF_PREVIA_CONJUNTO_MAX_JSON==='number'?PF_PREVIA_CONJUNTO_MAX_JSON:1000000;
   if(pedido.porAba&&JSON.stringify({aba:aba,formulas:formulas,faixas:faixas,mesclas:mesclas}).length<=limite)
     completa={indice:consulta.aba,nome:aba.nome,totalColunas:aba.totalColunas,linhas:aba.linhas};
   if(!completa){
-    var termo=consulta.buscaNormalizada,filtradas=termo?aba.linhas.filter(function(r){
-      return Object.keys(r.valores).some(function(k){return String(r.valores[k]).toLocaleLowerCase('pt-BR').indexOf(termo)>=0;});
-    }):aba.linhas;
-    pagina=_pfPreviaResultado_(arq.nome,nomes,consulta.aba,filtradas,aba.totalColunas,aba.linhas.length,filtradas,consulta);
+    var termo=consulta.buscaNormalizada,filtradas=aba.linhas.filter(function(r){
+      if(r.numero<=quadro.cabecalhoAte||r.numero>quadro.ultimaLinha)return false;
+      return !termo||Object.keys(r.valores).some(function(k){
+        return String(r.valores[k]).toLocaleLowerCase('pt-BR').indexOf(termo)>=0;});
+    });
+    var inicio=Math.min(Math.max(0,consulta.linha),filtradas.length);
+    pagina={arquivo:arq.nome,abas:nomes,aba:consulta.aba,linha:inicio,coluna:0,
+      totalLinhas:aba.linhas.length,totalFiltradas:filtradas.length,totalColunas:aba.totalColunas,
+      indices:quadro.indices,colunas:quadro.indices.map(function(c){return _rxRevisaoLetra_(c+1);}),
+      linhas:filtradas.slice(inicio,inicio+50).map(function(r){return {numero:r.numero,
+        celulas:quadro.indices.map(function(c){return String(r.valores[c]??'');})};})};
   }
   return {arquivo:{id:arq.id,nome:arq.nome,url:arq.url,atualizadoEm:arq.atualizadoEm,calculadora:arq.calculadora},
-    previaExcel:null,nomesAbas:nomes,abaCompleta:completa,pagina:pagina,formulas:formulas,faixasFormulas:faixas,mesclagens:mesclas,revisaoPreparada:true};
+    previaExcel:null,nomesAbas:nomes,abaCompleta:completa,pagina:pagina,quadro:quadro,
+    formulas:formulas,faixasFormulas:faixas,mesclagens:mesclas,revisaoPreparada:true};
 }
+function _rxRevisaoLetra_(n){var s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
 function prepararRevisaoReentradasExcel(id,atualizadoEm){
   var lock=LockService.getScriptLock(),pegou=false;
   try{

@@ -201,15 +201,16 @@ test('voltar a uma aba restaura sua busca e posição sem depender de consulta r
   assert.equal(s.requests.length,requests);
   assert.deepEqual(plain(c.rxEstado),{aba:0,linha:50,coluna:12,busca:'linha'});
   assert.equal(s.el('rxBuscarCelulas').value,'linha');assert.equal(c.rxPagina.linha,50);
-  assert.equal(c.rxPagina.coluna,12);
+  assert.equal(c.rxPagina.coluna,0,'a tabela usa rolamento horizontal contínuo');
 });
 
-test('página de arquivo grande é reutilizada ao navegar por colunas cobertas e voltar linhas',()=>{
+test('arquivo grande usa rolagem horizontal contínua e reutiliza páginas de linhas',()=>{
   const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(pageResponse(0));
   const firstCount=s.requests.length;
-  c.rxMoverColuna(1);assert.equal(c.rxPagina.coluna,12);
-  assert.equal(s.requests.length,firstCount);assert.equal(c.rxPagina.colunas.length,12);
-  c.rxMoverColuna(-1);assert.equal(c.rxPagina.coluna,0);assert.equal(s.requests.length,firstCount);
+  c.rxMoverColuna(1);assert.equal(c.rxPagina.coluna,0);
+  assert.equal(s.requests.length,firstCount);assert.equal(c.rxPagina.colunas.length,65);
+  assert(s.el('rxGrid').scrollLeft>0);
+  c.rxMoverColuna(-1);assert.equal(s.el('rxGrid').scrollLeft,0);assert.equal(s.requests.length,firstCount);
   c.rxMoverLinha(1);assert.equal(s.requests.length,firstCount+1);
   assert.equal(s.request().args[0].linha,50);s.request().success(pageResponse(0,50));
   c.rxMoverLinha(-1);assert.equal(s.requests.length,firstCount+1);
@@ -305,4 +306,30 @@ test('busca cancelada ao fechar não reinicia a posição de uma nova sessão do
   assert.equal(c.rxEstado.linha,50);c.rxSelecionarAba(1);s.request().success(sheetResponse(1));
   c.rxSelecionarAba(0);assert.equal(c.rxEstado.linha,50);
   assert.equal(c.rxEstado.busca,'');assert.equal(s.el('rxBuscarCelulas').value,'');
+});
+
+test('a revisão apresenta validação de custos e não oferece navegação paginada de colunas',()=>{
+  assert.match(html,/Validar custos/);
+  assert.doesNotMatch(html,/Conferir e editar Excel/);
+  assert.match(html,/rx-column-controls[^>]*hidden/);
+  const s=screen(),c=s.context;open(s);
+  assert.equal(c.rxPagina.colunas.length,2);
+  assert.equal(s.el('rxColAnterior').disabled,true);
+  assert.equal(s.el('rxColProxima').disabled,true);
+});
+test('largura completa conserva coordenadas originais e destaca referências discretas',()=>{
+  const s=screen(),c=s.context;c.rxAbrirArquivo(file);
+  s.request().success(sheetResponse(0,{totalColunas:65,
+    linhas:[{numero:5,valores:{2:'SKU-001',3:'83.85',64:'FINAL'}}],
+    formulas:{'0:5:4':true}}));
+  assert.equal(c.rxPagina.colunas.length,65);
+  const linha=s.el('rxCorpo').children[0];
+  assert.equal(linha.children[3].textContent,'SKU-001');
+  assert.equal(linha.children[4].textContent,'83,85');
+  assert.equal(linha.children[65].textContent,'FINAL');
+  linha.children[4].ondblclick();
+  assert.match(s.el('rxMsg').textContent,/Fórmulas/);
+  linha.children[3].ondblclick();
+  const input=linha.children[3].children[0];input.value='SKU-002';input.onblur();
+  assert.equal(c.rxPendente['0:5:3'].valor,'SKU-002');
 });

@@ -80,3 +80,30 @@ test('persistencia serializa criacao tecnica, libera lock em falha e nao readqui
   assert.throws(()=>a._rxRevisaoSalvar_(s.arq(),modelo),/Falha controlada/);
   assert.equal(aquisicoes,2);assert.equal(liberacoes,2,'falha nao pode prender a fila de revisoes');
 });
+
+test('quadro de validação oculta margens e linhas só de fórmulas preservando coordenadas',()=>{
+  const a=ambiente().app;
+  const aba={nome:'CALC Geral',totalColunas:185,linhas:[
+    {numero:1,valores:{2:'Papel',50:'Miolo',150:'Acabamento'}},
+    {numero:2,valores:{2:'Dados gerais',80:'Custos'}},
+    {numero:3,valores:{}},{numero:4,valores:{}},
+    {numero:5,valores:{2:'SKU',3:'Custo unitário'}},
+    {numero:6,valores:{2:'SKU-01',3:'83.85',180:'Aplicado'}},
+    {numero:7,valores:{3:'=IF(C7="",0,D7*2)'}},
+    {numero:999,valores:{3:'=IF(C999="",0,D999*2)'}}
+  ]};
+  const modelo={abas:[aba],formulas:{},faixasFormulas:[],mesclagens:[{aba:0,x1:3,x2:180,y1:1,y2:1}]};
+  const q=a._rxRevisaoLayout_(aba,modelo,0);
+  assert.equal(q.cabecalhoAte,5);assert.equal(q.ultimaLinha,6);
+  assert.equal(q.indices[0],2);assert.equal(q.indices.at(-1),180);
+  assert.equal(q.indices.includes(182),false,'GA/GB/GC vazias não devem aparecer');
+  a.PF_PREVIA_CONJUNTO_MAX_JSON=1;
+  const r=a._rxRevisaoResposta_({id:'VALIDACAO_TESTE',nome:'Calculadora',
+    url:'https://drive.google.com/',atualizadoEm:1,calculadora:true},modelo,{aba:0,porAba:true});
+  assert.equal(r.abaCompleta,null);
+  assert.equal(r.pagina.linhas.length,1);
+  assert.equal(r.pagina.linhas[0].numero,6);
+  assert.equal(r.pagina.indices[0],2);
+  assert.equal(r.pagina.colunas.at(-1),'FY');
+  assert.equal(r.pagina.linhas[0].celulas[0],'SKU-01');
+});

@@ -346,3 +346,36 @@ test('lista de gráficas exibe rótulos no menu nativo inclusive com tema escuro
   assert.equal(options[1].textContent,'Logprint');
   assert.equal(s.el('selectGraficas').disabled,false);
 });
+
+test('seletor próprio mostra os nomes e mantém o ID esperado pela validação',()=>{
+  const s=screen(),c=s.context;
+  c.preencherPastasGraficasApp([{id:'CASA',nome:'Casa da Gráfica'},
+    {id:'LOGPRINT',nome:'Logprint'},{id:'FELK',nome:'Felk'}]);
+  const menu=s.el('grPickerMenu'),botao=s.el('grPickerButton');
+  assert.equal(menu.children.length,3);
+  assert.deepEqual(menu.children.map(o=>o.textContent),['Casa da Gráfica','Logprint','Felk']);
+  assert.equal(botao.disabled,false);
+  c.alternarPickerGraficas();assert.equal(menu.hidden,false);
+  assert.equal(botao['aria-expanded'],'true');
+  menu.children[2].onclick();
+  assert.equal(s.el('selectGraficas').value,'FELK');
+  assert.equal(botao.textContent,'Felk');
+  assert.equal(menu.hidden,true);assert.equal(botao['aria-expanded'],'false');
+  assert.equal(s.el('btnAvancar').disabled,false);
+});
+
+test('seletor próprio respeita bloqueio e oferece navegação por teclado',()=>{
+  const s=screen(),c=s.context;
+  c.preencherPastasGraficasApp([{id:'CASA',nome:'Casa da Gráfica'},{id:'LOGPRINT',nome:'Logprint'}]);
+  const menu=s.el('grPickerMenu'),botao=s.el('grPickerButton');
+  c.alternarPickerGraficas();assert.equal(menu.hidden,false);
+  let prevented=0;menu.children[0].onkeydown({key:'ArrowDown',preventDefault(){prevented++;}});
+  menu.children[1].onkeydown({key:'Escape',preventDefault(){prevented++;}});
+  assert.equal(prevented,2);assert.equal(menu.hidden,true);
+  c.definirBloqueioGraficas(true);
+  assert.equal(botao.disabled,true);assert.equal(s.el('selectGraficas').disabled,true);
+  c.alternarPickerGraficas();assert.equal(menu.hidden,true);
+  c.definirBloqueioGraficas(false);assert.equal(botao.disabled,false);
+  c.preencherPastasGraficasApp([]);
+  assert.equal(botao.disabled,true);assert.match(botao.textContent,/Nenhuma gráfica/);
+});

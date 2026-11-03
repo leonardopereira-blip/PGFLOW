@@ -333,3 +333,16 @@ test('largura completa conserva coordenadas originais e destaca referências dis
   const input=linha.children[3].children[0];input.value='SKU-002';input.onblur();
   assert.equal(c.rxPendente['0:5:3'].valor,'SKU-002');
 });
+
+test('lista de gráficas exibe rótulos no menu nativo inclusive com tema escuro',()=>{
+  assert.match(html, /#selectGraficas\\{color-scheme:light/);
+  assert.match(html, /#selectGraficas option\\{[^}]*color:#1f2a44/);
+  const s=screen(),c=s.context;
+  c.preencherPastasGraficasApp([{id:'CASA',nome:'Casa da Gráfica'},{id:'LOGPRINT',nome:'Logprint'}]);
+  const options=s.el('selectGraficas').children;
+  assert.equal(options.length,2);
+  assert.equal(options[0].textContent,'Casa da Gráfica');
+  assert.equal(options[0].label,'Casa da Gráfica');
+  assert.equal(options[1].textContent,'Logprint');
+  assert.equal(s.el('selectGraficas').disabled,false);
+});

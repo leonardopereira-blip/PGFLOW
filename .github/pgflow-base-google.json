@@ -1,6 +1,6 @@
 {
   "scriptId": "1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu",
-  "lido_em": "2026-11-03T20:14:50.281Z",
+  "lido_em": "2026-11-03T21:05:28.004Z",
   "files": {
     "SERVER_JS:Ajusta_API": "66e97e7d8e378d73d9710b5a2d699fc51cdb34a6b66856767c712d71faabcfbc",
     "SERVER_JS:AlertaSPG": "3f35f4298b9b120397af4371af56b573320761bfae34898eece2ba9f682f10f5",
@@ -31,11 +31,11 @@
     "SERVER_JS:SPG": "2b60edefcbb2c2f8a6bef47ea509c27e121e6b6586af4975be29f9f7a197c23f",
     "HTML:TelaEmail": "058010b8ecd8ea1ba18bd7d59e4fff88bb539185076fd5ec4201c9a9b969133a",
     "SERVER_JS:ValidaComum": "2eb10dbf3423c09836ce39061d5f544917a835efe563ca8dffb8c02fe533981a",
-    "HTML:ValidaInterface": "5664662c1622ac549917450834b5b94b70307fba9a882a1aa23331d96c24c2c9",
+    "HTML:ValidaInterface": "16d310f11213bfc5404d8d2f81f9ae9ada5a41e3de7967018363d644131584c0",
     "SERVER_JS:ValidaPrincipal": "485ad7dec5e61a8ea9b0a7cf319a6815dc28384da8a1356451d1bd61b472e886",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
     "SERVER_JS:ValidaReentradasSPG": "3e1126727431a5d8b49cc2b3167e7c1951268be165351aa8511d380d017e10e9",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82",
-    "SERVER_JS:ReentradasRevisao": "55eac780f4742e006c2b903c14987ff3075576b97331877861b9601dc3268a7b"
+    "SERVER_JS:ReentradasRevisao": "d71cea9ffbbad988cd1d30fd6ebf2d51f6a58f43e428d830e5e160f6125bfaa5"
   }
 }

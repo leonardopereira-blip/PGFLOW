@@ -335,8 +335,8 @@ test('largura completa conserva coordenadas originais e destaca referências dis
 });
 
 test('lista de gráficas exibe rótulos no menu nativo inclusive com tema escuro',()=>{
-  assert.match(html, /#selectGraficas\\{color-scheme:light/);
-  assert.match(html, /#selectGraficas option\\{[^}]*color:#1f2a44/);
+  assert.match(html, /#selectGraficas[{]color-scheme:light/);
+  assert.match(html, /#selectGraficas option[{][^}]*color:#1f2a44/);
   const s=screen(),c=s.context;
   c.preencherPastasGraficasApp([{id:'CASA',nome:'Casa da Gráfica'},{id:'LOGPRINT',nome:'Logprint'}]);
   const options=s.el('selectGraficas').children;

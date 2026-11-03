@@ -64,6 +64,8 @@ function makeScreen(ids = '3100, 2567') {
       if (this.tagName === 'select') this._value = undefined;
       parse(this._html, this);
     }
+    setAttribute(key, value) { this.attrs[key] = String(value); if (key === 'id') this.id = String(value); if (key === 'class') this.className = String(value); }
+    focus() {}
     getAttribute(key) { return this.attrs[key] === undefined ? null : this.attrs[key]; }
     querySelectorAll(selector) {
       const all = [];

@@ -15,7 +15,7 @@ function screen(){
       get textContent(){return text},set textContent(v){text=String(v);this.children=[]},
       classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),
         toggle(x,on){if(on===undefined)on=!classes.has(x);on?classes.add(x):classes.delete(x)}},
-      appendChild(x){this.children.push(x);return x},setAttribute(k,v){this[k]=v},
+      appendChild(x){this.children.push(x);return x},insertBefore(x,other){const i=this.children.indexOf(other);this.children.splice(i<0?0:i,0,x);return x},setAttribute(k,v){this[k]=v},
       querySelector(selector){return selector==='input'?this.children.find(x=>x.tag==='input')||null:null},
       focus(){},select(){}};
   }
@@ -108,6 +108,28 @@ test('fórmula com valor cacheado fica protegida pela coordenada sem impedir edi
   formula.ondblclick();assert.equal(formula.children.length,0);assert.match(s.el('rxMsg').textContent,/Fórmulas/);
   texto.ondblclick();const input=texto.children[0];input.value='alterado';input.onblur();
   assert.deepEqual(plain(c.rxPendente),{'0:5:2':{aba:0,linha:5,coluna:2,valor:'alterado'}});
+});
+
+test('Especificacoes apresenta titulo/subtitulo e permite separar Nao editorial em aba virtual persistida',()=>{
+  const s=screen(),c=s.context,calc={...file,calculadora:true},
+    nomes=['PPG - Especificações'],valores={0:'SKU-3106',1:'Não editorial',2:'205x275'},
+    dados={abas:[{nome:nomes[0],totalColunas:3,linhas:[
+      {numero:3,valores:{0:'CÓDIGO SKU',1:'CLASSIFICAÇÃO DO MATERIAL',2:'FORMATO'}},
+      {numero:4,valores:{2:'mm'}},{numero:5,valores}]}]},
+    quadro={indices:[0,1,2],cabecalhoAte:4,ultimaLinha:5,
+      topo:[{numero:3,valores:{0:'CÓDIGO SKU',1:'CLASSIFICAÇÃO DO MATERIAL',2:'FORMATO'}},{numero:4,valores:{2:'mm'}}]};
+  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:dados,quadro,naoEditoriais:[],formulas:{}});
+  const headers=s.el('rxCab').children.at(-1).children;
+  assert.equal(headers[1].textContent,'CÓDIGO SKU');
+  assert.equal(headers[3].children[0].textContent,'mm');
+  const sku=s.el('rxCorpo').children[0].children[1];
+  const botao=sku.children[0];assert.equal(botao.textContent,'Separar');botao.onclick({stopPropagation(){}});
+  assert.equal(s.request().method,'separarNaoEditorialReentradas');
+  s.request().success({sucesso:true,naoEditoriais:[{aba:0,linha:5}]});
+  assert.equal(c.rxNomesAbas.at(-1),'Não editorial');
+  assert.equal(c.rxPagina.totalFiltradas,1);
+  assert.equal(c.rxPagina.linhas[0].numero,5);
+  assert.equal(c.rxPagina.aba,1);
 });
 
 test('células dependentes de fórmula matricial ou compartilhada são protegidas por intervalo',()=>{

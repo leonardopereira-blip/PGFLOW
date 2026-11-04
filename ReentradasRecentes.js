@@ -132,6 +132,8 @@ function listarUltimasReentradasSPG(todos) {
           if (registro) {
             item.ultimaValidacaoEm = registro.ultimaValidacaoEm;
             item.downloadUrl = registro.downloadUrl;
+            item.ultimoGeradoEm = registro.ultimoGeradoEm;
+            item.ultimoArquivoId = registro.ultimoArquivoId;
           }
         });
       } catch(e) {

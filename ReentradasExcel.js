@@ -287,6 +287,13 @@ function salvarEdicoesReentradasExcel(id,atualizadoEm,edicoes){
     });
     alter['xl/workbook.xml']=_rxMarcarRecalculo_(p.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
     var revisao=_rxRevisaoMontar_(p,alter);
+    try{
+      var anterior=_rxRevisaoLer_(arq);
+      revisao.naoEditoriais=anterior.naoEditoriais||[];
+    }catch(e){/* A ausencia de revisao anterior nao impede salvar o XLSX valido. */}
+    // XLSX nao e uma engine de calculo. Excel recalcula ao abrir;
+    // a tela nao deve certificar valores antigos depois de uma edicao.
+    revisao.recalculoPendente=true;
     var zipped=Utilities.zip(p.partes.map(function(part){
       return alter[part.getName()]===undefined?part:
         Utilities.newBlob(alter[part.getName()],'application/xml',part.getName());

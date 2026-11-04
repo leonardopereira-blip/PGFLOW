@@ -113,17 +113,20 @@ function _rxRevisaoLer_(arq){
 function _rxRevisaoLayout_(aba,modelo,indice){
   var linhas=aba.linhas||[],nome=String(aba.nome||''),mapa={};
   linhas.forEach(function(r){mapa[r.numero]=r.valores||{};});
-  var geral=/\bCALC[\s-]*GERAL\b/i.test(nome);
-  var merges=(modelo.mesclagens||[]).filter(function(m){return m.aba===indice&&m.y1<=2&&m.y2<=5;});
-  var cabecalhoAte=geral?5:(merges.length&&linhas.some(function(r){return r.numero>2;})?2:0);
-  var campos=mapa[5]||mapa[4]||mapa[3]||mapa[2]||mapa[1]||{};
+  var calculadora=/^CALC(?:[\s-]|$)/i.test(nome);
+  var especificacoes=/^(?:NC - )?PPG[ -]+Especifica/i.test(nome);
+  var merges=(modelo.mesclagens||[]).filter(function(m){return m.aba===indice&&m.y1<=4&&m.y2<=5;});
+  // Nas especificacoes e no resumo, linhas 3/4 sao TITULO/SUBTITULO.
+  // Nunca devem aparecer como registros editaveis da calculadora.
+  var cabecalhoAte=calculadora?5:especificacoes?4:(merges.length&&linhas.some(function(r){return r.numero>2;})?2:0);
+  var campos=(calculadora||especificacoes)?(mapa[3]||{}):(mapa[5]||mapa[4]||mapa[3]||mapa[2]||mapa[1]||{});
   var skuCol=-1;
   Object.keys(campos).some(function(k){
     var valor=String(campos[k]||'').toUpperCase();
     if(/\b(SKU|COD(?:IGO)?(?: DO)? (?:ITEM|PRODUTO)|ITEM|PRODUTO)\b/.test(valor)){skuCol=Number(k);return true;}
     return false;
   });
-  var ultima=0,minCol=Infinity,maxCol=-1,semFormulas=/^=/;
+  var ultima=0,minCol=Infinity,maxCol=-1,semFormulas=/^=/,ativas=[];
   linhas.forEach(function(r){
     if(r.numero<=cabecalhoAte)return;
     var vals=r.valores||{},chaves=Object.keys(vals);
@@ -131,6 +134,7 @@ function _rxRevisaoLayout_(aba,modelo,indice){
     var contemDado=skuCol>=0?!!colSku&&!semFormulas.test(colSku):
       chaves.some(function(k){var v=String(vals[k]??'').trim();return v!==''&&!semFormulas.test(v)&&!/^0(?:[.,]0+)?$/.test(v);});
     if(!contemDado)return;
+    ativas.push(r);
     ultima=Math.max(ultima,r.numero);
     chaves.forEach(function(k){
       var v=String(vals[k]??'').trim();
@@ -148,6 +152,20 @@ function _rxRevisaoLayout_(aba,modelo,indice){
     });
   }
   if(maxCol<0){minCol=0;maxCol=0;}
+  // Campos com titulo real e formula em um ITEM ativo precisam continuar
+  // visiveis, mesmo quando o resultado calculado em cache for zero/vazio.
+  // Nao amplia ate as colunas tecnicas reservadas sem titulo (ex.: GA/GB/GC).
+  var titulo=mapa[3]||{},subtitulo=mapa[4]||{};
+  if(calculadora||especificacoes){
+    ativas.forEach(function(r){
+      Object.keys(r.valores||{}).forEach(function(k){
+        var c=Number(k),v=String(r.valores[k]??'').trim();
+        if(c<minCol||!semFormulas.test(v))return;
+        var rotulo=String(titulo[k]??'').trim(),sub=String(subtitulo[k]??'').trim();
+        if(rotulo||sub)maxCol=Math.max(maxCol,c);
+      });
+    });
+  }
   // Mesclagens e cabecalhos nao ampliam as margens vazias do quadro.
   var indices=[];for(var c=minCol;c<=maxCol;c++)indices.push(c);
   return {indices:indices,cabecalhoAte:cabecalhoAte,ultimaLinha:ultima,
@@ -163,11 +181,14 @@ function _rxRevisaoResposta_(arq,modelo,pedido){
   var faixas=(modelo.faixasFormulas||[]).filter(function(f){return f.aba===consulta.aba;}),mesclas=(modelo.mesclagens||[]).filter(function(f){return f.aba===consulta.aba;});
   var quadro=_rxRevisaoLayout_(aba,modelo,consulta.aba),completa=null,pagina=null;
   var limite=typeof PF_PREVIA_CONJUNTO_MAX_JSON==='number'?PF_PREVIA_CONJUNTO_MAX_JSON:1000000;
-  if(pedido.porAba&&JSON.stringify({aba:aba,formulas:formulas,faixas:faixas,mesclas:mesclas}).length<=limite)
+  if(pedido.porAba&&!pedido.somenteNaoEditorial&&JSON.stringify({aba:aba,formulas:formulas,faixas:faixas,mesclas:mesclas}).length<=limite)
     completa={indice:consulta.aba,nome:aba.nome,totalColunas:aba.totalColunas,linhas:aba.linhas};
   if(!completa){
     var termo=consulta.buscaNormalizada,filtradas=aba.linhas.filter(function(r){
       if(r.numero<=quadro.cabecalhoAte||r.numero>quadro.ultimaLinha)return false;
+      if(pedido.somenteNaoEditorial&&!(modelo.naoEditoriais||[]).some(function(x){return x.aba===consulta.aba&&x.linha===r.numero;}))return false;
+      if(!pedido.somenteNaoEditorial&&/^(?:NC - )?PPG[ -]+Especifica/i.test(aba.nome)&&
+        (modelo.naoEditoriais||[]).some(function(x){return x.aba===consulta.aba&&x.linha===r.numero;}))return false;
       return !termo||Object.keys(r.valores).some(function(k){
         return String(r.valores[k]).toLocaleLowerCase('pt-BR').indexOf(termo)>=0;});
     });
@@ -180,7 +201,9 @@ function _rxRevisaoResposta_(arq,modelo,pedido){
   }
   return {arquivo:{id:arq.id,nome:arq.nome,url:arq.url,atualizadoEm:arq.atualizadoEm,calculadora:arq.calculadora},
     previaExcel:null,nomesAbas:nomes,abaCompleta:completa,pagina:pagina,quadro:quadro,
-    formulas:formulas,faixasFormulas:faixas,mesclagens:mesclas,revisaoPreparada:true};
+    formulas:formulas,faixasFormulas:faixas,mesclagens:mesclas,
+    naoEditoriais:modelo.naoEditoriais||[],recalculoPendente:!!modelo.recalculoPendente,
+    revisaoPreparada:true};
 }
 function _rxRevisaoLetra_(n){var s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
 function prepararRevisaoReentradasExcel(id,atualizadoEm){
@@ -192,5 +215,30 @@ function prepararRevisaoReentradasExcel(id,atualizadoEm){
     var modelo=_rxRevisaoMontar_(partes);_rxArquivo_(id,atualizadoEm);_rxRevisaoSalvar_(arq,modelo,true);
     return {sucesso:true,id:arq.id,atualizadoEm:arq.atualizadoEm};
   }catch(e){return {erro:e.message,codigo:e.codigo||'REVISAO_FALHOU'};}
+  finally{if(pegou)lock.releaseLock();}
+}
+
+// Separacao de itens na interface; nao cria nem move abas no XLSX original.
+function separarNaoEditorialReentradas(id,atualizadoEm,indice,numero){
+  var lock=LockService.getScriptLock(),pegou=false;
+  try{
+    pegou=lock.tryLock(3000);if(!pegou)throw Error('Outra operacao de revisao esta em andamento.');
+    var arq=_rxArquivo_(id,atualizadoEm),modelo=_rxRevisaoLer_(arq),aba=modelo.abas[indice];
+    if(!aba||!/^(?:NC - )?PPG[ -]+Especifica/i.test(aba.nome))throw Error('Selecione um item da etapa Especificacoes tecnicas.');
+    var q=_rxRevisaoLayout_(aba,modelo,indice),linha=aba.linhas.find(function(r){return r.numero===numero;});
+    if(!linha||numero<=q.cabecalhoAte||numero>q.ultimaLinha)throw Error('Item da revisao nao encontrado.');
+    var titulo=(aba.linhas.find(function(r){return r.numero===3;})||{}).valores||{};
+    var coluna=Object.keys(titulo).find(function(k){return /CLASSIFICA/i.test(String(titulo[k]).normalize('NFD').replace(/[\u0300-\u036f]/g,''));});
+    if(coluna===undefined)throw Error('A classificacao editorial nao foi encontrada nesta calculadora.');
+    var classificacao=String(linha.valores[coluna]||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    if(!/^(NAO EDITORIAL|NAO-EDITORIAL|NAO_EDITORIAL)$/.test(classificacao))
+      throw Error('Somente itens classificados como Nao editorial podem ser separados.');
+    var separadas=modelo.naoEditoriais||[];
+    if(!separadas.some(function(x){return x.aba===indice&&x.linha===numero;})){
+      separadas.push({aba:indice,linha:numero});modelo.naoEditoriais=separadas;
+      _rxRevisaoSalvar_(arq,modelo,true);
+    }
+    return {sucesso:true,naoEditoriais:separadas};
+  }catch(e){return {erro:e.message||String(e)};}
   finally{if(pegou)lock.releaseLock();}
 }

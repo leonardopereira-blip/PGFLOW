@@ -107,3 +107,45 @@ test('quadro de validação oculta margens e linhas só de fórmulas preservando
   assert.equal(r.pagina.colunas.at(-1),'FY');
   assert.equal(r.pagina.linhas[0].celulas[0],'SKU-01');
 });
+
+test('Especificacoes usa titulos da linha 3 e subtitulos da 4; colunas de total com formula ficam visiveis',()=>{
+  const a=ambiente().app;
+  const espec={nome:'PPG - Especificações',totalColunas:8,linhas:[
+    {numero:1,valores:{2:'ESPECIFICACOES'}},{numero:2,valores:{2:'DADOS GERAIS'}},
+    {numero:3,valores:{2:'CÓDIGO SKU',3:'CLASSIFICAÇÃO DO MATERIAL',4:'FORMATO'}},
+    {numero:4,valores:{4:'mm'}},{numero:5,valores:{2:'SKU-01',3:'Não editorial',4:'300'}},
+    {numero:200,valores:{4:'=A200'}}]};
+  const geral={nome:'CALC Geral',totalColunas:185,linhas:[
+    {numero:1,valores:{2:'CALCULADORA FORNECEDOR'}},{numero:2,valores:{2:'IDENTIFICACAO',5:'TIRAGEM'}},
+    {numero:3,valores:{2:'CÓDIGO SKU',5:'AVULSO',9:'TOTAL'}},
+    {numero:4,valores:{5:'Exemplares',9:'Exemplares'}},{numero:5,valores:{}},
+    {numero:6,valores:{2:'SKU-01',5:'800',9:'=SUM(F6:I6)',182:'=XFD6'}}]};
+  const modelo={abas:[espec,geral],formulas:{},faixasFormulas:[],mesclagens:[]};
+  const q1=a._rxRevisaoLayout_(espec,modelo,0),q2=a._rxRevisaoLayout_(geral,modelo,1);
+  assert.equal(q1.cabecalhoAte,4);assert.equal(q1.ultimaLinha,5);
+  assert.equal(q1.topo.find(x=>x.numero===3).valores[2],'CÓDIGO SKU');
+  assert.equal(q2.cabecalhoAte,5);assert.equal(q2.ultimaLinha,6);
+  assert(q2.indices.includes(9),'TOTAL precisa permanecer, mesmo sem valor em cache');
+  assert(!q2.indices.includes(182),'coluna de reserva sem titulo nao entra');
+  const digital={nome:'CALC Digital',totalColunas:20,linhas:[
+    {numero:3,valores:{2:'CÓDIGO SKU',3:'VALOR UNITÁRIO'}},
+    {numero:4,valores:{3:'BRL / Unitário'}},{numero:5,valores:{3:'FORN-D-PU'}},
+    {numero:6,valores:{2:'SKU-01',3:'1.25'}}]};
+  assert.equal(a._rxRevisaoLayout_(digital,{abas:[digital],mesclagens:[]},0).cabecalhoAte,5);
+});
+
+test('separacao Não editorial fica na revisao preparada, sem tocar o XLSX',()=>{
+  const s=ambiente(),a=s.app;
+  const modelo={schema:1,abas:[{nome:'PPG - Especificações',totalColunas:4,linhas:[
+    {numero:3,valores:{1:'CÓDIGO SKU',2:'CLASSIFICAÇÃO DO MATERIAL'}},
+    {numero:4,valores:{}},{numero:5,valores:{1:'SKU-A',2:'Não editorial'}},
+    {numero:6,valores:{1:'SKU-B',2:'Editorial'}}]}],
+    formulas:{},faixasFormulas:[],mesclagens:[]};
+  a._rxRevisaoSalvar_(s.arq(),modelo);
+  assert.equal(a.separarNaoEditorialReentradas(s.id,1800000000000,0,6).erro.includes('Somente itens'),true);
+  const r=a.separarNaoEditorialReentradas(s.id,1800000000000,0,5);
+  assert.equal(r.sucesso,true,r.erro);
+  assert.deepEqual(plain(r.naoEditoriais),[{aba:0,linha:5}]);
+  assert.deepEqual(plain(a._rxRevisaoLer_(s.arq()).naoEditoriais),[{aba:0,linha:5}]);
+  assert.equal(s.reads(),0);
+});

@@ -77,6 +77,30 @@ test('cancelar restauração não grava; confirmação impede duplicação e sa�
   assert.match(s.el('rxListaStatus').textContent,/Falha controlada/);c.rxFechar();assert.equal(s.el('rxOverlay').hidden,true);
 });
 
+test('Custo Validado so e enviado apos revisao sem edicoes pendentes e exibe download direto',()=>{
+  const s=screen(),c=s.context,calc={...file,calculadora:true,
+    nome:'CALCULADORA FORNECEDOR LOGPRINT - CHAMADO 3127.xlsx'};
+  c.rxAbrirArquivo(calc);
+  s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
+  assert.equal(s.el('rxCustoValidado').disabled,false);
+  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};c.rxRenderPagina();
+  assert.equal(s.el('rxCustoValidado').disabled,true);
+  c.rxFinalizarCusto();assert.equal(s.requests.length,1);
+  c.rxPendente={};c.rxRenderPagina();c.rxFinalizarCusto();
+  assert.equal(s.request().method,'marcarCustoValidadoReentradas');
+  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm]);
+  assert.equal(s.el('rxCustoValidado').disabled,true);
+  const url='https://drive.google.com/uc?export=download&id='+calc.id;
+  s.request().success({sucesso:true,id:calc.id,chamado:'3127',atualizadoEm:calc.atualizadoEm,
+    validadoEm:1730000000000,downloadUrl:url});
+  assert.equal(s.el('rxBaixarValidado').hidden,false);
+  assert.equal(s.el('rxBaixarValidado').href,url);
+  assert.match(s.el('rxValidacaoStatus').textContent,/Validado em/);
+  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'corrigido'}};c.rxSalvarEdicoes();
+  s.request().success({sucesso:true,id:calc.id,atualizadoEm:1730000001000});
+  assert.equal(s.el('rxBaixarValidado').hidden,true);
+});
+
 test('fórmula com valor cacheado fica protegida pela coordenada sem impedir editar texto',()=>{
   const s=screen(),c=s.context;open(s);
   const row=s.el('rxCorpo').children[0],formula=row.children[1],texto=row.children[2];

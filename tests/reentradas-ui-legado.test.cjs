@@ -259,13 +259,13 @@ test('falha no legado confirmado não permite nova migração nem avanço', () =
   s.context.selecionarLegadoTemporarioReentradas(0, true); assert.equal(s.requests.length, 2);
 });
 
-test('abertura consulta últimas reentradas uma vez sem bloquear entrada manual nem consultar legado', () => {
+test('abertura consulta todos os chamados sem bloquear entrada manual nem consultar legado', () => {
   const s = makeScreen('');
-  assert.match(s.el('reentradasRecentesStatus').textContent, /Carregando últimas reentradas/);
+  assert.match(s.el('reentradasRecentesStatus').textContent, /Carregando chamados/);
   assert.equal(s.el('txtChamados').disabled, false);
   s.runTimers(); s.runTimers();
   assert.equal(s.requests.filter(r => r.method === 'listarUltimasReentradasSPG').length, 1);
-  assert.deepEqual(plain(s.pending('listarUltimasReentradasSPG').args), []);
+  assert.deepEqual(plain(s.pending('listarUltimasReentradasSPG').args), [true]);
   assert.equal(s.requests.some(r => r.method === 'buscarResumoReentradasSPG'), false);
   s.reply('listarUltimasReentradasSPG', { chamados: [
     { chamado: '3201', status: 'Alocado', marca: 'SAS', envio: '20/10/2026', alocadoEm: 'Meta' },
@@ -289,7 +289,7 @@ test('lista recente tem estados vazio e erro independentes da validação manual
   for (const response of [{ chamados: [] }, { erro: 'HTTP 500' }, null]) {
     const s = makeScreen('2567'); s.runTimers();
     s.reply('listarUltimasReentradasSPG', response);
-    assert.match(s.el('reentradasRecentesStatus').textContent, response && Array.isArray(response.chamados) ? /Nenhuma solicitação/ : /Você pode informar o chamado acima/);
+    assert.match(s.el('reentradasRecentesStatus').textContent, response && Array.isArray(response.chamados) ? /Nenhuma solicitação/ : /Você pode informar o número acima/);
     assert.equal(s.el('reentradasRecentesLista').querySelectorAll('table').length, 0);
     assert.equal(s.el('txtChamados').disabled, false);
     assert.equal(s.el('btnAvancar').disabled, false);
@@ -297,11 +297,11 @@ test('lista recente tem estados vazio e erro independentes da validação manual
   }
   const s = makeScreen(); s.runTimers();
   s.reply('listarUltimasReentradasSPG', new Error('timeout'), true);
-  assert.match(s.el('reentradasRecentesStatus').textContent, /Você pode informar o chamado acima/);
+  assert.match(s.el('reentradasRecentesStatus').textContent, /Você pode informar o número acima/);
   assert.equal(s.el('btnAvancar').disabled, false);
 });
 
-test('lista recente escapa todos os campos e nunca inventa linhas para completar trinta', () => {
+test('lista de chamados escapa todos os campos sem inventar linhas', () => {
   const s = makeScreen(); s.runTimers();
   s.reply('listarUltimasReentradasSPG', { chamados: [{ chamado: '<bad>', status: '<img>',
     marca: '<script>', envio: '<envio>', alocadoEm: '<grafica>' }] });
@@ -310,6 +310,21 @@ test('lista recente escapa todos os campos e nunca inventa linhas para completar
   assert.doesNotMatch(content, /<(?:bad|img|script|envio|grafica)>/);
   assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length, 1);
   s.context.renderizarUltimasReentradasSPG({ chamados: Array.from({ length: 35 }, (_, index) => ({ chamado: String(4000 - index) })) });
-  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length, 30);
-  assert.match(s.el('reentradasRecentesStatus').textContent, /30 chamado\(s\)/);
+  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length, 35);
+  assert.match(s.el('reentradasRecentesStatus').textContent, /35 chamado\(s\)/);
+});
+
+test('100 chamados por página, busca pelo número e navegação sem nova chamada à API', () => {
+  const s=makeScreen();s.runTimers();
+  s.reply('listarUltimasReentradasSPG',{chamados:Array.from({length:235},(_,i)=>({chamado:String(6000-i)}))});
+  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length,100);
+  assert.match(s.el('reentradasPaginaAtual').textContent,/Página 1 de 3/);
+  s.context.moverPaginaChamados(1);
+  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length,100);
+  s.context.moverPaginaChamados(1);
+  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length,35);
+  assert.equal(s.requests.filter(x=>x.method==='listarUltimasReentradasSPG').length,1);
+  s.el('reentradasPesquisa').value='5899';s.context.filtrarChamadosReentradas();
+  assert.equal(s.el('reentradasRecentesLista').querySelectorAll('tbody tr').length,1);
+  assert.match(s.el('reentradasPaginaAtual').textContent,/Página 1 de 1/);
 });

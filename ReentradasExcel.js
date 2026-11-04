@@ -35,6 +35,8 @@ function listarArquivosReentradasExcel(){
     arquivos.push(item);
   }
   arquivos.sort(function(a,b){return b.atualizadoEm-a.atualizadoEm||a.nome.localeCompare(b.nome);});
+  try { _rxCustoListaDeArquivos_(arquivos); }
+  catch(e) { return {arquivos:arquivos, avisoValidacao:'Historico de custos validados indisponivel: '+e.message}; }
   return {arquivos:arquivos};
 }
 

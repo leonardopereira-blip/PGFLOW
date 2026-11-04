@@ -97,7 +97,7 @@ function _reRecentesCompletar_(chamado, token) {
   if (!chamado.campos.alocadoEm) _reRecentesAdicionar_(chamado.alocadoEm, detalhe.alocadoEm);
 }
 
-function listarUltimasReentradasSPG() {
+function listarUltimasReentradasSPG(todos) {
   try {
     var token = _spgLogin_();
     if (!token) throw new Error('Autenticacao do SPG indisponivel.');
@@ -110,7 +110,8 @@ function listarUltimasReentradasSPG() {
     }
     var numeros = Object.keys(chamados).sort(function(a, b) { return Number(b) - Number(a); });
     var recentes = [];
-    for (var i = 0; i < numeros.length && recentes.length < 30; i++) {
+    var limite = todos === true ? numeros.length : 30;
+    for (var i = 0; i < numeros.length && recentes.length < limite; i++) {
       var chamado = chamados[numeros[i]];
       if (chamado.campos.tipo && chamado.tipo !== 'reentrada') continue;
       // Campos vazios sao valores legitimos (por exemplo, chamado ainda nao alocado).
@@ -122,6 +123,20 @@ function listarUltimasReentradasSPG() {
       if (chamado.tipo !== 'reentrada') continue;
       recentes.push({ chamado: chamado.chamado, status: chamado.status.join(', '),
         marca: chamado.marca.join(', '), envio: chamado.envio.join(', '), alocadoEm: chamado.alocadoEm.join(', ') });
+    }
+    if (todos === true) {
+      try {
+        var validacoes = _rxCustoResumoChamados_();
+        recentes.forEach(function(item) {
+          var registro = validacoes[item.chamado];
+          if (registro) {
+            item.ultimaValidacaoEm = registro.ultimaValidacaoEm;
+            item.downloadUrl = registro.downloadUrl;
+          }
+        });
+      } catch(e) {
+        return {chamados: recentes, avisoValidacao:'Nao foi possivel ler o historico de custos validados: '+e.message};
+      }
     }
     return { chamados: recentes };
   } catch (e) {

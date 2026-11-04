@@ -56,6 +56,20 @@ test('filtra exclusivamente REENTRADA e limita os 30 maiores numeros mesmo com p
   assert.deepEqual(result.chamados[0], { chamado: '1044', status: 'ALOCADO', marca: 'SAS', envio: 'V2', alocadoEm: '20/10/2026 14:30' });
 });
 
+test('consulta completa entrega todos os chamados e associa ultima validacao finalizada',()=>{
+  const rows=Array.from({length:135},(_,i)=>row(3000+i));
+  const h=harness([{page:1,totalPages:2,rows:rows.slice(65)},{page:2,totalPages:2,rows:rows.slice(0,65)}]);
+  h.context._rxCustoResumoChamados_=()=>({'3134':{ultimaValidacaoEm:1730000000000,
+    downloadUrl:'https://drive.google.com/uc?export=download&id=validado_1234567890'}});
+  const r=plain(h.context.listarUltimasReentradasSPG(true));
+  assert.equal(r.chamados.length,135);
+  assert.equal(r.chamados[0].chamado,'3134');
+  assert.equal(r.chamados[0].ultimaValidacaoEm,1730000000000);
+  assert.match(r.chamados[0].downloadUrl,/^https:\/\/drive\.google\.com/);
+  assert.equal(r.chamados[1].ultimaValidacaoEm,undefined);
+  assert.equal(h.calls.length,2);
+});
+
 test('devolve menos de 30 e agrega as informacoes das linhas duplicadas do mesmo chamado', () => {
   const h = harness([
     { page: 1, totalPages: 2, rows: [row(30), row(5), row(30)] },

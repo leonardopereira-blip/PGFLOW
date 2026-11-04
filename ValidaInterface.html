@@ -25,9 +25,22 @@
           <button id="btnAvancar" class="vc-btn-primary" onclick="abrirResumoAntesDeAvancar()" disabled>Iniciar validação</button>
         </div>
         <div class="vc-card vc-recentes">
-          <div class="vc-section-head"><h3>Últimas solicitações de reentrada</h3></div>
-          <div id="reentradasRecentesStatus" class="vc-recentes-status" role="status">Carregando últimas reentradas...</div>
+          <div class="vc-recentes-topo">
+            <div><span class="vc-recentes-sobretitulo">Acompanhamento de solicitações</span><h3>Chamados de reentrada</h3></div>
+            <label class="vc-recentes-pesquisa" for="reentradasPesquisa">Pesquisar chamado
+              <input type="search" id="reentradasPesquisa" inputmode="numeric" placeholder="Digite o número do chamado" oninput="filtrarChamadosReentradas()">
+            </label>
+          </div>
+          <div id="reentradasRecentesStatus" class="vc-recentes-status" role="status">Carregando chamados...</div>
           <div id="reentradasRecentesLista" class="vc-recentes-lista"></div>
+          <nav class="vc-recentes-navegacao" aria-label="Páginas de chamados">
+            <span id="reentradasFaixa">—</span>
+            <div class="vc-recentes-paginas">
+              <button type="button" id="reentradasAnterior" onclick="moverPaginaChamados(-1)" disabled>← Anterior</button>
+              <span id="reentradasPaginaAtual">Página 1 de 1</span>
+              <button type="button" id="reentradasProxima" onclick="moverPaginaChamados(1)" disabled>Próxima →</button>
+            </div>
+          </nav>
         </div>
       </div>
       <div id="telaFase2" style="display:none">
@@ -135,6 +148,9 @@
       <div class="rx-editor-actions">
         <span id="rxPendencias" class="rx-pending" role="status">Nenhuma alteração pendente</span>
         <div class="rx-actions">
+          <span id="rxValidacaoStatus" class="rx-validacao-status" role="status"></span>
+          <a id="rxBaixarValidado" class="vc-rx-soft rx-download" href="#" target="_blank" rel="noopener noreferrer" hidden>Baixar validado</a>
+          <button type="button" class="vc-rx-validated" id="rxCustoValidado" onclick="rxFinalizarCusto()" disabled>Custo Validado</button>
           <button type="button" class="vc-rx-soft" onclick="rxAlternarExpandir()" id="rxExpandir">Expandir</button>
           <button type="button" class="vc-rx-save" id="rxSalvar" onclick="rxSalvarEdicoes()" disabled>Salvar alterações</button>
         </div>
@@ -300,13 +316,26 @@
   .vc-legado-opcoes button:first-child{background:#284081;color:#fff;border-color:#284081;}
   .vc-espec-aviso{margin:8px 0 12px;padding:9px 11px;border:1px solid #efcf86;border-radius:7px;background:#fff8e9;color:#795719;font-size:12px;line-height:1.6;overflow-wrap:anywhere;}
   .vc-espec-opcao{margin-top:12px;padding-top:10px;border-top:1px dashed #e6e8ef;overflow-wrap:anywhere;}
-  .vc-recentes .vc-section-head{margin:0 0 10px;}
-  .vc-recentes-status{font-size:12px;color:#6b7280;line-height:1.5;}
-  .vc-recentes-lista{overflow:auto;max-height:350px;}
+  .vc-recentes-topo{display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:15px}
+  .vc-recentes-topo h3{margin:2px 0 0;color:#0c2340;font-size:17px;line-height:1.4}
+  .vc-recentes-sobretitulo{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#62809e;font-weight:700}
+  .vc-recentes-pesquisa{display:flex;flex-direction:column;gap:5px;font-size:11px;color:#536a81;font-weight:600;min-width:min(340px,100%)}
+  .vc-recentes-pesquisa input{border:1px solid #cbd9e8;border-radius:9px;background:#fff;color:#0c2340;padding:10px 13px;font:500 12px Poppins,Arial,sans-serif;width:100%;outline-offset:2px}
+  .vc-recentes-pesquisa input:focus{border-color:#049fec;outline:2px solid rgba(4,159,236,.12)}
+  .vc-recentes-status{font-size:12px;color:#64758a;line-height:1.5;margin-bottom:9px;}
+  .vc-recentes-lista{overflow:auto;max-height:550px;border:1px solid #e4ebf3;border-radius:10px;background:#fff}
   .vc-recentes-lista table{width:100%;border-collapse:collapse;font-size:12px;text-align:left;}
-  .vc-recentes-lista th,.vc-recentes-lista td{padding:8px;border-bottom:1px solid #e6e8ef;white-space:nowrap;}
-  .vc-recentes-lista th{background:#f7f9fd;color:#54607d;position:sticky;top:0;}
+  .vc-recentes-lista th,.vc-recentes-lista td{padding:11px 13px;border-bottom:1px solid #edf1f6;white-space:nowrap;}
+  .vc-recentes-lista tbody tr:hover{background:#f4f9ff}
+  .vc-recentes-lista th{background:#f1f5fa;color:#405a76;position:sticky;top:0;z-index:1;font-size:11px;font-weight:700;}
   .vc-recentes-lista button{border:0;padding:0;background:transparent;color:#284081;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;}
+  .vc-recentes-lista .vc-rec-download{color:#176e4b;font-weight:700;text-decoration:none;border:1px solid #b9ddce;background:#eefaf4;border-radius:6px;padding:6px 10px;font-size:11px}
+  .vc-rec-done{display:inline-block;color:#147552;font-weight:700;background:#e7f6ee;padding:4px 8px;border-radius:6px}
+  .vc-recentes-navegacao{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:13px;font-size:12px;color:#566f87}
+  .vc-recentes-paginas{display:flex;align-items:center;gap:12px}
+  .vc-recentes-paginas button{border:1px solid #cedae8;background:#fff;color:#284081;padding:8px 12px;border-radius:8px;font:600 12px Poppins,Arial,sans-serif;cursor:pointer}
+  .vc-recentes-paginas button:hover:not(:disabled){background:#eaf3fd}
+  .vc-recentes-paginas button:disabled{opacity:.45;cursor:default}
 
   .vc-rx-link{float:right;border:0;background:transparent;color:#284081;text-decoration:underline;font:600 11px Poppins,Arial;cursor:pointer;padding:10px}
   .vc-rx-soft{border:1px solid #d3d9e6;background:#f7f9fd;color:#284081;font:600 12px Poppins,Arial;border-radius:7px;padding:9px 12px;cursor:pointer}
@@ -335,7 +364,8 @@
   .rx-file{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px;border:1px solid #e3eaf1;border-radius:10px;margin:8px 0;background:#fff}
   .rx-file strong{display:block;overflow-wrap:anywhere;font-size:13px;font-weight:600}
   .rx-file small{display:block;color:#64758a;margin-top:5px;font-size:11px;line-height:1.6}
-  .rx-file-buttons{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}.rx-file-buttons button{font-size:11px}
+  .rx-file-buttons{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;align-items:center}.rx-file-buttons button{font-size:11px}
+  .rx-file-buttons a{display:inline-flex;align-items:center;font:600 11px Poppins,Arial,sans-serif;text-decoration:none;padding:8px 12px;border:1px solid #add7bd;border-radius:8px;background:#ecf9f2;color:#176e4b}
   #rxListaArquivos{overflow:auto;min-height:0;flex:1}
   .rx-editor-actions{padding:12px 24px;border-bottom:1px solid #e6ecf2;background:#fbfcfe;flex:0 0 auto}
   .rx-pending{font-size:12px;line-height:1.5;color:#64758a;display:inline-flex;align-items:center;gap:8px}
@@ -344,6 +374,11 @@
   .rx-window .vc-rx-save{border:1px solid #0C2340;background:#0C2340;color:#fff;font:600 12px/1.4 Poppins,Arial,sans-serif;border-radius:8px;padding:10px 16px;cursor:pointer;white-space:nowrap}
   .rx-window .vc-rx-save:hover:not(:disabled){background:#193f69;border-color:#193f69}
   .rx-window .vc-rx-save:disabled{background:#e6ecf2;color:#8391a3;border-color:#e6ecf2;opacity:1}
+  .rx-window .vc-rx-validated{border:1px solid #176e4b;background:#176e4b;color:#fff;font:600 12px/1.4 Poppins,Arial,sans-serif;padding:10px 15px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .rx-window .vc-rx-validated:hover:not(:disabled){background:#0c5d3c}
+  .rx-window .vc-rx-validated:disabled{background:#e6ecf2;border-color:#e6ecf2;color:#8391a3;opacity:1;cursor:default}
+  .rx-validacao-status{font-size:11px;color:#17774f;font-weight:600}
+  .rx-window .rx-download{text-decoration:none;background:#ecf9f2;border-color:#aedac4;color:#176e4b}
   .rx-workspace{display:flex;min-height:0;min-width:0;flex:1}
   .rx-sidebar{width:218px;flex:0 0 218px;display:flex;flex-direction:column;min-height:0;border-right:1px solid #e6ecf2;background:#f7f9fc;padding:20px 12px}
   .rx-sidebar-title{font-size:12px;font-weight:600;line-height:1.5;margin:0 10px 14px;color:#0C2340}
@@ -448,11 +483,14 @@
   var _resumoProntoReentradas = false;
   var _reentradasConsultaSeq = 0;
   var _reentradasRecentes = [];
+  var _reentradasPagina = 1;
+  var _reentradasPaginaVisivel = [];
+  var _reentradasLimitePagina = 100;
   setTimeout(function(){
     google.script.run.withSuccessHandler(preencherPastasGraficasApp).listarPastasGraficasReentradasSPG();
     google.script.run.withSuccessHandler(renderizarUltimasReentradasSPG).withFailureHandler(function() {
-      renderizarUltimasReentradasSPG({erro:'Falha ao carregar as últimas reentradas.'});
-    }).listarUltimasReentradasSPG();
+      renderizarUltimasReentradasSPG({erro:'Falha ao carregar os chamados de reentrada.'});
+    }).listarUltimasReentradasSPG(true);
   }, 100);
   function renderizarUltimasReentradasSPG(res) {
     var status = document.getElementById('reentradasRecentesStatus');
@@ -460,24 +498,68 @@
     lista.innerHTML = '';
     _reentradasRecentes = [];
     if (!res || res.erro || !Array.isArray(res.chamados)) {
-      status.textContent = 'Não foi possível carregar as últimas reentradas. Você pode informar o chamado acima.';
+      status.textContent = 'Não foi possível carregar os chamados. Você pode informar o número acima.';
+      atualizarPaginacaoChamados(0, 0);
       return;
     }
-    _reentradasRecentes = res.chamados.slice(0, 30);
-    if (!_reentradasRecentes.length) {
-      status.textContent = 'Nenhuma solicitação de reentrada encontrada.';
+    _reentradasRecentes = res.chamados;
+    _reentradasPagina = 1;
+    renderizarPaginaChamados();
+    if(res.avisoValidacao)status.textContent += ' · '+res.avisoValidacao;
+  }
+  function filtrarChamadosReentradas() {
+    _reentradasPagina = 1;
+    renderizarPaginaChamados();
+  }
+  function moverPaginaChamados(sentido) {
+    var termo = (document.getElementById('reentradasPesquisa').value || '').trim();
+    var total = _reentradasRecentes.filter(function(r){return String(r.chamado || '').indexOf(termo) !== -1;}).length;
+    var paginas = Math.max(1, Math.ceil(total / _reentradasLimitePagina));
+    _reentradasPagina = Math.max(1, Math.min(paginas, _reentradasPagina + sentido));
+    renderizarPaginaChamados();
+    document.getElementById('reentradasRecentesLista').scrollTop = 0;
+  }
+  function atualizarPaginacaoChamados(total, paginas) {
+    var limite = _reentradasLimitePagina;
+    document.getElementById('reentradasFaixa').textContent = total ?
+      ((_reentradasPagina - 1) * limite + 1) + '–' + Math.min(total, _reentradasPagina * limite) + ' de ' + total + ' chamados' : '0 chamados';
+    document.getElementById('reentradasPaginaAtual').textContent = 'Página ' + _reentradasPagina + ' de ' + Math.max(1, paginas);
+    document.getElementById('reentradasAnterior').disabled = _reentradasPagina <= 1;
+    document.getElementById('reentradasProxima').disabled = _reentradasPagina >= paginas;
+  }
+  function renderizarPaginaChamados() {
+    var lista = document.getElementById('reentradasRecentesLista');
+    var status = document.getElementById('reentradasRecentesStatus');
+    var termo = (document.getElementById('reentradasPesquisa').value || '').trim();
+    var achados = _reentradasRecentes.filter(function(r) {return String(r.chamado || '').indexOf(termo) !== -1;});
+    var total = achados.length, paginas = Math.max(1, Math.ceil(total / _reentradasLimitePagina));
+    _reentradasPagina = Math.min(_reentradasPagina, paginas);
+    var inicio = (_reentradasPagina - 1) * _reentradasLimitePagina;
+    _reentradasPaginaVisivel = achados.slice(inicio, inicio + _reentradasLimitePagina);
+    atualizarPaginacaoChamados(total, paginas);
+    status.textContent = !total && !termo ? 'Nenhuma solicitação de reentrada encontrada.' : termo ?
+      total + ' chamado(s) encontrado(s) para “' + termo + '”.' :
+      total + ' chamado(s) disponíveis. Clique no número para selecionar.';
+    if (!total) {
+      lista.textContent = termo ? 'Nenhum chamado corresponde à pesquisa.' : 'Nenhuma solicitação de reentrada encontrada.';
       return;
     }
-    status.textContent = _reentradasRecentes.length + ' chamado(s). Clique no número para selecionar.';
     function campo(valor) { return escHtml(valor == null || String(valor).trim() === '' ? '—' : valor); }
-    lista.innerHTML = '<table><thead><tr><th scope="col">Chamado</th><th scope="col">Status</th><th scope="col">Marca</th><th scope="col">Envio</th><th scope="col">Alocado em</th></tr></thead><tbody>' +
-      _reentradasRecentes.map(function(r, indice) {
+    lista.innerHTML = '<table><thead><tr><th scope="col">Chamado</th><th scope="col">Status</th><th scope="col">Marca</th><th scope="col">Envio</th><th scope="col">Alocado em</th><th scope="col">Última validação finalizada</th><th scope="col">Custo validado</th></tr></thead><tbody>' +
+      _reentradasPaginaVisivel.map(function(r, indice) {
+        var data = Number(r.ultimaValidacaoEm);
+        var dataValida = Number.isSafeInteger(data) && data > 0;
+        var dataTexto = dataValida ? new Date(data).toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'}) : '—';
+        var url = String(r.downloadUrl || '');
+        var baixar = /^https:\/\/drive\.google\.com\/uc\?export=download&id=[A-Za-z0-9_-]+$/.test(url);
         return '<tr><td>' + (r.chamado ? '<button type="button" onclick="selecionarReentradaRecente(' + indice + ')">' + campo(r.chamado) + '</button>' : '—') +
-          '</td><td>' + campo(r.status) + '</td><td>' + campo(r.marca) + '</td><td>' + campo(r.envio) + '</td><td>' + campo(r.alocadoEm) + '</td></tr>';
+          '</td><td>' + campo(r.status) + '</td><td>' + campo(r.marca) + '</td><td>' + campo(r.envio) + '</td><td>' + campo(r.alocadoEm) +
+          '</td><td>' + campo(dataTexto) + '</td><td>' + (baixar ? '<a class="vc-rec-download" href="' + escHtml(url) + '" target="_blank" rel="noopener noreferrer">Baixar</a>' :
+          dataValida ? '<span class="vc-rec-done">Validado anteriormente</span>' : '—') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   function selecionarReentradaRecente(indice) {
-    var item = _reentradasRecentes[indice];
+    var item = _reentradasPaginaVisivel[indice];
     var input = document.getElementById('txtChamados');
     if (!item || !item.chamado || input.disabled) return;
     input.value = String(item.chamado);
@@ -1214,6 +1296,43 @@
   function rxEl(id){return document.getElementById(id);}
   function rxMsg(t){rxEl('rxMsg').textContent=t||'';}
   function rxTemEdicoes(){return Object.keys(rxPendente).length>0;}
+  function rxDataValidacao(milisegundos){return new Date(milisegundos).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});}
+  function rxAtualizarAceite(){
+    var botao=rxEl('rxCustoValidado'),download=rxEl('rxBaixarValidado'),status=rxEl('rxValidacaoStatus');
+    var registro=rxArquivo&&rxArquivo.validadoEm&&rxArquivo.validadoAtualizadoEm===rxArquivo.atualizadoEm;
+    var pronto=!!(rxArquivo&&rxArquivo.calculadora&&rxPagina&&rxNomesAbas.length&&
+      !rxOcupado&&!rxTemEdicoes()&&rxEl('rxPrepararPane').hidden);
+    botao.disabled=!pronto;
+    status.textContent=registro?'Validado em '+rxDataValidacao(rxArquivo.validadoEm):'';
+    download.hidden=!registro||!rxArquivo.downloadUrl;
+    download.href=download.hidden?'#':rxArquivo.downloadUrl;
+  }
+  function rxFinalizarCusto(){
+    if(!rxArquivo||rxOcupado||!rxPagina||rxTemEdicoes()||!rxNomesAbas.length||
+      !rxArquivo.calculadora||!rxEl('rxPrepararPane').hidden)return;
+    if(!confirm('Confirmar Custo Validado? A data e hora da conclusao serao registradas para este arquivo revisado.'))return;
+    var id=rxArquivo.id,versao=rxArquivo.atualizadoEm,sessao=rxSessao;
+    rxOcupado=true;rxAtualizarAceite();rxMsg('Registrando a validação final da calculadora…');
+    google.script.run.withSuccessHandler(function(r){
+      if(sessao!==rxSessao||!rxArquivo||rxArquivo.id!==id)return;
+      rxOcupado=false;
+      if(!r||r.erro||r.sucesso!==true||r.id!==id||r.atualizadoEm!==versao||
+          !Number.isSafeInteger(r.validadoEm)){
+        rxMsg('Não foi possível registrar o Custo Validado: '+(r&&r.erro||'Confirmação incompleta.'));
+        rxAtualizarAceite();return;
+      }
+      rxArquivo.validadoEm=r.validadoEm;rxArquivo.validadoAtualizadoEm=r.atualizadoEm;
+      rxArquivo.downloadUrl=r.downloadUrl;rxListaCarregada=false;
+      _reentradasRecentes.forEach(function(item){if(String(item.chamado)===String(r.chamado)){
+        item.ultimaValidacaoEm=r.validadoEm;item.downloadUrl=r.downloadUrl;
+      }});
+      renderizarPaginaChamados();rxAtualizarAceite();
+      rxMsg('Custo validado em '+rxDataValidacao(r.validadoEm)+'. O arquivo está disponível para baixar.');
+    }).withFailureHandler(function(e){
+      if(sessao!==rxSessao)return;rxOcupado=false;rxAtualizarAceite();
+      rxMsg('Falha ao registrar a validação final: '+(e.message||e));
+    }).marcarCustoValidadoReentradas(id,versao);
+  }
   function rxLimparCache(){
     if(rxTimer)clearTimeout(rxTimer);rxTimer=null;
     rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';
@@ -1258,6 +1377,7 @@
       if(!r||r.erro){rxEl('rxListaStatus').textContent=r&&r.erro||'Falha ao listar arquivos.';return;}
       if(!Array.isArray(r.arquivos)){rxEl('rxListaStatus').textContent='Lista de arquivos não confirmada. Tente atualizar.';return;}
       rxArquivos=r.arquivos;rxListaCarregada=true;rxRenderLista();
+      if(r.avisoValidacao)rxEl('rxListaStatus').textContent += ' · '+r.avisoValidacao;
     }).withFailureHandler(function(e){
       if(token!==rxListaToken||rxEl('rxOverlay').hidden||rxEl('rxListaPane').hidden)return;
       rxEl('rxListaStatus').textContent='Falha: '+(e.message||e);
@@ -1276,9 +1396,15 @@
       var det=document.createElement('small');
       det.textContent='Atualizado '+new Date(a.atualizadoEm).toLocaleString('pt-BR')+(a.motivo?' · '+a.motivo:'');
       info.appendChild(det);box.appendChild(info);
+      if(a.validadoEm){var status=document.createElement('small');status.className='rx-validacao-status';
+        status.textContent='Custo validado em '+rxDataValidacao(a.validadoEm);info.appendChild(status);}
       var buttons=document.createElement('div');buttons.className='rx-file-buttons';
       var abrir=document.createElement('button');abrir.className='vc-rx-soft';abrir.textContent='Conferir / editar';
       abrir.disabled=rxOcupado||!a.editavel;abrir.onclick=function(){rxAbrirArquivo(a);};buttons.appendChild(abrir);
+      if(a.validadoEm&&/^https:\/\/drive\.google\.com\/uc\?export=download&id=[A-Za-z0-9_-]+$/.test(a.downloadUrl||'')){
+        var baixar=document.createElement('a');baixar.textContent='Baixar validado';baixar.href=a.downloadUrl;
+        baixar.target='_blank';baixar.rel='noopener noreferrer';buttons.appendChild(baixar);
+      }
       var bloqueio=document.createElement('button');bloqueio.className='vc-rx-soft';bloqueio.textContent='Restaurar proteção';
       bloqueio.disabled=rxOcupado||!a.bloqueavel;bloqueio.onclick=function(){rxBloquear(a);};buttons.appendChild(bloqueio);
       box.appendChild(buttons);host.appendChild(box);
@@ -1302,7 +1428,10 @@
   function rxAbrirArquivo(a){
     if(!rxConfirmarSair())return;
     rxArquivo={id:a.id||a.calculadoraId||a.deparaId,
-      atualizadoEm:a.atualizadoEm||null,nome:a.nome||a.arquivo||''};
+      atualizadoEm:a.atualizadoEm||null,nome:a.nome||a.arquivo||'',
+      calculadora:a.calculadora!==undefined?a.calculadora:!!a.calculadoraId,
+      validadoEm:a.validadoEm||null,validadoAtualizadoEm:a.validadoEm?a.atualizadoEm:null,
+      downloadUrl:a.downloadUrl||''};
     if(!rxArquivo.id){rxAbrirLista();return;}
     rxToken++;rxListaToken++;if(rxTimer)clearTimeout(rxTimer);
     rxLimparCache();rxPendente={};rxFormulas={};rxFaixasFormulas=[];rxMesclagens=[];rxConjunto=null;rxPagina=null;rxConjuntoTentado=false;
@@ -1311,7 +1440,8 @@
     rxEl('rxVoltarListaBtn').hidden=false;rxEl('rxTitulo').textContent='Validar custos';
     rxEl('rxSubtitulo').textContent=rxArquivo.nome;
     rxEl('rxAbas').textContent='';rxEl('rxCab').textContent='';rxEl('rxCorpo').textContent='';
-    rxEl('rxSalvar').disabled=true;rxEl('rxPrepararPane').hidden=true;rxPedirPagina();
+    rxEl('rxSalvar').disabled=true;rxEl('rxPrepararPane').hidden=true;rxPagina=null;
+    rxAtualizarAceite();rxPedirPagina();
   }
   function rxVoltarLista(){if(!rxConfirmarSair())return;rxPendente={};rxAbrirLista();}
   function rxAlternarExpandir(){
@@ -1437,7 +1567,13 @@
       }
       if(!r||r.erro||!r.arquivo){if(atual){rxEl('rxGrid').setAttribute('aria-busy','false');rxEl('rxCorpo').textContent='';rxMsg(r&&r.erro||'Revisão indisponível. Tente reabrir o arquivo.');}return;}
       if(r.arquivo.id!==pedido.id){if(atual)rxMsg('O arquivo da resposta não corresponde à revisão aberta.');return;}
+      var anteriorArquivo=rxArquivo;
       rxArquivo=r.arquivo;
+      if(anteriorArquivo&&anteriorArquivo.id===rxArquivo.id&&anteriorArquivo.atualizadoEm===rxArquivo.atualizadoEm){
+        rxArquivo.validadoEm=anteriorArquivo.validadoEm;
+        rxArquivo.validadoAtualizadoEm=anteriorArquivo.validadoAtualizadoEm;
+        rxArquivo.downloadUrl=anteriorArquivo.downloadUrl;
+      }
       rxEl('rxSubtitulo').textContent=r.arquivo.nome;
       rxEl('rxLinkDrive').href=r.arquivo.url;
       rxNomesAbas=r.nomesAbas||(r.previaExcel&&r.previaExcel.abas.map(function(x){return x.nome;}))||(r.pagina&&r.pagina.abas)||rxNomesAbas;
@@ -1543,6 +1679,7 @@
     rxEl('rxColunasStatus').textContent=indices.length?indices.length+' campos disponíveis':'';
     rxMsg(rxEstado.busca?'Resultados para “'+rxEstado.busca+'”':'');
     rxEl('rxSalvar').disabled=!rxTemEdicoes()||rxOcupado;
+    rxAtualizarAceite();
     var posicao=rxPosicoes[p.aba];rxEl('rxGrid').scrollTop=posicao&&posicao.scrollTop||0;
     rxEl('rxGrid').scrollLeft=posicao&&posicao.scrollLeft||0;
   }
@@ -1585,15 +1722,20 @@
     var itens=Object.keys(rxPendente).map(function(k){return rxPendente[k];});
     if(itens.length>200){rxMsg('Salve em grupos de até 200 alterações.');return;}
     var arquivoId=rxArquivo.id;
-    rxOcupado=true;rxToken++;rxSessao++;rxLeituras={};rxEl('rxSalvar').disabled=true;rxMsg('Salvando alterações no arquivo…');
+    rxOcupado=true;rxToken++;rxSessao++;rxLeituras={};rxEl('rxSalvar').disabled=true;rxAtualizarAceite();rxMsg('Salvando alterações no arquivo…');
     google.script.run.withSuccessHandler(function(r){
       rxOcupado=false;
       if(!r||r.erro||r.sucesso!==true||r.id!==arquivoId||!Number.isFinite(r.atualizadoEm)){
         rxMsg('Não foi possível confirmar o salvamento: '+(r&&r.erro||'Resposta incompleta. Reabra o arquivo para conferir.'));
         rxEl('rxSalvar').disabled=false;return;
       }
-      rxArquivo.atualizadoEm=r.atualizadoEm;rxPendente={};rxConjunto=null;rxConjuntoTentado=false;rxLimparCache();
+      rxArquivo.atualizadoEm=r.atualizadoEm;rxArquivo.validadoEm=null;rxArquivo.validadoAtualizadoEm=null;
+      rxArquivo.downloadUrl='';rxPendente={};rxConjunto=null;rxConjuntoTentado=false;rxLimparCache();
       rxListaCarregada=false;
+      _reentradasRecentes.forEach(function(item){
+        if(String(item.chamado)===String((/\bCHAMADO\s+(\d+)\.xlsx$/i.exec(rxArquivo.nome)||[])[1]))item.downloadUrl='';
+      });
+      renderizarPaginaChamados();rxAtualizarAceite();
       if(r.revisaoPendente){
         rxPagina=null;rxEl('rxCab').textContent='';rxEl('rxCorpo').textContent='';rxEl('rxPrepararPane').hidden=false;
         rxEl('rxPendencias').textContent='Alterações salvas';rxEl('rxPendencias').classList.remove('rx-has-pending');

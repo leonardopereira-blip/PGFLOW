@@ -1794,6 +1794,7 @@
         rxArquivo.downloadUrl=anteriorArquivo.downloadUrl;
       }
       rxArquivo.recalculoPendente=!!r.recalculoPendente;
+      if(!rxUltimasEdicoes.length&&Array.isArray(r.ultimasEdicoes))rxUltimasEdicoes=r.ultimasEdicoes.slice();
       rxEl('rxSubtitulo').textContent=r.arquivo.nome;
       rxEl('rxLinkDrive').href=r.arquivo.url;
       rxAtualizarNaoEditoriais(r.naoEditoriais,
@@ -1928,14 +1929,18 @@
         var td=document.createElement('td'),col=indices[i]+1;
         var key=indiceReal+':'+l.numero+':'+col,pend=rxPendente[key],calculado=rxCalculados[key],falha=rxFalhasCalculo[key],texto=pend?pend.valor:calculado!==undefined?calculado:String(valor??'');
         var formula=rxEhFormula(p.aba,l.numero,col)||/^=/.test(texto);
-        var aguardando=!!falha||formula&&calculado===undefined&&(rxArquivo.recalculoPendente||/^=/.test(texto));
+        // Uma revisão pendente não apaga os valores conhecidos. Somente uma
+        // expressão sem resultado ou uma falha específica recebe o aviso.
+        var aguardando=!!falha||formula&&calculado===undefined&&/^=/.test(texto);
+        var desatualizado=formula&&!aguardando&&calculado===undefined&&!!rxArquivo.recalculoPendente;
         td.textContent=aguardando?'Cálculo pendente':rxTextoValor(texto);
-        td.title=(falha|| (aguardando?'Resultado ainda não calculado':texto))+' · '+rxLetra(col)+l.numero;
+        td.title=(falha|| (aguardando?'Resultado ainda não calculado':desatualizado?'Resultado anterior; use Recalcular para atualizar. '+texto:texto))+' · '+rxLetra(col)+l.numero;
         if(i===0)td.className='rx-fixed-one';else if(i===1)td.className='rx-fixed-two';
         if(pend)td.className+=' rx-mod';
         if(rxColunaDestacada(p.aba,indices[i]))td.className+=' rx-group-focus';
         if(formula)td.className+=' rx-formula';
         if(aguardando)td.className+=' rx-calc-pending';
+        if(desatualizado)td.className+=' rx-calc-stale';
         var mescla=rxMesclagemCoberta(p.aba,l.numero,col);
         if(mescla){td.className+=' rx-merged';td.title='Campo agrupado. Edite '+rxLetra(mescla.x1)+mescla.y1+'.';}
         td.tabIndex=0;td.setAttribute('aria-label',rxLetra(col)+l.numero+': '+texto);

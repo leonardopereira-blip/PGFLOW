@@ -87,13 +87,20 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
     _reLpAbas_(){return[{nome:'CALC Geral',caminho:'xl/worksheets/sheet1.xml'}]},
     _bcDigest_:mkHash
   };
-  env._rxRevisaoMontar_=()=>({});env._rxRevisaoSalvar_=()=>{};
+  let reconstrucoes=0,modeloSalvo;
+  env._rxRevisaoMontar_=()=>{reconstrucoes++;return {}};
+  env._rxRevisaoLer_=()=>({abas:[{linhas:[{numero:2,valores:{1:'Anterior'}}]}]});
+  env._rxRevisaoSalvar_=(_arquivo,modelo)=>{modeloSalvo=modelo};
   vm.createContext(env);vm.runInContext(gerador,env);vm.runInContext(fs.readFileSync(path.join(root,'MacroProtecao.js'),'utf8'),env);vm.runInContext(b,env);
   const result=env.salvarEdicoesReentradasExcel(id,1700000000000,[
     {aba:0,linha:2,coluna:2,valor:'Alterado'}
   ]);
   assert.equal(result.sucesso,true,result.erro);
   assert.equal(result.id,id);
+  assert.equal(reconstrucoes,0,'editar uma entrada não deve reconstruir as dependências');
+  assert.equal(modeloSalvo.abas[0].linhas[0].valores[1],'Alterado');
+  assert.equal(modeloSalvo.recalculoPendente,true);
+  assert.equal(modeloSalvo.ultimasEdicoes[0].valor,'Alterado');
   assert.equal(quantidade,1);
   const changed=partes.find(p=>p.getName()==='xl/worksheets/sheet1.xml').getDataAsString();
   assert.match(changed,/Alterado/);

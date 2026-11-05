@@ -31,12 +31,14 @@
     "SERVER_JS:SPG": "2b60edefcbb2c2f8a6bef47ea509c27e121e6b6586af4975be29f9f7a197c23f",
     "HTML:TelaEmail": "058010b8ecd8ea1ba18bd7d59e4fff88bb539185076fd5ec4201c9a9b969133a",
     "SERVER_JS:ValidaComum": "2eb10dbf3423c09836ce39061d5f544917a835efe563ca8dffb8c02fe533981a",
-    "HTML:ValidaInterface": "4ac4e5fcedbfb692f4ffaccdf804348f2910b914be7dfc84af463a39fc38fbe0",
+    "HTML:ValidaInterface": "fbf96fb3bbeb475d4e59bc4ab9f3a36d3dc0fc57f27485f3a6dcdfd609448c82",
     "SERVER_JS:ValidaPrincipal": "485ad7dec5e61a8ea9b0a7cf319a6815dc28384da8a1356451d1bd61b472e886",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
     "SERVER_JS:ValidaReentradasSPG": "3e1126727431a5d8b49cc2b3167e7c1951268be165351aa8511d380d017e10e9",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82",
-    "SERVER_JS:ReentradasRevisao": "c002af8ad7892b1e228f3219c227e3295c4c975b85fd283215ee5b055f2fc806",
-    "SERVER_JS:ReentradasValidacaoFinal": "34f237926be0c069d92ffd330c2013e4ba6ab408ae51a401502a1ae577b549d5"
+    "SERVER_JS:ReentradasRevisao": "5af7de8d707fb1ffc080434da35350ee9909c6d90caadf2c6dca9c9f2ca6c236",
+    "SERVER_JS:ReentradasValidacaoFinal": "34f237926be0c069d92ffd330c2013e4ba6ab408ae51a401502a1ae577b549d5",
+    "SERVER_JS:ReentradasAvaliador": "c569720fd83e24c4d7112b0ee6fee9ae10e1cca86074c4f99beeb27674a1b182",
+    "SERVER_JS:ReentradasDependencias": "7da02ae8924c5e163e85e9c56a0ffe55b6569f0797ca0f2b4207be614c15d7ea"
   }
 }

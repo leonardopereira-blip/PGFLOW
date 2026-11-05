@@ -297,6 +297,7 @@ function _rxRevisaoResposta_(arq,modelo,pedido){
     previaExcel:null,nomesAbas:nomes,abaCompleta:completa,pagina:pagina,quadro:quadro,
     formulas:formulas,faixasFormulas:faixas,mesclagens:mesclas,
     naoEditoriais:modelo.naoEditoriais||[],recalculoPendente:!!modelo.recalculoPendente,
+    ultimasEdicoes:modelo.ultimasEdicoes||[],
     revisaoPreparada:true};
 }
 function _rxRevisaoLetra_(n){var s='';while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;}
@@ -310,6 +311,8 @@ function prepararRevisaoReentradasExcel(id,atualizadoEm){
     var partes=_reSpPartes_(arq.arquivo.getBlob());
     var modelo=_rxRevisaoMontar_(partes);
     if(anterior&&anterior.naoEditoriais)modelo.naoEditoriais=anterior.naoEditoriais;
+    if(anterior&&anterior.ultimasEdicoes)modelo.ultimasEdicoes=anterior.ultimasEdicoes;
+    if(anterior&&anterior.recalculoPendente)modelo.recalculoPendente=true;
     _rxArquivo_(id,atualizadoEm);_rxRevisaoSalvar_(arq,modelo,true);
     return {sucesso:true,id:arq.id,atualizadoEm:arq.atualizadoEm};
   }catch(e){return {erro:e.message,codigo:e.codigo||'REVISAO_FALHOU'};}

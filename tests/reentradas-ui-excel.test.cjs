@@ -158,6 +158,14 @@ test('fórmula com valor cacheado fica protegida pela coordenada sem impedir edi
   texto.ondblclick();const input=texto.children[0];input.value='alterado';input.onblur();
   assert.deepEqual(plain(c.rxPendente),{'0:5:2':{aba:0,linha:5,coluna:2,valor:'alterado'}});
 });
+test('valores conhecidos permanecem visíveis durante conferência de recálculo pendente',()=>{
+  const s=screen(),c=s.context;open(s);
+  c.rxArquivo.recalculoPendente=true;c.rxRenderPagina();
+  const primeira=s.el('rxCorpo').children[0].children[1];
+  assert.equal(primeira.textContent,'20','uma revisão pendente não pode esconder valores existentes');
+  assert.match(primeira.className,/rx-calc-stale/);
+  assert.doesNotMatch(primeira.className,/rx-calc-pending/);
+});
 
 test('Especificacoes apresenta titulo/subtitulo e permite separar Nao editorial em aba virtual persistida',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true},

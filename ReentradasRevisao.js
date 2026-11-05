@@ -107,7 +107,49 @@ function _rxRevisaoLer_(arq){
     throw _rxRevisaoErro_('REVISAO_AUSENTE','O modelo de revisao precisa ser preparado novamente.');
   if(modelo.arquivo.atualizadoEm!==arq.atualizadoEm)
     throw _rxRevisaoErro_('REVISAO_DESATUALIZADA','O arquivo mudou depois da revisao preparada. Prepare a revisao novamente para conferir a versao atual.');
+  // Os resultados <v> de formulas do molde podem pertencer ao chamado antigo.
+  // So projeta formulas de tiragem conhecidas; nao simula os custos do Excel.
+  _rxRevisaoProjetarTotais_(modelo);
   return modelo;
+}
+function _rxRevisaoProjetarTotais_(modelo){
+  var calculados=0,corrigidos=0;
+  (modelo.abas||[]).forEach(function(aba,indice){
+    if(!/^CALC[\s-]*Geral$/i.test(String(aba.nome||'')))return;
+    var linhas=aba.linhas||[],titulo=(linhas.find(function(r){return r.numero===3;})||{}).valores||{};
+    var sub=(linhas.find(function(r){return r.numero===4;})||{}).valores||{};
+    var colSku=Number(Object.keys(titulo).find(function(k){return /C[ÓO]DIGO\s*SKU/i.test(String(titulo[k]));}));
+    var colTotal=Number(Object.keys(titulo).find(function(k){return /^TOTAL$/i.test(String(titulo[k]).trim())&&
+      /Exemplares/i.test(String(sub[k]||''));}));
+    if(!Number.isInteger(colSku)||!Number.isInteger(colTotal)||colTotal<=colSku+2||colTotal>colSku+8)return;
+    var formula=(modelo.faixasFormulas||[]).filter(function(f){return f.aba===indice&&colTotal+1>=f.x1&&colTotal+1<=f.x2;});
+    linhas.forEach(function(r){
+      if(r.numero<=5||!formula.some(function(f){return r.numero>=f.y1&&r.numero<=f.y2;}))return;
+      var v=r.valores||{},sku=String(v[colSku]||'').trim();if(!sku||/^=/.test(sku))return;
+      var soma=0;
+      for(var c=colSku+2;c<colTotal;c++){
+        var valor=String(v[c]===undefined?'0':v[c]).trim();
+        if(valor!==''&&!/^-?\d+(?:\.\d+)?$/.test(valor))return;
+        soma+=Number(valor||0);
+      }
+      if(!isFinite(soma)||soma<0)return;
+      calculados++;
+      if(String(v[colTotal]||'')!==String(soma)){v[colTotal]=String(soma);corrigidos++;}
+    });
+  });
+  return {calculados:calculados,corrigidos:corrigidos};
+}
+function recalcularTotaisReentradasExcel(id,atualizadoEm){
+  try{
+    var arq=_rxArquivo_(id,atualizadoEm);
+    if(!arq.calculadora)throw Error('Selecione a calculadora para recalcular os totais.');
+    var revisao=_rxRevisaoLer_(arq),info=_rxRevisaoProjetarTotais_(revisao);
+    // A leitura ja projetou os totais. Conta apenas linhas cobertas pelo contrato.
+    if(!info.calculados)throw Error('Nao foi encontrada formula de total de exemplares compativel.');
+    return {sucesso:true,id:arq.id,atualizadoEm:arq.atualizadoEm,
+      totaisRecalculados:info.calculados,
+      aviso:'As tiragens foram recalculadas pelo script. Precos e outras formulas do Excel continuam sujeitos a recalculo no arquivo.'};
+  }catch(e){return {erro:e.message||String(e)};}
 }
 // Organiza apenas a leitura visual. Coordenadas e conteudo do XLSX permanecem intactos.
 function _rxRevisaoLayout_(aba,modelo,indice){

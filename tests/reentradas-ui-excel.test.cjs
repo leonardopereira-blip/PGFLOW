@@ -109,6 +109,20 @@ test('Custo Validado requer comprovante escolhido, confirmacao e arquiva downloa
   assert.equal(s.el('rxBaixarValidado').hidden,true);
 });
 
+test('a validação abre expandida e Recalcular chama o código para os totais',()=>{
+  const s=screen(),c=s.context,calc={...file,calculadora:true};
+  c.rxAbrirLista();assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
+  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
+  assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
+  assert.equal(s.el('rxExpandir').textContent,'Reduzir');
+  c.rxRecalcular();assert.equal(s.request().method,'recalcularTotaisReentradasExcel');
+  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm]);
+  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,totaisRecalculados:6});
+  assert.equal(s.request().method,'obterPreviaReentradasExcel');
+  s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
+  assert.match(s.el('rxMsg').textContent,/6 totais/);
+});
+
 test('sugestao de e-mail pode ser ignorada uma unica vez por calculadora',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true};
   c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});

@@ -1,10 +1,10 @@
 {
   "scriptId": "1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu",
-  "lido_em": "2026-11-05T10:46:59Z",
+  "lido_em": "2026-11-05T11:10:58Z",
   "files": {
     "SERVER_JS:Ajusta_API": "66e97e7d8e378d73d9710b5a2d699fc51cdb34a6b66856767c712d71faabcfbc",
     "SERVER_JS:AlertaSPG": "3f35f4298b9b120397af4371af56b573320761bfae34898eece2ba9f682f10f5",
-    "JSON:appsscript": "4a846da84479b6e3003e1293114c93a735912c5700283e001141e88c64ffa157",
+    "JSON:appsscript": "8e0500d108a2367e877c7b2a0b8e08b8451f9debb68316f4f3ddc38f7f617980",
     "HTML:BloquearCalculadoras": "2ffdeecf01101c3fa12209559c9318ffd74ed97ba6c45ceb9b361c9ab92cdc64",
     "SERVER_JS:Codigo": "279d347e4c7fa1a6f3bbb78a1c70cc0c2e35c9f63fa640bec38133e4c13876a8",
     "SERVER_JS:EmailSPG": "83df019ad756128b6a1fdb05c0d928c196126d4033f63ebf20107ca1129e1421",
@@ -27,16 +27,16 @@
     "SERVER_JS:ReentradasEspecificacaoGeral": "6e317213b060916899b10b5569d6b73fd4035b6ffb0ab17bb72139371b7c33cf",
     "SERVER_JS:ReentradasExcel": "7192fc7a0990c61082d7e4d3fce586b55c327b907d6fbd284d730c8b96b4afa1",
     "SERVER_JS:ReentradasFormaCerta": "ecb5809604ad1a714d6261fd7e844d622dedfaa2e4057edf5e0776fdcd4fde82",
-    "SERVER_JS:ReentradasRecentes": "f4410548e5bbebbed196fb962de974c1118ac4f4a98aa88eca512bce76628389",
+    "SERVER_JS:ReentradasRecentes": "d55865101ff8abfe148d9552e7793ebf2c9196f5c895ef5cbeff10bada904ecf",
     "SERVER_JS:SPG": "2b60edefcbb2c2f8a6bef47ea509c27e121e6b6586af4975be29f9f7a197c23f",
     "HTML:TelaEmail": "058010b8ecd8ea1ba18bd7d59e4fff88bb539185076fd5ec4201c9a9b969133a",
     "SERVER_JS:ValidaComum": "2eb10dbf3423c09836ce39061d5f544917a835efe563ca8dffb8c02fe533981a",
-    "HTML:ValidaInterface": "2441b1035a48ed0d0893b4721cfd46a1d18c19ab153960d175c60601534bacfb",
+    "HTML:ValidaInterface": "55906de7c6959186584caeab8076d91003d352bb57881524fbd802580647207e",
     "SERVER_JS:ValidaPrincipal": "485ad7dec5e61a8ea9b0a7cf319a6815dc28384da8a1356451d1bd61b472e886",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
     "SERVER_JS:ValidaReentradasSPG": "3e1126727431a5d8b49cc2b3167e7c1951268be165351aa8511d380d017e10e9",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82",
     "SERVER_JS:ReentradasRevisao": "e791d47fce91236e051cc7c875ec99dc040c8b5c52d3ad90785564afbc3b7b43",
-    "SERVER_JS:ReentradasValidacaoFinal": "c1cf5678b8c54c9b13ab305253cbeb98e3d6d050f4d33adab51860846b91b73a"
+    "SERVER_JS:ReentradasValidacaoFinal": "34f237926be0c069d92ffd330c2013e4ba6ab408ae51a401502a1ae577b549d5"
   }
 }

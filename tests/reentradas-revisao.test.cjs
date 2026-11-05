@@ -134,6 +134,23 @@ test('Especificacoes usa titulos da linha 3 e subtitulos da 4; colunas de total 
   assert.equal(a._rxRevisaoLayout_(digital,{abas:[digital],mesclagens:[]},0).cabecalhoAte,5);
 });
 
+test('Total da CALC Geral ignora cache antigo do molde e soma a tiragem atual',()=>{
+  const s=ambiente(),a=s.app,geral={nome:'CALC Geral',totalColunas:11,linhas:[
+    {numero:3,valores:{3:'CÓDIGO SKU',5:'AVULSO ACAB',6:'AVULSO GRAF',7:'KIT S/ MALETA',8:'KIT C/ MALETA',9:'TOTAL'}},
+    {numero:4,valores:{9:'Exemplares'}},
+    {numero:6,valores:{3:'SKU-01',5:'800',6:'0',7:'0',8:'0',9:'30'}},
+    {numero:7,valores:{3:'SKU-02',5:'0',6:'0',7:'230',8:'0',9:'10'}}]};
+  const modelo={schema:1,abas:[geral],formulas:{},faixasFormulas:[{aba:0,x1:10,x2:10,y1:6,y2:7}],mesclagens:[]};
+  a._rxRevisaoSalvar_(s.arq(),modelo);
+  const r=a.obterPreviaReentradasExcel({id:s.id,aba:0,porAba:true});
+  assert.equal(r.abaCompleta.linhas[2].valores[9],'800');
+  assert.equal(r.abaCompleta.linhas[3].valores[9],'230');
+  const total=a.recalcularTotaisReentradasExcel(s.id,1800000000000);
+  assert.equal(total.sucesso,true,total.erro);assert.equal(total.totaisRecalculados,2);
+  assert.equal(s.reads(),0,'o recalculo nao pode abrir XLSX nem modificar formulas');
+  assert.equal(s.writes(),1,'o botao de recalculo nao deve sobrescrever o XLSX');
+});
+
 test('separacao Não editorial fica na revisao preparada, sem tocar o XLSX',()=>{
   const s=ambiente(),a=s.app;
   const modelo={schema:1,abas:[{nome:'PPG - Especificações',totalColunas:4,linhas:[

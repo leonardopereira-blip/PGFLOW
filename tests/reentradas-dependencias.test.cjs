@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const mx=require('../tools/molde-node.cjs');
 
-function app(){return mx.carregarApps(['MoldeXlsx.js','ValidaReentradasSPG.js','ReentradasDependencias.js']);}
+function app(){return mx.carregarApps(['MoldeXlsx.js','ValidaReentradasSPG.js','ReentradasDependencias.js','ReentradasAvaliador.js']);}
 function modelo(a){
   const padroes=['SUM(F6:I6)','J6*2',"'CALC Geral'!T6+3",'IFNA(XLOOKUP(D6,\'TAB Regras\'!$AS:$AS,\'TAB Regras\'!$AQ:$AQ),0)'];
   return {abas:[{nome:'CALC Geral'},{nome:'CALC Digital'},{nome:'TAB Regras'}],
@@ -29,4 +29,16 @@ test('os nomes de abas e os textos das formulas nao criam referencias falsas',()
   assert.equal(refs.length,3);
   assert.deepEqual([...refs.map(x=>x.aba)],['CALC Geral','TAB Regras','CALC Geral']);
   assert.equal(refs[1].r1,7);assert.equal(refs[1].rel1,false);
+});
+
+test('avalia somente o encadeamento alterado e devolve valores de outra aba sem gravar',()=>{
+  const a=app(),m=modelo(a);
+  m.abas[0].linhas=[{numero:6,valores:{3:'SKU-1',5:800,6:0,7:230,8:0,9:1030,19:2060}}];
+  m.abas[1].linhas=[{numero:6,valores:{1:2063}}];
+  m.abas[2].linhas=[];
+  const r=a._rxCalculoAplicar_(m,[{aba:0,linha:6,coluna:6,valor:1200}],100);
+  assert.deepEqual([...r.resultados].map(x=>[x.aba,x.linha,x.coluna,x.valor]).sort((x,y)=>x[2]-y[2]),[
+    [1,6,2,2863],[0,6,10,1430],[0,6,20,2860]]);
+  assert.equal(r.pendentes.length,0);
+  assert.equal(m.abas[0].linhas[0].valores[5],800,'recalcular nao salva nem altera a entrada');
 });

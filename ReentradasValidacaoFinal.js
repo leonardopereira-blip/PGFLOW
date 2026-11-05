@@ -28,20 +28,28 @@ function _rxCustoSugestoes_(dados) {
   return dados.sugestoes;
 }
 
-function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm) {
+function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm, filtro, pagina) {
   try {
     var arquivo = _rxArquivo_(id, atualizadoEm);
     if (!arquivo.calculadora) throw Error('Selecione uma calculadora para conferir os e-mails.');
     var chamado = _rxCustoChamado_(arquivo.nome), dados = _rxCustoRegistros_();
-    var retorno = {sucesso:true, chamado:chamado, sugestaoJaTratada:!!_rxCustoSugestoes_(dados)[id],
-      confirmado:!!dados.arquivos[id], emails:[], conexaoPessoalNecessaria:!_rxCustoGmailDaPessoa_()};
+    var paginaAtual=Number(pagina||0);
+    if(!Number.isInteger(paginaAtual)||paginaAtual<0||paginaAtual>500)throw Error('Pagina de e-mails invalida.');
+    var pesquisa=_rxCustoEmailSeguro_(filtro,100).trim(),limite=15;
+    var retorno = {sucesso:true, chamado:chamado, pagina:paginaAtual, proximaPagina:false,
+      sugestaoJaTratada:!!_rxCustoSugestoes_(dados)[id],
+      confirmado:!!dados.arquivos[id], emails:[], sugestao:null, conexaoPessoalNecessaria:!_rxCustoGmailDaPessoa_()};
     if (retorno.conexaoPessoalNecessaria) return retorno;
-    var threads = GmailApp.search('in:anywhere "'+chamado+'"', 0, 18), vistos={};
-    threads.forEach(function(thread) {
+    // A primeira lista prioriza o chamado; a busca explicita permite qualquer
+    // conversa da caixa do usuario, ainda que nao mencione esse chamado.
+    var consulta='in:anywhere '+(pesquisa||('"'+chamado+'"'));
+    var threads = GmailApp.search(consulta, paginaAtual*limite, limite+1), vistos={};
+    retorno.proximaPagina=threads.length>limite;
+    threads.slice(0,limite).forEach(function(thread) {
       if (vistos[thread.getId()]) return;
       vistos[thread.getId()]=true;
       var mensagens=thread.getMessages(),assunto=thread.getFirstMessageSubject(),referencias=[];
-      mensagens.slice(-12).forEach(function(m) {
+      mensagens.slice(-4).forEach(function(m) {
         referencias.push({id:m.getId(),remetente:_rxCustoEmailSeguro_(m.getFrom(),300),
           data:m.getDate().getTime(),assunto:_rxCustoEmailSeguro_(m.getSubject(),300),
           trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200)});
@@ -50,6 +58,19 @@ function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm) {
         ultimaData:thread.getLastMessageDate().getTime(),url:thread.getPermalink(),mensagens:referencias});
     });
     retorno.emails.sort(function(a,b){return b.ultimaData-a.ultimaData;});
+    if(!retorno.sugestaoJaTratada&&chamado){
+      var recomendadas=GmailApp.search('in:anywhere "'+chamado+'"',0,8);
+      var opcoes=[];
+      recomendadas.forEach(function(t){
+        var ms=t.getMessages();if(!ms.length)return;
+        var m=ms[ms.length-1],assunto=t.getFirstMessageSubject(),temChamado=new RegExp('(^|\\D)'+chamado+'(\\D|$)').test(assunto);
+        opcoes.push({threadId:t.getId(),mensagem:{id:m.getId(),remetente:_rxCustoEmailSeguro_(m.getFrom(),300),
+          data:m.getDate().getTime(),assunto:_rxCustoEmailSeguro_(m.getSubject(),300),
+          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200)},pontos:temChamado?2:1});
+      });
+      opcoes.sort(function(a,b){return b.pontos-a.pontos||b.mensagem.data-a.mensagem.data;});
+      if(opcoes.length)retorno.sugestao=opcoes[0];
+    }
     return retorno;
   } catch(e) {return {erro:e.message || String(e)};}
 }
@@ -166,8 +187,8 @@ function enviarCustoPorEmailNaConversaReentradas(id,atualizadoEm,threadId,mensag
     if(!/^[A-Za-z0-9_-]{10,100}$/.test(String(threadId||'')))throw Error('Selecione uma conversa valida.');
     var conversa=GmailApp.getThreadById(threadId),emails=conversa&&conversa.getMessages();
     if(!emails||!emails.length)throw Error('A conversa nao esta disponivel na sua caixa.');
-    var pertence=emails.some(function(m){return (' '+m.getSubject()+' '+m.getPlainBody()).indexOf(chamado)>=0;});
-    if(!pertence)throw Error('A conversa nao menciona o numero do chamado selecionado.');
+    // A escolha pode vir da busca livre de threads. O usuario confirma o
+    // destinatario na interface; o numero do chamado nao restringe a resposta.
     conversa.replyAll(texto,{attachments:[arquivo.arquivo.getBlob().setName(arquivo.nome)]});
     return {sucesso:true,mensagem:'Validacao de custos enviada como resposta na conversa selecionada.'};
   }catch(e){return {erro:e.message||String(e)};}

@@ -92,7 +92,9 @@ function _rxRevisaoSalvar_(arquivo,modelo,jaTravado){
       if(!pegou)throw Error('Outra revisao esta sendo preparada. Tente novamente.');
     }
     var pasta=_rxRevisaoPasta_(true),existente=_rxRevisaoArquivo_(pasta,meta.id);
-    if(existente)Drive.Files.update({title:nome,mimeType:'application/gzip'},existente.getId(),blob,{newRevision:false,supportsAllDrives:true});
+    // O MIME existente e preservado; especifica-lo no metadata de um update
+    // pode fazer a API recusar a revisao com "mime type change is forbidden".
+    if(existente)Drive.Files.update({title:nome},existente.getId(),blob,{newRevision:false,supportsAllDrives:true});
     else pasta.createFile(blob).setName(nome);
     return modelo;
   }finally{if(pegou)lock.releaseLock();}

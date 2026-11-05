@@ -126,9 +126,15 @@ test('seleciona mensagem da caixa do usuario e arquiva conversa em EML sem inter
   const thread={getId:()=> 'THREAD_123456789',getMessages:()=> [m],getFirstMessageSubject:()=> 'Chamado 3127',
     getLastMessageDate:()=>new Date(1730000000000),getPermalink:()=> 'https://mail.google.com/mail/u/0/#all/abc'};
   m.getThread=()=>thread;
-  h.context.GmailApp={search:()=> [thread],getMessageById:()=>m};
+  const buscas=[];
+  h.context.GmailApp={search:(q,inicio,limite)=>{buscas.push({q,inicio,limite});return [thread];},getMessageById:()=>m};
   const lista=h.context.obterConfirmacoesEmailCustoReentradas(id,h.out.version);
   assert.equal(lista.sucesso,true);assert.equal(lista.emails[0].mensagens[0].id,'MSG12345');
+  assert.equal(lista.sugestao.threadId,'THREAD_123456789');
+  assert.match(buscas[0].q,/"3127"/);
+  const outra=h.context.obterConfirmacoesEmailCustoReentradas(id,h.out.version,'logprint',1);
+  assert.equal(outra.pagina,1);assert.equal(buscas[2].q,'in:anywhere logprint');
+  assert.equal(buscas[2].inicio,15);
   const registrado=h.context.confirmarCustoComEmailReentradas(id,h.out.version,{mensagemId:'MSG12345',
     threadId:'THREAD_123456789',texto:'Trecho escolhido pelo usuário',confirmacaoExplicita:true});
   assert.equal(registrado.sucesso,true,registrado.erro);
@@ -144,4 +150,14 @@ test('ignorar sugestao registra uma unica vez por calculadora',()=>{
   assert.equal(h.context.ignorarSugestaoEmailCustoReentradas(id,h.out.version).sucesso,true);
   assert.equal(h.out.writes,1);
   assert.equal(h.context._rxCustoRegistros_().sugestoes[id].decisao,'ignorada');
+});
+
+test('permite enviar na thread escolhida manualmente mesmo sem citar o chamado',()=>{
+  const h=harness(),enviados=[];
+  h.file.getBlob=()=>({setName(){return this;}});
+  h.context.GmailApp={getThreadById:()=>({getMessages:()=>[{getSubject:()=> 'Assunto livre do usuario'}],
+    replyAll:(mensagem,opcoes)=>enviados.push({mensagem,opcoes})})};
+  const r=h.context.enviarCustoPorEmailNaConversaReentradas(id,h.out.version,'THREAD_LIVRE_123456','Segue a calculadora');
+  assert.equal(r.sucesso,true,r.erro);
+  assert.equal(enviados.length,1);assert.equal(enviados[0].opcoes.attachments.length,1);
 });

@@ -72,6 +72,12 @@ test('geracao prepara modelo antes de criar XLSX e nunca o reabre para criar rev
 test('persistencia serializa criacao tecnica, libera lock em falha e nao readquire lock do salvamento',()=>{
   const s=ambiente(),a=s.app;const modelo=s.prepare();let aquisicoes=0,liberacoes=0;
   a.LockService={getScriptLock:()=>({tryLock(){aquisicoes++;return true},releaseLock(){liberacoes++}})};
+  const atualizacao=a.Drive.Files.update;
+  a.Drive.Files.update=(meta,id,blob,opt)=>{
+    assert.equal(meta.mimeType,undefined,'atualizacao do snapshot nao pode tentar mudar o MIME no Drive');
+    assert.equal(meta.title,blob.getName());
+    return atualizacao(meta,id,blob,opt);
+  };
   a._rxRevisaoSalvar_(s.arq(),modelo);
   assert.equal(aquisicoes,1);assert.equal(liberacoes,1);
   a._rxRevisaoSalvar_(s.arq(),modelo,true);

@@ -75,7 +75,7 @@ test('salvamento integra no mesmo ID e confirma nova revisão sem mudar fórmula
   const env={
     DriveApp:{getFileById(fileId){assert.equal(fileId,id);return arquivo}},
     Drive:{Files:{update(meta,fileId,data,opts){
-      assert.equal(fileId,id);assert.equal(meta.title,nome);assert.equal(opts.newRevision,true);
+      assert.equal(fileId,id);assert.equal(meta.title,nome);assert.equal(meta.mimeType,undefined,'nao tente alterar MIME de XLSX existente');assert.equal(opts.newRevision,true);
       partes=data.parts;atualizadoEm+=1000;quantidade++;
     }}},
     Utilities:{

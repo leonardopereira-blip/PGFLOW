@@ -214,10 +214,14 @@
             <button type="button" class="vc-rx-soft" onclick="rxIgnorarSugestao()">Ignorar definitivamente</button></div>
         </div>
         <div class="rx-email-card">
-          <div class="rx-email-title"><div><strong>E-mails relacionados ao chamado</strong><p>Selecione uma mensagem da conversa para anexá-la à validação.</p></div>
-            <button type="button" class="vc-rx-soft" onclick="rxCarregarConfirmacoes()">Atualizar e-mails</button></div>
+          <div class="rx-email-title"><div><strong>E-mails relacionados ao chamado</strong><p>O início mostra o chamado. Pesquise por nome ou assunto para encontrar qualquer outra conversa da sua caixa.</p></div>
+            <button type="button" class="vc-rx-soft" onclick="rxCarregarConfirmacoes(0)">Atualizar e-mails</button></div>
+          <div class="rx-email-botoes"><input id="rxEmailPesquisa" type="search" aria-label="Pesquisar e-mails" placeholder="Pesquisar assunto, remetente ou conteúdo" onkeydown="if(event.key==='Enter'){event.preventDefault();rxCarregarConfirmacoes(0)}">
+            <button type="button" class="vc-rx-soft" onclick="rxCarregarConfirmacoes(0)">Pesquisar</button></div>
           <div id="rxEmailStatus" role="status">Carregue as mensagens para selecionar um comprovante.</div>
           <div id="rxEmailLista" class="rx-email-lista"></div>
+          <div class="rx-email-botoes"><button type="button" class="vc-rx-soft" id="rxEmailAnterior" onclick="rxCarregarConfirmacoes(rxEmailEstado.pagina-1)">Anterior</button>
+            <span id="rxEmailPagina">Página 1</span><button type="button" class="vc-rx-soft" id="rxEmailProximo" onclick="rxCarregarConfirmacoes(rxEmailEstado.pagina+1)">Próxima</button></div>
         </div>
         <div class="rx-email-card">
           <strong>Comprovante selecionado</strong>
@@ -520,6 +524,7 @@
   .rx-email-item span{display:block;font-size:11px;color:#667790;margin-top:4px}
   .rx-email-label{display:block;margin:14px 0;color:#334f70;font:600 11px Poppins,Arial,sans-serif}
   .rx-email-label input,.rx-email-label textarea{display:block;width:100%;margin-top:6px;padding:11px;border:1px solid #ccd9e9;border-radius:8px;color:#1a3554;background:#fff;font:12px Poppins,Arial,sans-serif;box-sizing:border-box}
+  #rxEmailPesquisa{flex:1;min-width:250px;padding:11px;border:1px solid #ccd9e9;border-radius:8px;font:12px Poppins,Arial,sans-serif}
   .rx-email-label textarea{min-height:115px;resize:vertical}
   #rxEmailStatus,#rxEmailResultado{font-size:12px;color:#425b78}
 </style>
@@ -1368,7 +1373,8 @@
   var rxGrupoDestacado=null;
   var rxNaoEditoriais=[],rxAbaNaoEditorialOrigem=-1;
   var rxAvisoRecalculo='';
-  var rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:0};
+  var rxCalculados={};
+  var rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:0,pagina:0};
   var RX_COLUNAS_VISIVEIS=12;
   function rxEl(id){return document.getElementById(id);}
   function rxMsg(t){rxEl('rxMsg').textContent=t||'';}
@@ -1407,15 +1413,21 @@
     rxEl('rxEmailResultado').textContent='Mensagem selecionada. Você pode escolher livremente o trecho usado como prova.';
     rxAtualizarAceite();
   }
-  function rxCarregarConfirmacoes(){
+  function rxCarregarConfirmacoes(pagina){
     if(!rxArquivo||!rxArquivo.calculadora)return;
     var id=rxArquivo.id,versao=rxArquivo.atualizadoEm,sessao=rxSessao,token=++rxEmailEstado.token;
+    var paginaAtual=Number.isInteger(pagina)&&pagina>=0?pagina:0;
+    var pesquisa=(rxEl('rxEmailPesquisa').value||'').trim().slice(0,100);
     rxEl('rxEmailStatus').textContent='Consultando a caixa do usuário conectado…';
     rxEl('rxEmailLista').replaceChildren();rxEl('rxEmailAviso').hidden=true;
     google.script.run.withSuccessHandler(function(r){
       if(sessao!==rxSessao||token!==rxEmailEstado.token||!rxArquivo||rxArquivo.id!==id)return;
       if(!r||r.erro){rxEl('rxEmailStatus').textContent='Não foi possível consultar: '+(r&&r.erro||'Resposta vazia.');return;}
       rxEmailEstado.emails=r.emails||[];rxEmailEstado.sugestaoJaTratada=!!r.sugestaoJaTratada;
+      rxEmailEstado.pagina=paginaAtual;
+      rxEl('rxEmailPagina').textContent='Página '+(paginaAtual+1);
+      rxEl('rxEmailAnterior').disabled=paginaAtual===0;
+      rxEl('rxEmailProximo').disabled=!r.proximaPagina;
       if(r.conexaoPessoalNecessaria){rxEl('rxEmailStatus').textContent='O acesso à caixa pessoal não está ativo nesta implantação. Você pode colar o trecho do e-mail abaixo.';return;}
       var mensagens=0,lista=rxEl('rxEmailLista'),possivel=null;
       rxEmailEstado.emails.forEach(function(t){
@@ -1427,12 +1439,10 @@
           var cab=document.createElement('strong');cab.textContent=(m.remetente||'Remetente')+' · '+rxDataValidacao(m.data);
           var detalhe=document.createElement('span');detalhe.textContent=(m.trecho||'').slice(0,240);
           item.append(cab,detalhe);item.onclick=function(){rxSelecionarMensagem(m,t.id);};bloco.appendChild(item);
-          if(!possivel&&!r.sugestaoJaTratada&&!/arcoeducacao\.com\.br/i.test(m.remetente||'')&&
-              /\b(ok|aprovad[oa]?|confirmad[oa]?|de acordo|podem seguir|est[aá] correto)\b/i.test(m.trecho||''))
-            possivel={mensagem:m,threadId:t.id};
         });lista.appendChild(bloco);
       });
       rxEl('rxEmailStatus').textContent=mensagens?mensagens+' mensagens disponíveis. Clique na que deseja anexar.':'Nenhum e-mail relacionado encontrado. É possível usar um comprovante manual.';
+      possivel=r.sugestao||null;
       rxEmailEstado.sugestao=possivel;
       if(possivel){rxEl('rxEmailAviso').hidden=false;
         rxEl('rxEmailAvisoTexto').textContent='Possível resposta de '+possivel.mensagem.remetente+'. Deseja selecionar esta mensagem como comprovante?';}
@@ -1440,7 +1450,7 @@
     }).withFailureHandler(function(e){
       if(sessao!==rxSessao||token!==rxEmailEstado.token)return;
       rxEl('rxEmailStatus').textContent='Falha ao consultar e-mails: '+(e.message||e)+'. Você pode usar um comprovante manual.';
-    }).obterConfirmacoesEmailCustoReentradas(id,versao);
+    }).obterConfirmacoesEmailCustoReentradas(id,versao,pesquisa,paginaAtual);
   }
   function rxUsarSugestao(){
     var sugestao=rxEmailEstado.sugestao;if(!sugestao)return;
@@ -1518,10 +1528,10 @@
   }
   function rxLimparCache(){
     if(rxTimer)clearTimeout(rxTimer);rxTimer=null;
-    rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';rxGrupoDestacado=null;rxNaoEditoriais=[];rxAbaNaoEditorialOrigem=-1;
-    rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:rxEmailEstado.token+1};
+    rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';rxGrupoDestacado=null;rxNaoEditoriais=[];rxAbaNaoEditorialOrigem=-1;rxCalculados={};
+    rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:rxEmailEstado.token+1,pagina:0};
     rxEl('rxConfirmacaoPane').hidden=true;rxEl('rxCostWorkspace').hidden=false;
-    ['rxEmailAssunto','rxEmailRemetente','rxEmailTrecho','rxEmailEnvioTexto'].forEach(function(id){rxEl(id).value='';});
+    ['rxEmailAssunto','rxEmailRemetente','rxEmailTrecho','rxEmailEnvioTexto','rxEmailPesquisa'].forEach(function(id){rxEl(id).value='';});
   }
   function rxEhFormula(aba,linha,coluna){
     aba=rxIndiceReal(aba);
@@ -1915,9 +1925,9 @@
       marcador.className='rx-row';marcador.textContent=l.numero;tr.appendChild(marcador);
       l.celulas.forEach(function(valor,i){
         var td=document.createElement('td'),col=indices[i]+1;
-        var key=indiceReal+':'+l.numero+':'+col,pend=rxPendente[key],texto=pend?pend.valor:String(valor??'');
+        var key=indiceReal+':'+l.numero+':'+col,pend=rxPendente[key],calculado=rxCalculados[key],texto=pend?pend.valor:calculado!==undefined?calculado:String(valor??'');
         var formula=rxEhFormula(p.aba,l.numero,col)||/^=/.test(texto);
-        var aguardando=formula&&(rxArquivo.recalculoPendente||/^=/.test(texto));
+        var aguardando=formula&&calculado===undefined&&(rxArquivo.recalculoPendente||/^=/.test(texto));
         td.textContent=aguardando?'Cálculo pendente':rxTextoValor(texto);
         td.title=(aguardando?'Resultado ainda não calculado':texto)+' · '+rxLetra(col)+l.numero;
         if(i===0)td.className='rx-fixed-one';else if(i===1)td.className='rx-fixed-two';
@@ -1976,6 +1986,7 @@
           rxRenderPagina();rxMsg('Salve as 200 alterações pendentes antes de editar outra célula.');return;
         }
         rxPendente[key]={aba:aba,linha:linha,coluna:coluna,valor:novo};
+        rxCalculados={};rxAvisoRecalculo='';
       }
       rxRenderPagina();
     }
@@ -1997,24 +2008,39 @@
   }
   function rxRecalcular(){
     if(rxOcupado||!rxArquivo||!rxArquivo.calculadora)return;
-    if(rxTemEdicoes()){rxSalvarEdicoes(rxRecalcular);return;}
     if(!rxPagina||!rxEl('rxPrepararPane').hidden)return;
-    var id=rxArquivo.id,versao=rxArquivo.atualizadoEm,sessao=rxSessao;
-    rxOcupado=true;rxAtualizarAceite();rxMsg('Recalculando as tiragens pelo código…');
-    google.script.run.withSuccessHandler(function(r){
-      if(sessao!==rxSessao||!rxArquivo||rxArquivo.id!==id)return;
-      rxOcupado=false;
-      if(!r||r.erro||r.sucesso!==true||r.atualizadoEm!==versao){
-        rxMsg('Não foi possível recalcular: '+(r&&r.erro||'Resposta incompleta.'));
-        rxAtualizarAceite();return;
-      }
-      rxLimparCache();rxConjunto=null;rxConjuntoTentado=false;rxPagina=null;
-      rxAvisoRecalculo=r.totaisRecalculados+' totais de tiragem recalculados. Preços e demais fórmulas continuam pendentes de recálculo no Excel.';
-      rxPedirPagina();
-    }).withFailureHandler(function(e){
-      if(sessao!==rxSessao)return;rxOcupado=false;rxAtualizarAceite();
-      rxMsg('Erro ao recalcular: '+(e.message||e));
-    }).recalcularTotaisReentradasExcel(id,versao);
+    // Calculo imediato nos dados carregados, sem salvar/reabrir o XLSX ou
+    // destruir a navegacao. O aceite continua exigindo salvar as alteracoes.
+    var abas=rxConjunto?rxConjunto.abas:Object.keys(rxAbasCache).map(function(k){return rxAbasCache[k].aba;});
+    var novos={},contagem=0;
+    abas.forEach(function(aba){
+      if(!aba||!/^CALC[\s-]*Geral$/i.test(aba.nome||''))return;
+      var indice=rxNomesAbas.indexOf(aba.nome);if(indice<0)return;
+      var linhas=aba.linhas||[],cab=(linhas.find(function(l){return l.numero===3;})||{}).valores||{};
+      var sub=(linhas.find(function(l){return l.numero===4;})||{}).valores||{};
+      var sku=Object.keys(cab).find(function(c){return /C[ÓO]DIGO\s*SKU/i.test(cab[c]);});
+      var total=Object.keys(cab).find(function(c){return /^TOTAL$/i.test(String(cab[c]).trim())&&/Exemplares/i.test(String(sub[c]||''));});
+      if(sku===undefined||total===undefined)return;
+      sku=Number(sku);total=Number(total);
+      linhas.forEach(function(l){
+        if(l.numero<=5||!String((l.valores||{})[sku]||'').trim())return;
+        var soma=0,validos=true;
+        for(var c=sku+2;c<total;c++){
+          var chave=indice+':'+l.numero+':'+(c+1),pend=rxPendente[chave];
+          var valor=String(pend?pend.valor:(l.valores||{})[c]??'0').trim().replace(',','.');
+          if(valor&&!/^-?\d+(?:\.\d+)?$/.test(valor)){validos=false;break;}
+          soma+=Number(valor||0);
+        }
+        if(validos&&Number.isFinite(soma)){
+          novos[indice+':'+l.numero+':'+(total+1)]=String(soma);contagem++;
+        }
+      });
+    });
+    rxCalculados=novos;
+    rxAvisoRecalculo=contagem+' totais de exemplares calculados imediatamente. '+
+      (rxTemEdicoes()?'Confira o resultado e use Salvar alterações quando estiver pronto. ':'')+
+      'Outras fórmulas dependentes de Excel permanecem sinalizadas.';
+    rxRenderPagina();
   }
   function rxSalvarEdicoes(aoConcluir){
     if(rxOcupado||!rxArquivo||!rxTemEdicoes())return;
@@ -2029,19 +2055,29 @@
         rxEl('rxSalvar').disabled=false;return;
       }
       rxArquivo.atualizadoEm=r.atualizadoEm;rxArquivo.validadoEm=null;rxArquivo.validadoAtualizadoEm=null;
-      rxAvisoRecalculo='';
-      rxArquivo.downloadUrl='';rxArquivo.recalculoPendente=true;rxPendente={};rxConjunto=null;rxConjuntoTentado=false;rxLimparCache();
+      // O salvamento ja foi conferido no servidor. Atualiza o modelo carregado
+      // e preserva a aba, a rolagem e os resultados exibidos pelo usuario.
+      itens.forEach(function(e){
+        var aba=rxConjunto&&rxConjunto.abas[e.aba]||rxAbasCache[e.aba]&&rxAbasCache[e.aba].aba;
+        if(aba){var linha=(aba.linhas||[]).find(function(l){return l.numero===e.linha;});
+          if(linha){if(e.valor==='')delete linha.valores[e.coluna-1];else linha.valores[e.coluna-1]=e.valor;}}
+        if(rxPagina&&rxIndiceReal(rxPagina.aba)===e.aba){
+          var visivel=rxPagina.linhas.find(function(l){return l.numero===e.linha;});
+          var posicao=(rxPagina.indices||[]).indexOf(e.coluna-1);
+          if(visivel&&posicao>=0)visivel.celulas[posicao]=e.valor;
+        }
+      });
+      rxArquivo.downloadUrl='';rxArquivo.recalculoPendente=true;rxPendente={};
+      rxPaginasCache={};rxLeituras={};
       rxListaCarregada=false;
       _reentradasRecentes.forEach(function(item){
         if(String(item.chamado)===String((/\bCHAMADO\s+(\d+)\.xlsx$/i.exec(rxArquivo.nome)||[])[1]))item.downloadUrl='';
       });
       renderizarPaginaChamados();rxAtualizarAceite();
-      if(r.revisaoPendente){
-        rxPagina=null;rxEl('rxCab').textContent='';rxEl('rxCorpo').textContent='';rxEl('rxPrepararPane').hidden=false;
-        rxEl('rxPendencias').textContent='Alterações salvas';rxEl('rxPendencias').classList.remove('rx-has-pending');
-        rxMsg(r.aviso||'Alterações salvas no arquivo. Prepare a revisão para continuar.');return;
-      }
-      rxPedirPagina();
+      rxAvisoRecalculo=r.revisaoPendente?'Alterações salvas. A revisão precisará ser preparada para carregar outras abas.':
+        'Alterações salvas. Confira os valores exibidos; demais fórmulas do Excel seguem sinalizadas.';
+      if(rxConjunto||rxAbasCache[rxIndiceReal(rxEstado.aba)])rxPagina=rxPaginaLocal()||rxPagina;
+      rxRenderPagina();
       if(typeof aoConcluir==='function')aoConcluir();
     }).withFailureHandler(function(e){rxOcupado=false;rxMsg('Falha ao salvar: '+(e.message||e));rxEl('rxSalvar').disabled=false;})
       .salvarEdicoesReentradasExcel(rxArquivo.id,rxArquivo.atualizadoEm,itens);

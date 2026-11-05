@@ -88,7 +88,7 @@ test('Custo Validado requer comprovante escolhido, confirmacao e arquiva downloa
   c.rxFinalizarCusto();assert.equal(s.requests.length,1);
   c.rxPendente={};c.rxRenderPagina();c.rxAbrirConfirmacao();
   assert.equal(s.request().method,'obterConfirmacoesEmailCustoReentradas');
-  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm]);
+  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm,'',0]);
   s.request().success({emails:[],sucesso:true,sugestaoJaTratada:false});
   s.el('rxEmailTrecho').value='Trecho selecionado livremente pelo usuário';c.rxAtualizarAceite();
   assert.equal(s.el('rxEmailValidar').disabled,false);
@@ -109,25 +109,34 @@ test('Custo Validado requer comprovante escolhido, confirmacao e arquiva downloa
   assert.equal(s.el('rxBaixarValidado').hidden,true);
 });
 
-test('a validação abre expandida e Recalcular chama o código para os totais',()=>{
+test('a validação abre expandida e Recalcular atualiza o total imediatamente sem salvar nem navegar',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true};
   c.rxAbrirLista();assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
-  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
+  const resumo={abas:[{nome:'CALC Geral',totalColunas:10,linhas:[
+    {numero:3,valores:{3:'CÓDIGO SKU',5:'AVULSO ACAB',6:'AVULSO GRAF',7:'KIT S/ MALETA',8:'KIT C/ MALETA',9:'TOTAL'}},
+    {numero:4,valores:{9:'Exemplares'}},
+    {numero:6,valores:{3:'SKU-3106',5:'800',6:'0',7:'0',8:'0',9:'30'}}]}]};
+  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:resumo,formulas:{},
+    faixasFormulas:[{aba:0,x1:10,x2:10,y1:6,y2:6}]});
   assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
   assert.equal(s.el('rxExpandir').textContent,'Reduzir');
-  c.rxRecalcular();assert.equal(s.request().method,'recalcularTotaisReentradasExcel');
-  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm]);
-  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,totaisRecalculados:6});
-  assert.equal(s.request().method,'obterPreviaReentradasExcel');
-  s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
-  assert.match(s.el('rxMsg').textContent,/6 totais/);
+  const chamadas=s.requests.length;
+  c.rxPendente={'0:6:6':{aba:0,linha:6,coluna:6,valor:'1200'}};
+  c.rxRecalcular();
+  assert.equal(s.requests.length,chamadas,'recalcular nao deve chamar o servidor nem salvar o Excel');
+  assert.equal(c.rxCalculados['0:6:10'],'1200');
+  assert.equal(s.el('rxPrepararPane').hidden,true);
+  assert.match(s.el('rxMsg').textContent,/1 totais/);
+  c.rxRecalcular();assert.equal(s.requests.length,chamadas,'recalculo repetido nao pode gerar requisicoes');
+  assert.equal(c.rxCalculados['0:6:10'],'1200');
 });
 
 test('sugestao de e-mail pode ser ignorada uma unica vez por calculadora',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true};
   c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
   c.rxAbrirConfirmacao();const msg={id:'MENSAGEM123',assunto:'Custo validado 3127',remetente:'grafica@fornecedor.com',data:1730000000000,trecho:'OK, de acordo'};
-  s.request().success({sucesso:true,emails:[{id:'THREAD123456789',assunto:'3127',mensagens:[msg]}],sugestaoJaTratada:false});
+  s.request().success({sucesso:true,emails:[{id:'THREAD123456789',assunto:'3127',mensagens:[msg]}],
+    sugestaoJaTratada:false,sugestao:{mensagem:msg,threadId:'THREAD123456789'}});
   assert.equal(s.el('rxEmailAviso').hidden,false);
   c.rxIgnorarSugestao();assert.equal(s.request().method,'ignorarSugestaoEmailCustoReentradas');
   s.request().success({sucesso:true});assert.equal(s.el('rxEmailAviso').hidden,true);
@@ -213,8 +222,8 @@ test('salvamento preserva pendências em erro ou confirmação incompleta e mant
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:'outro',atualizadoEm:2000});assert.equal(c.rxTemEdicoes(),true);
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:file.id,atualizadoEm:2000});
   assert.equal(c.rxTemEdicoes(),false);assert.equal(c.rxArquivo.atualizadoEm,2000);
-  assert.equal(s.request().method,'obterPreviaReentradasExcel');assert.equal(s.request().args[0].id,file.id);
-  assert.equal(s.request().args[0].atualizadoEm,2000);
+  assert.equal(s.el('rxPrepararPane').hidden,true);
+  assert.equal(s.request().method,'salvarEdicoesReentradasExcel','salvar preserva a revisão sem recarregar tudo');
 });
 
 test('conjunto leve muda página e busca localmente sem nova consulta ou perder edição',()=>{
@@ -307,15 +316,16 @@ test('trocas rápidas reutilizam leitura em andamento e resposta atrasada não t
   assert.equal(c.rxPagina.aba,1);
 });
 
-test('novo arquivo e salvamento confirmado descartam cache e respostas da revisão anterior',()=>{
+test('salvamento preserva a aba atual, mas invalida respostas antigas de outras abas',()=>{
   const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
   c.rxSelecionarAba(1);const oldSheet=s.request();c.rxSelecionarAba(0);
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:file.id,atualizadoEm:2000});
-  const reloaded=s.request();assert.equal(reloaded.args[0].atualizadoEm,2000);
-  oldSheet.success(sheetResponse(1));reloaded.success(sheetResponse(0,{arquivo:{...file,atualizadoEm:2000}}));
+  assert.equal(c.rxEstado.aba,0);assert.equal(s.el('rxPrepararPane').hidden,true);
+  oldSheet.success(sheetResponse(1));
   const count=s.requests.length;c.rxSelecionarAba(1);
-  assert.equal(s.requests.length,count+1,'a aba da revisão antiga precisa ser lida novamente');
+  assert.equal(s.requests.length,count+1,'a aba nao carregada precisa ser lida na versao nova');
+  assert.equal(s.request().args[0].atualizadoEm,2000);
   const previousFileRequest=s.request(),other={...file,id:'OUTRO_ARQUIVO_1234567890',atualizadoEm:3000};
   c.rxAbrirArquivo(other);const otherRequest=s.request();
   previousFileRequest.success(sheetResponse(1));
@@ -363,7 +373,7 @@ test('clique simples e Enter respeitam fórmulas e mesclagens e permitem editar 
   assert.equal(c.rxPendente['0:5:3'].valor,'valor novo');assert.equal(prevented,4);
 });
 
-test('Excel salvo com revisão pendente confirma dados e oferece preparação sem nova leitura automática',()=>{
+test('Excel salvo com revisão pendente conserva os dados atuais sem abrir tela vazia',()=>{
   const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'salvo'}};
   c.rxSalvarEdicoes();const save=s.request(),count=s.requests.length;
@@ -372,9 +382,9 @@ test('Excel salvo com revisão pendente confirma dados e oferece preparação se
   assert.equal(s.requests.length,count,'revisão pendente deve aguardar preparação explícita');
   assert.equal(c.rxTemEdicoes(),false);assert.equal(c.rxArquivo.atualizadoEm,2000);
   assert.equal(c.rxOcupado,false);assert.equal(s.el('rxSalvar').disabled,true);
-  assert.equal(s.el('rxPrepararPane').hidden,false);assert.match(s.el('rxMsg').textContent,/salvo e conferido/);
-  c.rxPrepararRevisao();assert.equal(s.request().method,'prepararRevisaoReentradasExcel');
-  assert.deepEqual(s.request().args,[file.id,2000]);
+  assert.equal(s.el('rxPrepararPane').hidden,true);
+  assert.match(s.el('rxMsg').textContent,/Alterações salvas/);
+  assert.equal(c.rxPagina.aba,0);
 });
 
 test('busca cancelada ao fechar não reinicia a posição de uma nova sessão do arquivo',()=>{

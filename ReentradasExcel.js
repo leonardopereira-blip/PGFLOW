@@ -300,7 +300,9 @@ function salvarEdicoesReentradasExcel(id,atualizadoEm,edicoes){
     }),arq.nome).setContentType(RX_MIME);
     _rxArquivo_(id,atualizadoEm);
     var hash=_bcDigest_(zipped);
-    Drive.Files.update({title:arq.nome,mimeType:RX_MIME},id,zipped,
+    // O Drive nao permite redefinir o MIME de um arquivo ja existente.
+    // O blob continua XLSX, mas o metadata update nao tenta converter o tipo.
+    Drive.Files.update({title:arq.nome},id,zipped,
       {newRevision:true,supportsAllDrives:true});
     gravou=true;
     var final=_rxArquivo_(id);

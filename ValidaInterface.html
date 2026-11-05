@@ -1374,6 +1374,7 @@
   var rxNaoEditoriais=[],rxAbaNaoEditorialOrigem=-1;
   var rxAvisoRecalculo='';
   var rxCalculados={};
+  var rxFalhasCalculo={},rxUltimasEdicoes=[];
   var rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:0,pagina:0};
   var RX_COLUNAS_VISIVEIS=12;
   function rxEl(id){return document.getElementById(id);}
@@ -1487,7 +1488,7 @@
     var s=rxEmailEstado.selecionado,trecho=(rxEl('rxEmailTrecho').value||'').trim();
     if(!s&&!trecho){rxEl('rxEmailResultado').textContent='Selecione uma mensagem ou informe o comprovante.';return;}
     if(rxArquivo.recalculoPendente&&!aceitouPendencias){
-      if(!confirm('Existem campos ainda não recalculados. Deseja seguir assim mesmo? Para terminar pelo Excel, clique em Cancelar.'))return;
+      if(!confirm('Ainda há resultados pendentes de conferência. Deseja continuar assim mesmo? Clique em Cancelar para voltar à revisão da calculadora.'))return;
       aceitouPendencias=true;
     }
     if(!aceitouPendencias&&!confirm('Confirmar Custo Validado com o comprovante escolhido? A calculadora e o De-Para serão arquivados.'))return;
@@ -1502,7 +1503,7 @@
       rxOcupado=false;
       if(r&&r.erro&&/resultados pendentes/i.test(r.erro)&&!aceitouPendencias){
         rxAtualizarAceite();
-        if(confirm('Há resultados pendentes ou com erro. Deseja seguir assim mesmo? Para terminar pelo Excel, clique em Cancelar.'))rxFinalizarCusto(true);
+        if(confirm('Há resultados pendentes ou com erro. Deseja continuar assim mesmo? Clique em Cancelar para voltar à revisão da calculadora.'))rxFinalizarCusto(true);
         return;
       }
       if(!r||r.erro||r.sucesso!==true||r.id!==id||r.atualizadoEm!==versao||
@@ -1528,7 +1529,7 @@
   }
   function rxLimparCache(){
     if(rxTimer)clearTimeout(rxTimer);rxTimer=null;
-    rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';rxGrupoDestacado=null;rxNaoEditoriais=[];rxAbaNaoEditorialOrigem=-1;rxCalculados={};
+    rxSessao++;rxAbasCache={};rxPaginasCache={};rxQuadrosCache={};rxPosicoes={};rxNomesAbas=[];rxLeituras={};rxNavAssinatura='';rxGrupoDestacado=null;rxNaoEditoriais=[];rxAbaNaoEditorialOrigem=-1;rxCalculados={};rxFalhasCalculo={};rxUltimasEdicoes=[];
     rxEmailEstado={emails:[],selecionado:null,sugestao:null,sugestaoJaTratada:false,token:rxEmailEstado.token+1,pagina:0};
     rxEl('rxConfirmacaoPane').hidden=true;rxEl('rxCostWorkspace').hidden=false;
     ['rxEmailAssunto','rxEmailRemetente','rxEmailTrecho','rxEmailEnvioTexto','rxEmailPesquisa'].forEach(function(id){rxEl(id).value='';});
@@ -1925,11 +1926,11 @@
       marcador.className='rx-row';marcador.textContent=l.numero;tr.appendChild(marcador);
       l.celulas.forEach(function(valor,i){
         var td=document.createElement('td'),col=indices[i]+1;
-        var key=indiceReal+':'+l.numero+':'+col,pend=rxPendente[key],calculado=rxCalculados[key],texto=pend?pend.valor:calculado!==undefined?calculado:String(valor??'');
+        var key=indiceReal+':'+l.numero+':'+col,pend=rxPendente[key],calculado=rxCalculados[key],falha=rxFalhasCalculo[key],texto=pend?pend.valor:calculado!==undefined?calculado:String(valor??'');
         var formula=rxEhFormula(p.aba,l.numero,col)||/^=/.test(texto);
-        var aguardando=formula&&calculado===undefined&&(rxArquivo.recalculoPendente||/^=/.test(texto));
+        var aguardando=!!falha||formula&&calculado===undefined&&(rxArquivo.recalculoPendente||/^=/.test(texto));
         td.textContent=aguardando?'Cálculo pendente':rxTextoValor(texto);
-        td.title=(aguardando?'Resultado ainda não calculado':texto)+' · '+rxLetra(col)+l.numero;
+        td.title=(falha|| (aguardando?'Resultado ainda não calculado':texto))+' · '+rxLetra(col)+l.numero;
         if(i===0)td.className='rx-fixed-one';else if(i===1)td.className='rx-fixed-two';
         if(pend)td.className+=' rx-mod';
         if(rxColunaDestacada(p.aba,indices[i]))td.className+=' rx-group-focus';
@@ -1986,7 +1987,7 @@
           rxRenderPagina();rxMsg('Salve as 200 alterações pendentes antes de editar outra célula.');return;
         }
         rxPendente[key]={aba:aba,linha:linha,coluna:coluna,valor:novo};
-        rxCalculados={};rxAvisoRecalculo='';
+        rxCalculados={};rxFalhasCalculo={};rxAvisoRecalculo='';
       }
       rxRenderPagina();
     }
@@ -2009,38 +2010,30 @@
   function rxRecalcular(){
     if(rxOcupado||!rxArquivo||!rxArquivo.calculadora)return;
     if(!rxPagina||!rxEl('rxPrepararPane').hidden)return;
-    // Calculo imediato nos dados carregados, sem salvar/reabrir o XLSX ou
-    // destruir a navegacao. O aceite continua exigindo salvar as alteracoes.
-    var abas=rxConjunto?rxConjunto.abas:Object.keys(rxAbasCache).map(function(k){return rxAbasCache[k].aba;});
-    var novos={},contagem=0;
-    abas.forEach(function(aba){
-      if(!aba||!/^CALC[\s-]*Geral$/i.test(aba.nome||''))return;
-      var indice=rxNomesAbas.indexOf(aba.nome);if(indice<0)return;
-      var linhas=aba.linhas||[],cab=(linhas.find(function(l){return l.numero===3;})||{}).valores||{};
-      var sub=(linhas.find(function(l){return l.numero===4;})||{}).valores||{};
-      var sku=Object.keys(cab).find(function(c){return /C[ÓO]DIGO\s*SKU/i.test(cab[c]);});
-      var total=Object.keys(cab).find(function(c){return /^TOTAL$/i.test(String(cab[c]).trim())&&/Exemplares/i.test(String(sub[c]||''));});
-      if(sku===undefined||total===undefined)return;
-      sku=Number(sku);total=Number(total);
-      linhas.forEach(function(l){
-        if(l.numero<=5||!String((l.valores||{})[sku]||'').trim())return;
-        var soma=0,validos=true;
-        for(var c=sku+2;c<total;c++){
-          var chave=indice+':'+l.numero+':'+(c+1),pend=rxPendente[chave];
-          var valor=String(pend?pend.valor:(l.valores||{})[c]??'0').trim().replace(',','.');
-          if(valor&&!/^-?\d+(?:\.\d+)?$/.test(valor)){validos=false;break;}
-          soma+=Number(valor||0);
-        }
-        if(validos&&Number.isFinite(soma)){
-          novos[indice+':'+l.numero+':'+(total+1)]=String(soma);contagem++;
-        }
-      });
-    });
-    rxCalculados=novos;
-    rxAvisoRecalculo=contagem+' totais de exemplares calculados imediatamente. '+
-      (rxTemEdicoes()?'Confira o resultado e use Salvar alterações quando estiver pronto. ':'')+
-      'Outras fórmulas dependentes de Excel permanecem sinalizadas.';
-    rxRenderPagina();
+    var edicoes=Object.keys(rxPendente).map(function(k){return rxPendente[k];});
+    if(!edicoes.length)edicoes=rxUltimasEdicoes.slice();
+    if(!edicoes.length){rxMsg('Faça uma alteração para recalcular os resultados dependentes.');return;}
+    var id=rxArquivo.id,versao=rxArquivo.atualizadoEm,sessao=rxSessao;
+    rxUltimasEdicoes=edicoes.slice();rxOcupado=true;rxAtualizarAceite();
+    rxMsg('Atualizando somente os resultados dependentes dos campos alterados…');
+    google.script.run.withSuccessHandler(function(r){
+      if(sessao!==rxSessao||!rxArquivo||rxArquivo.id!==id)return;
+      rxOcupado=false;rxAtualizarAceite();
+      if(!r||r.erro||!r.sucesso||r.id!==id||r.atualizadoEm!==versao){
+        rxMsg('Não foi possível recalcular: '+(r&&r.erro||'Resposta incompleta.'));return;}
+      var calculados={},falhas={};
+      (r.resultados||[]).forEach(function(c){calculados[c.aba+':'+c.linha+':'+c.coluna]=String(c.valor??'');});
+      (r.pendentes||[]).forEach(function(c){falhas[c.aba+':'+c.linha+':'+c.coluna]=c.erro;});
+      rxCalculados=calculados;rxFalhasCalculo=falhas;
+      rxAvisoRecalculo=(r.resultados||[]).length+' resultados recalculados em '+Math.round((r.duracaoMs||0)/100)/10+' s. '+
+        ((r.pendentes||[]).length?(r.pendentes||[]).length+' dependências precisam de conferência. ':'')+
+        ((r.avisos||[]).length?'Cálculo parcial: '+r.avisos.join(' '):'')+
+        ' Confira os valores; salvar continua sendo uma ação separada.';
+      rxRenderPagina();
+    }).withFailureHandler(function(e){
+      if(sessao!==rxSessao)return;rxOcupado=false;rxAtualizarAceite();
+      rxMsg('Falha ao recalcular: '+(e.message||e));
+    }).recalcularImpactosReentradas(id,versao,edicoes);
   }
   function rxSalvarEdicoes(aoConcluir){
     if(rxOcupado||!rxArquivo||!rxTemEdicoes())return;
@@ -2068,6 +2061,7 @@
         }
       });
       rxArquivo.downloadUrl='';rxArquivo.recalculoPendente=true;rxPendente={};
+      rxUltimasEdicoes=itens.slice();
       rxPaginasCache={};rxLeituras={};
       rxListaCarregada=false;
       _reentradasRecentes.forEach(function(item){
@@ -2075,7 +2069,7 @@
       });
       renderizarPaginaChamados();rxAtualizarAceite();
       rxAvisoRecalculo=r.revisaoPendente?'Alterações salvas. A revisão precisará ser preparada para carregar outras abas.':
-        'Alterações salvas. Confira os valores exibidos; demais fórmulas do Excel seguem sinalizadas.';
+        'Alterações salvas. Confira os resultados calculados e use Recalcular novamente se alterar algum dado.';
       if(rxConjunto||rxAbasCache[rxIndiceReal(rxEstado.aba)])rxPagina=rxPaginaLocal()||rxPagina;
       rxRenderPagina();
       if(typeof aoConcluir==='function')aoConcluir();

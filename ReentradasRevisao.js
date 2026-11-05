@@ -44,9 +44,15 @@ function _rxRevisaoMontar_(partes,alteradas){
   }
   var nomes=_rxAbasEditaveis_(ler('xl/workbook.xml'),ler('xl/_rels/workbook.xml.rels'));
   var strings=mapa['xl/sharedStrings.xml']?_reSpStrings_(ler('xl/sharedStrings.xml')):[];
-  var modelo={schema:RX_REVISAO_SCHEMA,abas:[],formulas:{},faixasFormulas:[],mesclagens:[]};
+  // O identificador da expressao conserva as referencias relativas; um mesmo
+  // calculo repetido em centenas de linhas ocupa apenas um padrao no modelo.
+  // Essa estrutura permite construir dependencias sem reler o arquivo de origem.
+  var modelo={schema:RX_REVISAO_SCHEMA,abas:[],formulas:{},faixasFormulas:[],mesclagens:[],
+    padroesCalculo:[],posicoesCalculo:[]};
+  var indicePadroes=Object.create(null);
   nomes.forEach(function(n,indice){
     var xml=ler(n.caminho),aba={nome:n.nome,totalColunas:1,linhas:[]};
+    var posicoes=Object.create(null);
     var dimensao=/<dimension\b[^>]*\bref="([^"]+)"/.exec(xml);
     if(dimensao)aba.totalColunas=Math.max(1,_pfPreviaColunaNumero_(dimensao[1].split(':').pop())+1);
     var linhas=/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g,r,retangulos={};
@@ -60,7 +66,19 @@ function _rxRevisaoMontar_(partes,alteradas){
         aba.totalColunas=Math.max(aba.totalColunas,coluna+1);
         var corpo=c[2]||'',valor=_rxRevisaoValor_(c[1],corpo,strings);
         if(valor!=='')item.valores[coluna]=valor;
-        if(/<f\b/.test(corpo))cols.push(coluna+1);
+        if(/<f\b/.test(corpo)){
+          cols.push(coluna+1);
+          var conteudoFormula=/<f\b[^>]*>([\s\S]*?)<\/f>/.exec(corpo);
+          if(conteudoFormula&&conteudoFormula[1]){
+            var canonico=_mxRel_(_rxRevisaoTexto_(conteudoFormula[1]),numero);
+            var codigo=indicePadroes[canonico];
+            if(codigo===undefined){codigo=modelo.padroesCalculo.length;
+              indicePadroes[canonico]=codigo;modelo.padroesCalculo.push(canonico);}
+            var faixas=posicoes[coluna]||(posicoes[coluna]=[]),ultima=faixas[faixas.length-1];
+            if(ultima&&ultima[1]===numero-1&&ultima[2]===codigo)ultima[1]=numero;
+            else faixas.push([numero,numero,codigo]);
+          }
+        }
       }
       aba.linhas.push(item);
       // Colunas de formula contiguas e repetidas em linhas viram retangulos.
@@ -75,6 +93,7 @@ function _rxRevisaoMontar_(partes,alteradas){
     }
     _rxFaixasFormulas_(xml).forEach(function(f){f.aba=indice;modelo.faixasFormulas.push(f);});
     _rxFaixasMesclagens_(xml).forEach(function(f){f.aba=indice;modelo.mesclagens.push(f);});
+    modelo.posicoesCalculo.push(posicoes);
     modelo.abas.push(aba);
   });
   return modelo;
@@ -151,6 +170,37 @@ function recalcularTotaisReentradasExcel(id,atualizadoEm){
     return {sucesso:true,id:arq.id,atualizadoEm:arq.atualizadoEm,
       totaisRecalculados:info.calculados,
       aviso:'As tiragens foram recalculadas pelo script. Precos e outras formulas do Excel continuam sujeitos a recalculo no arquivo.'};
+  }catch(e){return {erro:e.message||String(e)};}
+}
+
+// Executa os calculos afetados sem modificar o arquivo nem a etapa da tela.
+// Em resultados nao resolvidos, devolve as coordenadas para que o usuario
+// escolha como tratar a pendencia antes da confirmacao final.
+function recalcularImpactosReentradas(id,atualizadoEm,edicoes){
+  try{
+    var arquivo=_rxArquivo_(id,atualizadoEm);
+    if(!arquivo.calculadora)throw Error('Selecione uma calculadora para recalcular.');
+    if(!Array.isArray(edicoes)||edicoes.length>200)throw Error('Lote de alteracoes invalido.');
+    var modelo=_rxRevisaoLer_(arquivo);
+    if(!modelo.padroesCalculo||!modelo.posicoesCalculo){
+      // Migracao unica das revisoes antigas, sem alterar o arquivo do usuario.
+      var preparo=prepararRevisaoReentradasExcel(id,atualizadoEm);
+      if(!preparo||!preparo.sucesso)throw Error(preparo&&preparo.erro||'Falha ao preparar o calculo.');
+      modelo=_rxRevisaoLer_(arquivo);
+    }
+    edicoes.forEach(function(e){
+      if(!e||!Number.isInteger(e.aba)||e.aba<0||e.aba>=modelo.abas.length||
+          !Number.isInteger(e.linha)||e.linha<1||
+          !Number.isInteger(e.coluna)||e.coluna<1||e.coluna>16384)
+        throw Error('Coordenada de alteracao invalida.');
+      if(_rxEmFaixaFormula_(modelo.faixasFormulas.filter(function(f){return f.aba===e.aba;}),e.linha,e.coluna))
+        throw Error('Uma alteracao tentou modificar uma celula calculada.');
+    });
+    var inicio=Date.now(),resultado=_rxCalculoAplicar_(modelo,edicoes,10000);
+    return {sucesso:true,id:arquivo.id,atualizadoEm:arquivo.atualizadoEm,
+      resultados:resultado.resultados,pendentes:resultado.pendentes,
+      avisos:resultado.avisos,dependencias:resultado.totalDependencias,
+      duracaoMs:Date.now()-inicio};
   }catch(e){return {erro:e.message||String(e)};}
 }
 // Organiza apenas a leitura visual. Coordenadas e conteudo do XLSX permanecem intactos.
@@ -255,8 +305,12 @@ function prepararRevisaoReentradasExcel(id,atualizadoEm){
   try{
     if(!Number.isSafeInteger(Number(atualizadoEm))||!/^\d{10,16}$/.test(String(atualizadoEm||'')))throw Error('Atualize a lista antes de preparar a revisao.');
     pegou=lock.tryLock(3000);if(!pegou)throw Error('Outra operacao esta em andamento. Tente novamente.');
-    var arq=_rxArquivo_(id,atualizadoEm),partes=_reSpPartes_(arq.arquivo.getBlob());
-    var modelo=_rxRevisaoMontar_(partes);_rxArquivo_(id,atualizadoEm);_rxRevisaoSalvar_(arq,modelo,true);
+    var arq=_rxArquivo_(id,atualizadoEm),anterior=null;
+    try{anterior=_rxRevisaoLer_(arq);}catch(e){/* Primeira preparacao. */}
+    var partes=_reSpPartes_(arq.arquivo.getBlob());
+    var modelo=_rxRevisaoMontar_(partes);
+    if(anterior&&anterior.naoEditoriais)modelo.naoEditoriais=anterior.naoEditoriais;
+    _rxArquivo_(id,atualizadoEm);_rxRevisaoSalvar_(arq,modelo,true);
     return {sucesso:true,id:arq.id,atualizadoEm:arq.atualizadoEm};
   }catch(e){return {erro:e.message,codigo:e.codigo||'REVISAO_FALHOU'};}
   finally{if(pegou)lock.releaseLock();}

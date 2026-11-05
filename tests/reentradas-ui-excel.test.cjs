@@ -109,7 +109,7 @@ test('Custo Validado requer comprovante escolhido, confirmacao e arquiva downloa
   assert.equal(s.el('rxBaixarValidado').hidden,true);
 });
 
-test('a validação abre expandida e Recalcular atualiza o total imediatamente sem salvar nem navegar',()=>{
+test('a validação abre expandida e Recalcular consulta o script sem salvar nem navegar',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true};
   c.rxAbrirLista();assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
   const resumo={abas:[{nome:'CALC Geral',totalColunas:10,linhas:[
@@ -123,11 +123,17 @@ test('a validação abre expandida e Recalcular atualiza o total imediatamente s
   const chamadas=s.requests.length;
   c.rxPendente={'0:6:6':{aba:0,linha:6,coluna:6,valor:'1200'}};
   c.rxRecalcular();
-  assert.equal(s.requests.length,chamadas,'recalcular nao deve chamar o servidor nem salvar o Excel');
+  assert.equal(s.requests.length,chamadas+1);
+  assert.equal(s.request().method,'recalcularImpactosReentradas');
+  assert.equal(s.request().args[2][0].valor,'1200');
+  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,duracaoMs:230,
+    resultados:[{aba:0,linha:6,coluna:10,valor:1200}],pendentes:[],avisos:[]});
   assert.equal(c.rxCalculados['0:6:10'],'1200');
   assert.equal(s.el('rxPrepararPane').hidden,true);
-  assert.match(s.el('rxMsg').textContent,/1 totais/);
-  c.rxRecalcular();assert.equal(s.requests.length,chamadas,'recalculo repetido nao pode gerar requisicoes');
+  assert.match(s.el('rxMsg').textContent,/1 resultados/);
+  c.rxRecalcular();assert.equal(s.request().method,'recalcularImpactosReentradas','o botao deve recalcular novamente se o usuario desejar');
+  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,duracaoMs:40,
+    resultados:[{aba:0,linha:6,coluna:10,valor:1200}],pendentes:[],avisos:[]});
   assert.equal(c.rxCalculados['0:6:10'],'1200');
 });
 

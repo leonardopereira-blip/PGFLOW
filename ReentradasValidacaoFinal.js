@@ -22,6 +22,50 @@ function _rxCustoGmailDaPessoa_() {
   return !!ativo && ativo === executor;
 }
 
+// Le somente a resposta nova: citacoes da conversa anterior nao sao aceite.
+function _rxCustoRespostaLimpa_(texto){
+  var linhas=String(texto||'').split(/\r?\n/),novas=[];
+  for(var i=0;i<linhas.length;i++){
+    var l=linhas[i].trim();
+    if(/^\s*(?:>|de:\s|from:\s|enviado:\s|sent:\s|assunto:\s|subject:\s|em .+ escreveu:|on .+ wrote:|[-_]{3,}\s*(?:mensagem|original))/i.test(l))break;
+    if(/^--\s*$/.test(l))break;
+    if(l)novas.push(l);
+  }
+  return novas.join(' ').slice(0,6000).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+function _rxCustoRemetenteExterno_(remetente){
+  var atual=String(Session.getActiveUser().getEmail()||'').toLowerCase();
+  var encontrado=/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.exec(String(remetente||''));
+  if(!atual||!encontrado)return false;
+  return encontrado[0].toLowerCase().split('@')[1]!==atual.split('@')[1];
+}
+function _rxCustoClassificarResposta_(texto,assunto,remetente){
+  var corpo=_rxCustoRespostaLimpa_(texto);
+  var tema=_rxCustoRespostaLimpa_(assunto);
+  var externo=_rxCustoRemetenteExterno_(remetente);
+  if(!corpo)return {situacao:'sem_resposta',motivo:'Mensagem sem resposta nova identificável.',confianca:'nenhuma'};
+  var textoSemExcecao=corpo.replace(/\bnao\s+(?:ha|existem|temos)\s+(?:pendencias|divergencias|ressalvas)\b/g,'');
+  // Negacoes e condicoes prevalecem sobre palavras afirmativas na mesma mensagem.
+  if(/\b(?:nao\s+(?:(?:foi|esta|estao)\s+)?(?:validado|validada|validamos|aprovo|aprovado|aprovada|aprovamos|confirmamos|autorizamos|concordamos|aceito|aceitamos)|nao\s+(?:ha|existe)\s+(?:aprovacao|validacao|aceite)|nao\s+(?:estamos|estou\s+)?de\s+acordo|sem\s+(?:aprovacao|validacao|aceite)|reprovad[oa]s?|recusad[oa]s?|discordamos|nao\s+(?:esta|estao)\s+corret[oa]s?|valores?\s+incorret[oa]s?|not\s+(?:approved|validated|accepted)|rejected)\b/.test(corpo)||
+    /\bnao\b(?:\s+\w+){0,5}\s+\b(?:validad\w*|aprovad\w*|aceit\w*)\b/.test(textoSemExcecao))
+    return {situacao:'rejeitada',motivo:'Resposta com negativa explícita. Não sugerir aprovação.',confianca:'alta'};
+  var ressalvas=corpo.replace(/\bsem\s+(?:pendencias|ressalvas|divergencias)\b/g,'')
+    .replace(/\bnao\s+(?:ha|existem|temos)\s+(?:pendencias|divergencias|ressalvas)\b/g,'');
+  if(/\b(?:pendenci\w*|divergenci\w*|ressalv\w*|ajust\w*|revis\w*|corrig\w*|analis\w*|aguard\w*|falt\w*|condicion\w*|exceto|porem|mas\s+|parcialmente|ainda\s+nao|em\s+analise|sob\s+analise|nao\s+confere|sujeit\w*|provisori\w*|pending|awaiting|needs?\s+changes|conditional)\b/.test(ressalvas))
+    return {situacao:'pendente',motivo:'Há ressalva, pendência ou pedido de ajuste na resposta.',confianca:'alta'};
+  if(!externo)return {situacao:'interna',motivo:'Remetente interno ou não identificado; não é confirmação da gráfica.',confianca:'alta'};
+  var afirmacao=/\b(?:validad[oa]s?|aprovad[oa]s?|aprovamos|validamos|confirmamos|de\s+acordo|aceitamos|aceito|autorizamos|liberado|liberamos|corret[oa]s?|conferid[oa]s?|podem\s+seguir|pode\s+seguir|ok|okay)\b/.test(corpo);
+  var contexto=/\b(?:custos?|prec(?:o|os)|valores?|calculadora|orcamento|cotacao|planilha|proposta|tiragem|chamado)\b/.test(corpo);
+  var contextoAssunto=/\b(?:validacao|aprovacao|confirmacao|custos?|calculadora|orcamento|cotacao)\b/.test(tema);
+  if(!afirmacao)return {situacao:'neutra',motivo:'Não há aceite de custo reconhecível na resposta.',confianca:'nenhuma'};
+  if(!contexto&&!contextoAssunto)return {situacao:'neutra',motivo:'A mensagem positiva não está vinculada à validação dos custos.',confianca:'nenhuma'};
+  if(contexto&&/\b(?:aprovad[oa]s?|aprovamos|validad[oa]s?|validamos|confirmamos|de\s+acordo|corret[oa]s?|aceitamos)\b/.test(corpo))
+    return {situacao:'aprovacao',motivo:'Resposta externa afirmativa sobre custos ou valores, sem ressalvas identificadas.',confianca:'alta'};
+  return {situacao:'possivel',motivo:contextoAssunto?
+    'Há um sinal positivo, mas o contexto da resposta precisa de conferência humana.':
+    'A expressão positiva não identifica claramente a validação dos custos.',confianca:'baixa'};
+}
+
 function _rxCustoSugestoes_(dados) {
   if (!dados.sugestoes || typeof dados.sugestoes !== 'object' || Array.isArray(dados.sugestoes))
     dados.sugestoes = {};
@@ -50,9 +94,10 @@ function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm, filtro, pagina)
       vistos[thread.getId()]=true;
       var mensagens=thread.getMessages(),assunto=thread.getFirstMessageSubject(),referencias=[];
       mensagens.slice(-4).forEach(function(m) {
+        var analise=_rxCustoClassificarResposta_(m.getPlainBody(),m.getSubject(),m.getFrom());
         referencias.push({id:m.getId(),remetente:_rxCustoEmailSeguro_(m.getFrom(),300),
           data:m.getDate().getTime(),assunto:_rxCustoEmailSeguro_(m.getSubject(),300),
-          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200)});
+          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200),analise:analise});
       });
       retorno.emails.push({id:thread.getId(),assunto:_rxCustoEmailSeguro_(assunto,300),
         ultimaData:thread.getLastMessageDate().getTime(),url:thread.getPermalink(),mensagens:referencias});
@@ -63,10 +108,22 @@ function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm, filtro, pagina)
       var opcoes=[];
       recomendadas.forEach(function(t){
         var ms=t.getMessages();if(!ms.length)return;
-        var m=ms[ms.length-1],assunto=t.getFirstMessageSubject(),temChamado=new RegExp('(^|\\D)'+chamado+'(\\D|$)').test(assunto);
+        var relevante=null,negaPosterior=false;
+        ms.forEach(function(m){
+          var analise=_rxCustoClassificarResposta_(m.getPlainBody(),m.getSubject(),m.getFrom());
+          if(analise.situacao==='rejeitada'||analise.situacao==='pendente')negaPosterior=true;
+          if(analise.situacao==='aprovacao'||analise.situacao==='possivel'){
+            relevante={m:m,analise:analise};negaPosterior=false;
+          }
+        });
+        if(!relevante||negaPosterior)return;
+        var m=relevante.m,assunto=t.getFirstMessageSubject(),temChamado=new RegExp('(^|\\D)'+chamado+'(\\D|$)').test(assunto);
+        var temChamadoNaResposta=new RegExp('(^|\\D)'+chamado+'(\\D|$)').test(_rxCustoRespostaLimpa_(m.getPlainBody()));
+        if(!temChamado&&!temChamadoNaResposta)return;
         opcoes.push({threadId:t.getId(),mensagem:{id:m.getId(),remetente:_rxCustoEmailSeguro_(m.getFrom(),300),
           data:m.getDate().getTime(),assunto:_rxCustoEmailSeguro_(m.getSubject(),300),
-          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200)},pontos:temChamado?2:1});
+          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200),analise:relevante.analise},
+          pontos:(relevante.analise.situacao==='aprovacao'?5:1)+(temChamado?2:0)});
       });
       opcoes.sort(function(a,b){return b.pontos-a.pontos||b.mensagem.data-a.mensagem.data;});
       if(opcoes.length)retorno.sugestao=opcoes[0];
@@ -75,17 +132,21 @@ function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm, filtro, pagina)
   } catch(e) {return {erro:e.message || String(e)};}
 }
 
-function ignorarSugestaoEmailCustoReentradas(id, atualizadoEm) {
+function registrarSugestaoEmailCustoReentradas(id, atualizadoEm, decisao) {
   var lock=LockService.getScriptLock(),pegou=false;
   try {
+    if(['ignorada','examinada'].indexOf(decisao)<0)throw Error('Decisao de sugestao invalida.');
     pegou=lock.tryLock(3000);if(!pegou)throw Error('Outra confirmacao esta em andamento.');
     var arquivo=_rxArquivo_(id,atualizadoEm);
     if(!arquivo.calculadora)throw Error('Selecione uma calculadora.');
     var dados=_rxCustoRegistros_(),avisos=_rxCustoSugestoes_(dados);
-    if(!avisos[id]){avisos[id]={decisao:'ignorada',em:Date.now()};_rxCustoSalvarRegistros_(dados);}
+    if(!avisos[id]){avisos[id]={decisao:decisao,em:Date.now()};_rxCustoSalvarRegistros_(dados);}
     return {sucesso:true};
   }catch(e){return {erro:e.message||String(e)};}
   finally{if(pegou)lock.releaseLock();}
+}
+function ignorarSugestaoEmailCustoReentradas(id,atualizadoEm){
+  return registrarSugestaoEmailCustoReentradas(id,atualizadoEm,'ignorada');
 }
 
 function _rxCustoDeparaDoArquivo_(calculadora, chamado) {
@@ -125,6 +186,22 @@ function confirmarCustoComEmailReentradas(id, atualizadoEm, prova) {
       if(!texto.trim())texto=_rxCustoEmailSeguro_(mensagem.getPlainBody(),20000);
       prova.assunto=mensagem.getSubject();prova.remetente=mensagem.getFrom();prova.data=mensagem.getDate().getTime();
     }
+    var analise=_rxCustoClassificarResposta_(emailId?mensagem.getPlainBody():texto,prova.assunto,prova.remetente);
+    if(['rejeitada','pendente','interna','sem_resposta','neutra'].indexOf(analise.situacao)>=0)
+      throw Error('Este comprovante nao confirma a aprovacao dos custos. '+analise.motivo);
+    if((!emailId||analise.situacao!=='aprovacao')&&!prova.aceitouAnaliseManual)
+      throw Error('A aprovacao nao e inequivoca ou foi informada manualmente. Confira o contexto e confirme conscientemente antes de continuar.');
+    if(thread){
+      var sequencia=thread.getMessages(),depois=false;
+      sequencia.forEach(function(m){
+        if(depois){
+          var atual=_rxCustoClassificarResposta_(m.getPlainBody(),m.getSubject(),m.getFrom());
+          if(atual.situacao==='rejeitada'||atual.situacao==='pendente')
+            throw Error('Existe uma resposta posterior com negativa ou pendencia nesta conversa. A aprovacao anterior nao pode ser usada.');
+        }
+        if(m.getId()===emailId)depois=true;
+      });
+    }
     var chamado=_rxCustoChamado_(arquivo.nome),depara=_rxCustoDeparaDoArquivo_(arquivo,chamado);
     var dados=_rxCustoRegistros_(),registroAnterior=dados.arquivos[id];
     if(registroAnterior&&_rxCustoRegistroVigente_(registroAnterior,arquivo))
@@ -145,7 +222,8 @@ function confirmarCustoComEmailReentradas(id, atualizadoEm, prova) {
       deparaOriginalId:depara.getId(),deparaValidadoId:copiaDepara.getId(),
       comprovante:{origem:emailId?'gmail':'manual',threadId:_rxCustoEmailSeguro_(prova.threadId,100),
         mensagemId:emailId,assunto:_rxCustoEmailSeguro_(prova.assunto,300),
-        remetente:_rxCustoEmailSeguro_(prova.remetente,300),data:prova.data||null},
+        remetente:_rxCustoEmailSeguro_(prova.remetente,300),data:prova.data||null,
+        analise:analise,conferenciaManual:!!prova.aceitouAnaliseManual},
       registradoEm:agora,registradoPor:String(Session.getActiveUser().getEmail()||''),pendencias:pendencias};
     var html='<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Comprovante do chamado '+
       _rxCustoHtmlSeguro_(chamado)+'</title><body style="font:14px Arial;color:#13294b;max-width:900px;margin:40px auto">'+

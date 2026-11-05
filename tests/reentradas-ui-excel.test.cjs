@@ -109,6 +109,36 @@ test('Custo Validado requer comprovante escolhido, confirmacao e arquiva downloa
   assert.equal(s.el('rxBaixarValidado').hidden,true);
 });
 
+test('menu oferece custo validado independente e separa responder de registrar',()=>{
+  const s=screen(),c=s.context,calc={...file,calculadora:true},depara={...file,id:'OUTRO_ARQUIVO_12345',
+    nome:'PLANILHA DE PARA PPG LOGPRINT.xlsx',calculadora:false};
+  assert.match(html,/Registrar custo validado/);
+  c.rxEntrarConfirmacaoIndependente();
+  assert.equal(s.el('rxEntradaReentradas').hidden,true);
+  assert.equal(s.el('rxFluxoGeracao').hidden,true);
+  assert.equal(s.request().method,'listarArquivosReentradasExcel');
+  s.request().success({arquivos:[calc,depara]});
+  assert.equal(s.el('rxListaArquivos').children.length,1,'de-para nao entra na lista de confirmacao');
+  const botao=s.el('rxListaArquivos').children[0].children[1].children[0];
+  assert.equal(botao.textContent,'Analisar resposta');botao.onclick();
+  assert.equal(s.request().method,'obterConfirmacoesEmailCustoReentradas');
+  assert.equal(s.el('rxCostWorkspace').hidden,true);
+  assert.equal(s.el('rxEditorActions').hidden,true);
+  assert.equal(s.el('rxEmailComprovanteCard').hidden,false);
+  assert.equal(s.el('rxEmailEnvioCard').hidden,true);
+  assert.equal(c.rxPagina,null,'registrar custo nao exige carregar a grade de custos');
+  s.request().success({sucesso:true,emails:[]});
+  s.el('rxEmailTrecho').value='Aprovamos os valores do chamado 3106';
+  s.el('rxEmailAssunto').value='Validação de custos 3106';
+  s.el('rxEmailRemetente').value='grafica@fornecedor.com';
+  c.rxAtualizarAceite();c.rxFinalizarCusto();
+  assert.equal(s.request().method,'confirmarCustoComEmailReentradas');
+  assert.equal(s.request().args[2].aceitouAnaliseManual,true);
+  c.rxSelecionarModoEmail('responder');
+  assert.equal(s.el('rxEmailEnvioCard').hidden,false);
+  assert.equal(s.el('rxEmailComprovanteCard').hidden,true);
+});
+
 test('a validação abre expandida e Recalcular consulta o script sem salvar nem navegar',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true};
   c.rxAbrirLista();assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);

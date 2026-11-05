@@ -44,9 +44,15 @@ function _rxRevisaoMontar_(partes,alteradas){
   }
   var nomes=_rxAbasEditaveis_(ler('xl/workbook.xml'),ler('xl/_rels/workbook.xml.rels'));
   var strings=mapa['xl/sharedStrings.xml']?_reSpStrings_(ler('xl/sharedStrings.xml')):[];
-  var modelo={schema:RX_REVISAO_SCHEMA,abas:[],formulas:{},faixasFormulas:[],mesclagens:[]};
+  // O identificador da expressao conserva as referencias relativas; um mesmo
+  // calculo repetido em centenas de linhas ocupa apenas um padrao no modelo.
+  // Essa estrutura permite construir dependencias sem reler o arquivo de origem.
+  var modelo={schema:RX_REVISAO_SCHEMA,abas:[],formulas:{},faixasFormulas:[],mesclagens:[],
+    padroesCalculo:[],posicoesCalculo:[]};
+  var indicePadroes=Object.create(null);
   nomes.forEach(function(n,indice){
     var xml=ler(n.caminho),aba={nome:n.nome,totalColunas:1,linhas:[]};
+    var posicoes=Object.create(null);
     var dimensao=/<dimension\b[^>]*\bref="([^"]+)"/.exec(xml);
     if(dimensao)aba.totalColunas=Math.max(1,_pfPreviaColunaNumero_(dimensao[1].split(':').pop())+1);
     var linhas=/<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g,r,retangulos={};
@@ -60,7 +66,19 @@ function _rxRevisaoMontar_(partes,alteradas){
         aba.totalColunas=Math.max(aba.totalColunas,coluna+1);
         var corpo=c[2]||'',valor=_rxRevisaoValor_(c[1],corpo,strings);
         if(valor!=='')item.valores[coluna]=valor;
-        if(/<f\b/.test(corpo))cols.push(coluna+1);
+        if(/<f\b/.test(corpo)){
+          cols.push(coluna+1);
+          var conteudoFormula=/<f\b[^>]*>([\s\S]*?)<\/f>/.exec(corpo);
+          if(conteudoFormula&&conteudoFormula[1]){
+            var canonico=_mxRel_(_rxRevisaoTexto_(conteudoFormula[1]),numero);
+            var codigo=indicePadroes[canonico];
+            if(codigo===undefined){codigo=modelo.padroesCalculo.length;
+              indicePadroes[canonico]=codigo;modelo.padroesCalculo.push(canonico);}
+            var faixas=posicoes[coluna]||(posicoes[coluna]=[]),ultima=faixas[faixas.length-1];
+            if(ultima&&ultima[1]===numero-1&&ultima[2]===codigo)ultima[1]=numero;
+            else faixas.push([numero,numero,codigo]);
+          }
+        }
       }
       aba.linhas.push(item);
       // Colunas de formula contiguas e repetidas em linhas viram retangulos.
@@ -75,6 +93,7 @@ function _rxRevisaoMontar_(partes,alteradas){
     }
     _rxFaixasFormulas_(xml).forEach(function(f){f.aba=indice;modelo.faixasFormulas.push(f);});
     _rxFaixasMesclagens_(xml).forEach(function(f){f.aba=indice;modelo.mesclagens.push(f);});
+    modelo.posicoesCalculo.push(posicoes);
     modelo.abas.push(aba);
   });
   return modelo;

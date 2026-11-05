@@ -10,7 +10,7 @@ const XML='<worksheet><dimension ref="A1:D6"/><sheetData><row r="1"><c r="A1" t=
 function ambiente(){
   let mtime=1800000000000,sourceReads=0,imports=0,snapshotWrites=0,folder=null;
   const files=new Map(),id='SOURCE_FILE_1234567890',nome='CALCULADORA FORNECEDOR META - CHAMADO 123.xlsx';
-  const app=mx.carregarApps(['ValidaReentradasSPG.js','MacroProtecao.js','PreviaExcelEmail.js','ReentradasExcel.js','ReentradasRevisao.js']);
+  const app=mx.carregarApps(['MoldeXlsx.js','ValidaReentradasSPG.js','MacroProtecao.js','PreviaExcelEmail.js','ReentradasExcel.js','ReentradasRevisao.js']);
   const u=app.Utilities,blob=(data,type,name)=>{const b=u.newBlob(data,type,name);b.setName=n=>{name=n;return b};b.getName=()=>name;return b};
   const gzip=u.gzip;u.gzip=b=>{const z=gzip(b);return blob(z.getBytes(),'application/gzip','snapshot.gz')};
   const partes=[['xl/workbook.xml',WB],['xl/_rels/workbook.xml.rels',REL],['xl/sharedStrings.xml','<sst><si><t>Titulo</t></si></sst>'],['xl/worksheets/sheet1.xml',XML],['xl/worksheets/sheet2.xml',XML]].map(([n,t])=>blob(t,'application/xml',n));
@@ -33,8 +33,12 @@ test('modelo nasce das partes finais em memoria e compacta protecao sem modifica
   assert.equal(m.abas[0].linhas[0].valores[0],'Titulo');
   assert(m.faixasFormulas.some(f=>f.aba===0&&f.x1===2&&f.x2===3&&f.y1===5&&f.y2===6));
   assert(m.faixasFormulas.some(f=>f.aba===0&&f.x1===3&&f.x2===4&&f.y1===5&&f.y2===6));
+  assert(m.padroesCalculo.length>0,'expressoes precisam ficar disponiveis para a futura cadeia de dependencias');
+  const faixa=m.posicoesCalculo[0][1].find(f=>f[0]<=5&&f[1]>=5);
+  assert.equal(formulaExpandida(m,faixa,5),'A5');
   assert.deepEqual(plain(m.mesclagens[0]),{x1:1,x2:2,y1:1,y2:1,aba:0});
 });
+function formulaExpandida(modelo,faixa,linha){return modelo.padroesCalculo[faixa[2]].replace(/\u0001(-?\d+)\u0002/g,(_,offset)=>String(linha+Number(offset)));}
 test('consulta e troca de aba leem apenas o JSON preparado; ausencia e versao externa nao abrem XLSX',()=>{
   const s=ambiente(),a=s.app;
   assert.equal(a.obterPreviaReentradasExcel({id:s.id,porAba:true}).codigo,'REVISAO_AUSENTE');assert.equal(s.reads(),0);

@@ -1198,6 +1198,7 @@
   var _timers = { tTotal: 0, interval: null };
   // Resumo do que foi gerado (gráfica / chamado / marca / série), devolvido pelo backend.
   var _resumo = [];
+  var _geracaoToken=0;
 
   function escHtml(v) {
     return String(v == null ? '' : v).replace(/[&<>"]/g, function(c) {
@@ -1290,6 +1291,7 @@
   }
   function executarFase2(){
     iniciarTracker();
+    var token=++_geracaoToken,iniciadoEm=Date.now(),concluido=false;
     var respostas=[];
     document.querySelectorAll('.inp-manual').forEach(function(i){ respostas.push({index:i.getAttribute('data-index'), valor:i.value}); });
     var tecnologia=document.getElementById('selTecnologia').value || 'DIGITAL';
@@ -1300,16 +1302,16 @@
 
     _resumo = [];
     rxUltimo=null;
-    google.script.run.withSuccessHandler(function(res) {
-      if (!res || res.erro || !res.sucesso || !Array.isArray(res.arquivos) || !res.arquivos.length) {
-        return mostrarErroCustos(res && res.erro || 'O Apps Script não confirmou a geração dos arquivos.');
-      }
+    function finalizarGeracao(res,recuperado){
+      if(concluido||token!==_geracaoToken)return;
+      concluido=true;
       _resumo = res.resumo || [];
       concluirTracker();
-      // Abre os dados de revisao preparados junto da geracao.
+      // A revisao e preparada separadamente, sem bloquear a exportacao.
       rxUltimo=(res.arquivos||[]).filter(function(item){return item.calculadoraId||item.deparaId;})[0]||null;
       if(rxUltimo)rxAbrirArquivo(rxUltimo);
       var avisos = _avisosValidacaoReentradas.slice();
+      if(recuperado)avisos.push('A conexao foi interrompida, mas os arquivos foram recuperados sem repetir a geracao.');
       (Array.isArray(res.avisos) ? res.avisos : []).forEach(function(item) {
         if (avisos.indexOf(item) === -1) avisos.push(item);
       });
@@ -1318,8 +1320,34 @@
         aviso.textContent = 'Avisos: ' + avisos.join(' | ');
         aviso.style.display = 'block';
       }
+    }
+    function consultarArquivos(tentativa,causa,parciais){
+      if(concluido||token!==_geracaoToken)return;
+      document.getElementById('step1').querySelector('.lbl').textContent='Conexao interrompida. Conferindo os arquivos ja gerados...';
+      google.script.run.withSuccessHandler(function(r){
+        if(concluido||token!==_geracaoToken)return;
+        if(r&&r.sucesso&&Array.isArray(r.arquivos)&&r.arquivos.length)return finalizarGeracao(r,true);
+        var encontrados=r&&Array.isArray(r.arquivos)&&r.arquivos.length?r.arquivos:parciais;
+        if(tentativa<5&&!(r&&r.ambiguos&&r.ambiguos.length))
+          return setTimeout(function(){consultarArquivos(tentativa+1,causa,encontrados);},2000);
+        mostrarErroCustos('A conexao caiu e nao foi possivel confirmar todos os arquivos. Confira a pasta antes de gerar novamente, para evitar duplicidades. '+
+          (r&&r.erro||String(causa&&causa.message||causa||'')),true);
+        if(encontrados&&encontrados.length)renderResumo(encontrados,'resumoGerado');
+      }).withFailureHandler(function(e){
+        if(concluido||token!==_geracaoToken)return;
+        if(tentativa<5)return setTimeout(function(){consultarArquivos(tentativa+1,causa,parciais);},2000);
+        mostrarErroCustos('Nao foi possivel confirmar a geracao apos a queda de conexao. Consulte a pasta antes de gerar novamente. '+
+          String(e&&e.message||e||causa),true);
+        if(parciais&&parciais.length)renderResumo(parciais,'resumoGerado');
+      }).consultarGeracaoReentradasSPG(idPastaOuNome,cacheChamadosValidos,iniciadoEm);
+    }
+    google.script.run.withSuccessHandler(function(res) {
+      if(concluido||token!==_geracaoToken)return;
+      if(!res||res.erro||!res.sucesso||!Array.isArray(res.arquivos)||!res.arquivos.length)
+        return consultarArquivos(0,res&&res.erro||'O servidor nao confirmou a geracao.',null);
+      finalizarGeracao(res,false);
     }).withFailureHandler(function(err) {
-      mostrarErroCustos(err && (err.message || err) || 'Falha na geração dos arquivos.');
+      consultarArquivos(0,err,null);
     }).gerarValidacaoReentradasSPG(idPastaOuNome, cacheChamadosValidos, 'spg', '', respostas, fornecimentoUI, origensLegadoReentradas.slice(), copiarEspecificacoesGeraisReentradas());
   }
   function resetarParaNovaCalculadora(){
@@ -1349,13 +1377,13 @@
     cancelarResumo();
     setMsg('mensagemFase1','', '#333');
   }
-  function mostrarErroCustos(e){
+  function mostrarErroCustos(e,naoConfirmada){
     if (_timers.interval) { clearInterval(_timers.interval); _timers.interval = null; }
     document.getElementById('telaFase3').style.display = 'block';
     var etapa = document.getElementById('step1');
     etapa.className = 'tracker-row';
     etapa.querySelector('.icon').textContent = '×';
-    etapa.querySelector('.lbl').textContent = 'Não foi possível gerar os arquivos';
+    etapa.querySelector('.lbl').textContent = naoConfirmada?'Geração não confirmada':'Não foi possível gerar os arquivos';
     etapa.querySelector('.time').textContent = '';
     var err = document.getElementById('erroFase3');
     err.style.display = 'block';
@@ -1368,7 +1396,7 @@
   // Reentradas: prévia local, edição revisável e restauração sob demanda.
   var rxArquivo=null,rxUltimo=null,rxArquivos=[],rxConjunto=null,rxConjuntoTentado=false;
   var rxEstado={aba:0,linha:0,coluna:0,busca:''},rxPagina=null,rxPendente={},rxFormulas={},rxFaixasFormulas=[],rxMesclagens=[];
-  var rxToken=0,rxListaToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false;
+  var rxToken=0,rxListaToken=0,rxTimer=null,rxOcupado=false,rxListaCarregada=false,rxAutoPreparacaoTentada=false;
   var rxAbasCache={},rxPaginasCache={},rxQuadrosCache={},rxPosicoes={},rxNomesAbas=[],rxLeituras={},rxSessao=0,rxNavAssinatura='';
   var rxGrupoDestacado=null;
   var rxNaoEditoriais=[],rxAbaNaoEditorialOrigem=-1;
@@ -1628,6 +1656,7 @@
   function rxAbrirArquivo(a){
     if(!rxConfirmarSair())return;
     rxAvisoRecalculo='';
+    rxAutoPreparacaoTentada=!(a.calculadoraId||a.deparaId);
     rxArquivo={id:a.id||a.calculadoraId||a.deparaId,
       atualizadoEm:a.atualizadoEm||null,nome:a.nome||a.arquivo||'',
       calculadora:a.calculadora!==undefined?a.calculadora:!!a.calculadoraId,
@@ -1782,7 +1811,13 @@
       if(sessao!==rxSessao)return;delete rxLeituras[chave];
       var atual=rxIndiceReal(rxEstado.aba)===pedido.aba;
       if(r&&(r.codigo==='REVISAO_AUSENTE'||r.codigo==='REVISAO_DESATUALIZADA')){
-        if(atual){rxEl('rxPrepararPane').hidden=false;rxEl('rxCorpo').textContent='';rxEl('rxGrid').setAttribute('aria-busy','false');rxMsg(r.erro||'Prepare os dados para validação para continuar.');}return;
+        if(atual){
+          rxEl('rxPrepararPane').hidden=false;rxEl('rxCorpo').textContent='';rxEl('rxGrid').setAttribute('aria-busy','false');
+          rxMsg(r.erro||'Prepare os dados para validação para continuar.');
+          if(!rxAutoPreparacaoTentada&&rxArquivo&&rxArquivo.atualizadoEm){
+            rxAutoPreparacaoTentada=true;rxPrepararRevisao();
+          }
+        }return;
       }
       if(!r||r.erro||!r.arquivo){if(atual){rxEl('rxGrid').setAttribute('aria-busy','false');rxEl('rxCorpo').textContent='';rxMsg(r&&r.erro||'Revisão indisponível. Tente reabrir o arquivo.');}return;}
       if(r.arquivo.id!==pedido.id){if(atual)rxMsg('O arquivo da resposta não corresponde à revisão aberta.');return;}

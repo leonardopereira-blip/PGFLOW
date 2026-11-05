@@ -83,7 +83,7 @@ test('preparo explicito importa uma vez; atualizar snapshot preserva o arquivo e
   assert.equal(a.obterPreviaReentradasExcel({id:s.id,porAba:true}).arquivo.atualizadoEm,1800000002000);
   assert.equal(s.reads(),1);
 });
-test('geracao prepara modelo antes de criar XLSX e nunca o reabre para criar revisao',()=>{
+test('exportacao grava arquivo primeiro e pode adiar a revisao sem calcular tudo no caminho critico',()=>{
   const s=ambiente(),a=s.app,events=[];
   const model=a._rxRevisaoMontar_(s.partes);
   a._rxRevisaoMontar_=p=>{events.push('modelo');assert.equal(p[3].getDataAsString(),XML.replace('SKU &amp; 001','SKU NOVO'));return model};
@@ -92,7 +92,10 @@ test('geracao prepara modelo antes de criar XLSX e nunca o reabre para criar rev
   a.DriveApp.getFolderById=()=>({createFile(){events.push('xlsx');return file}});
   a._rxRevisaoSalvar_=(f,m)=>{events.push('revisao');assert.equal(f,file);assert.equal(m,model)};
   assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{'xl/worksheets/sheet1.xml':XML.replace('SKU &amp; 001','SKU NOVO')},'arquivo.xlsx'),file);
-  assert.deepEqual(events,['modelo','xlsx','revisao']);
+  assert.deepEqual(events,['xlsx','modelo','revisao']);
+  events.length=0;
+  assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{},'arquivo.xlsx',[],false),file);
+  assert.deepEqual(events,['xlsx'],'na exportacao rapida nao deve varrer formulas nem gravar revisao');
   const avisos=[];a._rxRevisaoMontar_=()=>model;a._rxRevisaoSalvar_=()=>{throw Error('falha tecnica simulada')};
   assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{},'arquivo.xlsx',avisos),file);
   assert.equal(avisos.length,1);assert.match(avisos[0],/arquivo.xlsx criado/);assert.match(avisos[0],/Preparar revisao/);

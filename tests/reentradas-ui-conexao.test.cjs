@@ -31,6 +31,7 @@ function screen() {
         setAttribute(name, value) { this.attributes[name] = String(value); },
         getAttribute(name) { return this.attributes[name] ?? null; },
         removeAttribute(name) { delete this.attributes[name]; },
+        querySelector() { return el('step1-child'); },
         focus() {},
         classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) } });
     }
@@ -41,7 +42,7 @@ function screen() {
   const google = { script: {} };
   Object.defineProperty(google.script, 'run', { get() {
     const chain = { withSuccessHandler(fn) { this.success = fn; return this; }, withFailureHandler(fn) { this.failure = fn; return this; } };
-    for (const method of ['listarPastasGraficasReentradasSPG', 'listarUltimasReentradasSPG', 'buscarResumoReentradasSPG', 'validarReentradasSPG', 'gerarValidacaoReentradasSPG']) {
+    for (const method of ['listarPastasGraficasReentradasSPG', 'listarUltimasReentradasSPG', 'buscarResumoReentradasSPG', 'validarReentradasSPG', 'gerarValidacaoReentradasSPG', 'consultarGeracaoReentradasSPG']) {
       chain[method] = (...args) => requests.push({ method, args: plain(args), success: chain.success, failure: chain.failure });
     }
     return chain;
@@ -212,15 +213,21 @@ test('validação com resposta funcional erro não repete nem abre tela de gera�
   assert.equal(s.requests.length, 2);
 });
 
-test('geração continua sem repetição automática após HTTP 0', () => {
+test('HTTP 0 consulta os arquivos sem executar uma segunda geracao', () => {
   const s = screen();
   s.context.iniciarTracker = () => {};
-  let error;
-  s.context.mostrarErroCustos = err => { error = err; };
+  s.context.concluirTracker = () => {};
+  s.context.rxAbrirArquivo = a => { s.aberto = a; };
+  s.context.cacheChamadosValidos = ['2632'];
   s.context.executarFase2();
   assert.equal(s.request().method, 'gerarValidacaoReentradasSPG');
   s.request().failure(network());
-  assert.match(error, /HTTP 0/);
-  assert.equal(s.requests.length, 1);
+  assert.equal(s.requests.length, 2);
+  assert.equal(s.request().method, 'consultarGeracaoReentradasSPG');
+  assert.equal(s.request().args[0], 'REPROSET');
+  assert.deepEqual(s.request().args[1], ['2632']);
+  s.request().success({sucesso:true,arquivos:[{chamado:'2632',calculadoraId:'CALC-123',deparaId:'DEPARA-123'}],resumo:[]});
+  assert.equal(s.aberto.calculadoraId, 'CALC-123');
+  assert.equal(s.requests.filter(r => r.method === 'gerarValidacaoReentradasSPG').length, 1);
   assert.equal(s.timers.filter(timer => timer.delay === 1500).length, 0);
 });

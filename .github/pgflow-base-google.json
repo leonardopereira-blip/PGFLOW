@@ -1,6 +1,6 @@
 {
   "scriptId": "1jaTpQs2B7fqtPnjZ4oaC7RDGnq_eMm1cE2t_fFtopxJlV8Hc97VRjUgu",
-  "lido_em": "2026-11-04T19:45:15Z",
+  "lido_em": "2026-11-05T10:46:59Z",
   "files": {
     "SERVER_JS:Ajusta_API": "66e97e7d8e378d73d9710b5a2d699fc51cdb34a6b66856767c712d71faabcfbc",
     "SERVER_JS:AlertaSPG": "3f35f4298b9b120397af4371af56b573320761bfae34898eece2ba9f682f10f5",
@@ -25,18 +25,18 @@
     "SERVER_JS:ProtecaoLogprint": "97eb106c07c58ef1bd14867231e1685a26568ac8ca6d642bda1744c0e46f9ec5",
     "SERVER_JS:ReentradasElegibilidade": "96ed5695bc2403305cf7674515e27a19574824c850fc5274a2319e7466bd1ed8",
     "SERVER_JS:ReentradasEspecificacaoGeral": "6e317213b060916899b10b5569d6b73fd4035b6ffb0ab17bb72139371b7c33cf",
-    "SERVER_JS:ReentradasExcel": "ee117e0f0f41698b734044bca21b2289ff054f6bbc2a01a089fa32978e243cc6",
+    "SERVER_JS:ReentradasExcel": "7192fc7a0990c61082d7e4d3fce586b55c327b907d6fbd284d730c8b96b4afa1",
     "SERVER_JS:ReentradasFormaCerta": "ecb5809604ad1a714d6261fd7e844d622dedfaa2e4057edf5e0776fdcd4fde82",
-    "SERVER_JS:ReentradasRecentes": "bdbda86d566964f2eb3ceed39623246134406389fb4f084e684032195175add0",
+    "SERVER_JS:ReentradasRecentes": "f4410548e5bbebbed196fb962de974c1118ac4f4a98aa88eca512bce76628389",
     "SERVER_JS:SPG": "2b60edefcbb2c2f8a6bef47ea509c27e121e6b6586af4975be29f9f7a197c23f",
     "HTML:TelaEmail": "058010b8ecd8ea1ba18bd7d59e4fff88bb539185076fd5ec4201c9a9b969133a",
     "SERVER_JS:ValidaComum": "2eb10dbf3423c09836ce39061d5f544917a835efe563ca8dffb8c02fe533981a",
-    "HTML:ValidaInterface": "34238767dc77f3be68d8eec6f5210bc89128e2fdada4f70684d0e3f78a557ed4",
+    "HTML:ValidaInterface": "2441b1035a48ed0d0893b4721cfd46a1d18c19ab153960d175c60601534bacfb",
     "SERVER_JS:ValidaPrincipal": "485ad7dec5e61a8ea9b0a7cf319a6815dc28384da8a1356451d1bd61b472e886",
     "SERVER_JS:ValidaReentradas": "ed722e6f5e6bcdd6a1f1f9b2e8f6a50dcd880985596e52dd89266eeb1a51b9e5",
     "SERVER_JS:ValidaReentradasSPG": "3e1126727431a5d8b49cc2b3167e7c1951268be165351aa8511d380d017e10e9",
     "SERVER_JS:WebApp": "c765345527b5fef9ae46a7adf1fde1d3d290a3e63f9bdf0b4e7d48dde89afb82",
-    "SERVER_JS:ReentradasRevisao": "d71cea9ffbbad988cd1d30fd6ebf2d51f6a58f43e428d830e5e160f6125bfaa5",
-    "SERVER_JS:ReentradasValidacaoFinal": "26ef3ac28dc7dcbd0c5266969a1ecf1ba3e26cd928dc2aaf5f7242ff4e1807a6"
+    "SERVER_JS:ReentradasRevisao": "e791d47fce91236e051cc7c875ec99dc040c8b5c52d3ad90785564afbc3b7b43",
+    "SERVER_JS:ReentradasValidacaoFinal": "c1cf5678b8c54c9b13ab305253cbeb98e3d6d050f4d33adab51860846b91b73a"
   }
 }

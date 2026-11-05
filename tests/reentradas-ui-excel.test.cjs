@@ -15,7 +15,7 @@ function screen(){
       get textContent(){return text},set textContent(v){text=String(v);this.children=[]},
       classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),
         toggle(x,on){if(on===undefined)on=!classes.has(x);on?classes.add(x):classes.delete(x)}},
-      appendChild(x){this.children.push(x);return x},insertBefore(x,other){const i=this.children.indexOf(other);this.children.splice(i<0?0:i,0,x);return x},setAttribute(k,v){this[k]=v},
+      appendChild(x){this.children.push(x);return x},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},insertBefore(x,other){const i=this.children.indexOf(other);this.children.splice(i<0?0:i,0,x);return x},setAttribute(k,v){this[k]=v},
       querySelector(selector){return selector==='input'?this.children.find(x=>x.tag==='input')||null:null},
       focus(){},select(){}};
   }
@@ -77,7 +77,7 @@ test('cancelar restauração não grava; confirmação impede duplicação e sa�
   assert.match(s.el('rxListaStatus').textContent,/Falha controlada/);c.rxFechar();assert.equal(s.el('rxOverlay').hidden,true);
 });
 
-test('Custo Validado so e enviado apos revisao sem edicoes pendentes e exibe download direto',()=>{
+test('Custo Validado requer comprovante escolhido, confirmacao e arquiva download',()=>{
   const s=screen(),c=s.context,calc={...file,calculadora:true,
     nome:'CALCULADORA FORNECEDOR LOGPRINT - CHAMADO 3127.xlsx'};
   c.rxAbrirArquivo(calc);
@@ -86,9 +86,17 @@ test('Custo Validado so e enviado apos revisao sem edicoes pendentes e exibe dow
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};c.rxRenderPagina();
   assert.equal(s.el('rxCustoValidado').disabled,true);
   c.rxFinalizarCusto();assert.equal(s.requests.length,1);
-  c.rxPendente={};c.rxRenderPagina();c.rxFinalizarCusto();
-  assert.equal(s.request().method,'marcarCustoValidadoReentradas');
+  c.rxPendente={};c.rxRenderPagina();c.rxAbrirConfirmacao();
+  assert.equal(s.request().method,'obterConfirmacoesEmailCustoReentradas');
   assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm]);
+  s.request().success({emails:[],sucesso:true,sugestaoJaTratada:false});
+  s.el('rxEmailTrecho').value='Trecho selecionado livremente pelo usuário';c.rxAtualizarAceite();
+  assert.equal(s.el('rxEmailValidar').disabled,false);
+  c.rxFinalizarCusto();
+  assert.equal(s.request().method,'confirmarCustoComEmailReentradas');
+  assert.deepEqual(s.request().args.slice(0,2),[calc.id,calc.atualizadoEm]);
+  assert.equal(s.request().args[2].confirmacaoExplicita,true);
+  assert.equal(s.request().args[2].texto,'Trecho selecionado livremente pelo usuário');
   assert.equal(s.el('rxCustoValidado').disabled,true);
   const url='https://drive.google.com/uc?export=download&id='+calc.id;
   s.request().success({sucesso:true,id:calc.id,chamado:'3127',atualizadoEm:calc.atualizadoEm,
@@ -99,6 +107,18 @@ test('Custo Validado so e enviado apos revisao sem edicoes pendentes e exibe dow
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'corrigido'}};c.rxSalvarEdicoes();
   s.request().success({sucesso:true,id:calc.id,atualizadoEm:1730000001000});
   assert.equal(s.el('rxBaixarValidado').hidden,true);
+});
+
+test('sugestao de e-mail pode ser ignorada uma unica vez por calculadora',()=>{
+  const s=screen(),c=s.context,calc={...file,calculadora:true};
+  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
+  c.rxAbrirConfirmacao();const msg={id:'MENSAGEM123',assunto:'Custo validado 3127',remetente:'grafica@fornecedor.com',data:1730000000000,trecho:'OK, de acordo'};
+  s.request().success({sucesso:true,emails:[{id:'THREAD123456789',assunto:'3127',mensagens:[msg]}],sugestaoJaTratada:false});
+  assert.equal(s.el('rxEmailAviso').hidden,false);
+  c.rxIgnorarSugestao();assert.equal(s.request().method,'ignorarSugestaoEmailCustoReentradas');
+  s.request().success({sucesso:true});assert.equal(s.el('rxEmailAviso').hidden,true);
+  c.rxCarregarConfirmacoes();s.request().success({sucesso:true,emails:[{id:'THREAD123456789',mensagens:[msg]}],sugestaoJaTratada:true});
+  assert.equal(s.el('rxEmailAviso').hidden,true);
 });
 
 test('fórmula com valor cacheado fica protegida pela coordenada sem impedir editar texto',()=>{

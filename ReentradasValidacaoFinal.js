@@ -2,6 +2,176 @@
 // O XLSX original permanece no Drive com o mesmo ID, nome, formulas e revisoes.
 var RX_CUSTO_VALIDADO_SCHEMA = 1;
 var RX_CUSTO_VALIDADO_NOME = 'custos-validados.json';
+var RX_CUSTO_CONFIRMACOES_PASTA = '18jjrBkVvc0k7vqALJUtMSMuDbAYfiB7J';
+
+function _rxCustoEmailSeguro_(valor, limite) {
+  return String(valor === undefined || valor === null ? '' : valor).slice(0, limite || 3000);
+}
+
+function _rxCustoHtmlSeguro_(valor) {
+  return _rxCustoEmailSeguro_(valor, 20000).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// O DEV executa como o usuario que acessa. Nunca consultar o Gmail do
+// proprietario em nome de outro usuario: a consulta pessoal so e permitida
+// quando o usuario ativo e a propria conta executora.
+function _rxCustoGmailDaPessoa_() {
+  var ativo = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  var executor = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  return !!ativo && ativo === executor;
+}
+
+function _rxCustoSugestoes_(dados) {
+  if (!dados.sugestoes || typeof dados.sugestoes !== 'object' || Array.isArray(dados.sugestoes))
+    dados.sugestoes = {};
+  return dados.sugestoes;
+}
+
+function obterConfirmacoesEmailCustoReentradas(id, atualizadoEm) {
+  try {
+    var arquivo = _rxArquivo_(id, atualizadoEm);
+    if (!arquivo.calculadora) throw Error('Selecione uma calculadora para conferir os e-mails.');
+    var chamado = _rxCustoChamado_(arquivo.nome), dados = _rxCustoRegistros_();
+    var retorno = {sucesso:true, chamado:chamado, sugestaoJaTratada:!!_rxCustoSugestoes_(dados)[id],
+      confirmado:!!dados.arquivos[id], emails:[], conexaoPessoalNecessaria:!_rxCustoGmailDaPessoa_()};
+    if (retorno.conexaoPessoalNecessaria) return retorno;
+    var threads = GmailApp.search('in:anywhere "'+chamado+'"', 0, 18), vistos={};
+    threads.forEach(function(thread) {
+      if (vistos[thread.getId()]) return;
+      vistos[thread.getId()]=true;
+      var mensagens=thread.getMessages(),assunto=thread.getFirstMessageSubject(),referencias=[];
+      mensagens.slice(-12).forEach(function(m) {
+        referencias.push({id:m.getId(),remetente:_rxCustoEmailSeguro_(m.getFrom(),300),
+          data:m.getDate().getTime(),assunto:_rxCustoEmailSeguro_(m.getSubject(),300),
+          trecho:_rxCustoEmailSeguro_(m.getPlainBody(),1200)});
+      });
+      retorno.emails.push({id:thread.getId(),assunto:_rxCustoEmailSeguro_(assunto,300),
+        ultimaData:thread.getLastMessageDate().getTime(),url:thread.getPermalink(),mensagens:referencias});
+    });
+    retorno.emails.sort(function(a,b){return b.ultimaData-a.ultimaData;});
+    return retorno;
+  } catch(e) {return {erro:e.message || String(e)};}
+}
+
+function ignorarSugestaoEmailCustoReentradas(id, atualizadoEm) {
+  var lock=LockService.getScriptLock(),pegou=false;
+  try {
+    pegou=lock.tryLock(3000);if(!pegou)throw Error('Outra confirmacao esta em andamento.');
+    var arquivo=_rxArquivo_(id,atualizadoEm);
+    if(!arquivo.calculadora)throw Error('Selecione uma calculadora.');
+    var dados=_rxCustoRegistros_(),avisos=_rxCustoSugestoes_(dados);
+    if(!avisos[id]){avisos[id]={decisao:'ignorada',em:Date.now()};_rxCustoSalvarRegistros_(dados);}
+    return {sucesso:true};
+  }catch(e){return {erro:e.message||String(e)};}
+  finally{if(pegou)lock.releaseLock();}
+}
+
+function _rxCustoDeparaDoArquivo_(calculadora, chamado) {
+  var pasta=DriveApp.getFolderById(RX_PASTA),arquivos=pasta.getFiles(),candidatos=[];
+  var grafica=calculadora.nome.replace(/^CALCULADORA FORNECEDOR /i,'').split(' - LIVROS REENTRADA')[0];
+  while(arquivos.hasNext()){
+    var a=arquivos.next(),m=/^PLANILHA DE PARA PPG (.+) - CHAMADO (\d+)\.xlsx$/i.exec(a.getName());
+    if(!m||String(Number(m[2]))!==chamado||a.isTrashed()||a.getMimeType()!==RX_MIME)continue;
+    if(_reSpNormal_(m[1])!==_reSpNormal_(grafica))continue;
+    var tempo=a.getDateCreated().getTime(),delta=calculadora.arquivo.getDateCreated().getTime()-tempo;
+    if(delta>=0 && delta<10*60*1000)candidatos.push({a:a,delta:delta});
+  }
+  candidatos.sort(function(a,b){return a.delta-b.delta;});
+  if(!candidatos.length)throw Error('O De-Para da mesma geracao nao foi identificado. Nenhum custo foi validado.');
+  return candidatos[0].a;
+}
+
+function confirmarCustoComEmailReentradas(id, atualizadoEm, prova) {
+  var lock=LockService.getScriptLock(),pegou=false;
+  try {
+    if(!prova||typeof prova!=='object')throw Error('Selecione uma mensagem ou informe o comprovante.');
+    var texto=_rxCustoEmailSeguro_(prova.texto,20000),emailId=_rxCustoEmailSeguro_(prova.mensagemId,100);
+    if(!emailId && !texto.trim())throw Error('O comprovante selecionado esta vazio.');
+    if(!prova.confirmacaoExplicita)throw Error('Confirme explicitamente a conclusao do custo.');
+    pegou=lock.tryLock(5000);if(!pegou)throw Error('Outra validacao esta em andamento.');
+    var arquivo=_rxArquivo_(id,atualizadoEm);
+    if(!arquivo.calculadora)throw Error('O custo validado precisa ser uma calculadora.');
+    var mensagem=null,thread=null;
+    if(emailId){
+      if(!_rxCustoGmailDaPessoa_())throw Error('A caixa Gmail do usuario ativo nao esta autorizada. Utilize um comprovante manual.');
+      mensagem=GmailApp.getMessageById(emailId);
+      if(!mensagem)throw Error('O e-mail selecionado nao esta disponivel na sua conta.');
+      thread=mensagem.getThread();
+      if(prova.threadId&&thread.getId()!==String(prova.threadId))throw Error('O e-mail nao pertence a conversa selecionada.');
+      // O usuario escolhe livremente o trecho que vale como comprovante.
+      // A mensagem original continua arquivada em .eml, sem interpretacao automatica.
+      if(!texto.trim())texto=_rxCustoEmailSeguro_(mensagem.getPlainBody(),20000);
+      prova.assunto=mensagem.getSubject();prova.remetente=mensagem.getFrom();prova.data=mensagem.getDate().getTime();
+    }
+    var chamado=_rxCustoChamado_(arquivo.nome),depara=_rxCustoDeparaDoArquivo_(arquivo,chamado);
+    var dados=_rxCustoRegistros_(),registroAnterior=dados.arquivos[id];
+    if(registroAnterior&&_rxCustoRegistroVigente_(registroAnterior,arquivo))
+      throw Error('Esta calculadora ja foi validada. Consulte o arquivo confirmado.');
+    var pendencias='',totais={tiragemValidada:null,valorChamado:null};
+    try {
+      var revisao=_rxRevisaoLer_(arquivo);
+      if(revisao&&revisao.recalculoPendente)throw Error('Existem formulas ainda nao recalculadas.');
+      totais=_rxCustoTotaisRevisados_(revisao);
+    }catch(e){pendencias=e.message||String(e);if(!prova.aceitouPendencias)
+      throw Error('Existem resultados pendentes: '+pendencias+' Confirme que deseja continuar assim mesmo.');}
+    var emails=thread?thread.getMessages():[];
+    if(emails.length>50)throw Error('A conversa possui mais de 50 mensagens. Utilize um comprovante manual para esta validacao.');
+    var pasta=DriveApp.getFolderById(RX_CUSTO_CONFIRMACOES_PASTA),agora=Date.now();
+    var sub=pasta.createFolder('Chamado '+chamado+' - '+agora),copia=arquivo.arquivo.makeCopy(arquivo.nome,sub);
+    var copiaDepara=depara.makeCopy(depara.getName(),sub);
+    var metadados={chamado:chamado,arquivoOriginalId:id,arquivoValidadoId:copia.getId(),
+      deparaOriginalId:depara.getId(),deparaValidadoId:copiaDepara.getId(),
+      comprovante:{origem:emailId?'gmail':'manual',threadId:_rxCustoEmailSeguro_(prova.threadId,100),
+        mensagemId:emailId,assunto:_rxCustoEmailSeguro_(prova.assunto,300),
+        remetente:_rxCustoEmailSeguro_(prova.remetente,300),data:prova.data||null},
+      registradoEm:agora,registradoPor:String(Session.getActiveUser().getEmail()||''),pendencias:pendencias};
+    var html='<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Comprovante do chamado '+
+      _rxCustoHtmlSeguro_(chamado)+'</title><body style="font:14px Arial;color:#13294b;max-width:900px;margin:40px auto">'+
+      '<h1>ARCO · Confirmação de custos</h1><p><b>Chamado:</b> '+_rxCustoHtmlSeguro_(chamado)+
+      '</p><p><b>Assunto:</b> '+_rxCustoHtmlSeguro_(prova.assunto)+
+      '</p><p><b>Remetente:</b> '+_rxCustoHtmlSeguro_(prova.remetente)+
+      '</p><p><b>Registrado por:</b> '+_rxCustoHtmlSeguro_(metadados.registradoPor)+
+      '</p><pre style="white-space:pre-wrap;background:#f4f7fb;padding:20px">'+_rxCustoHtmlSeguro_(texto)+'</pre></body></html>';
+    sub.createFile(Utilities.newBlob(html,'text/html','Comprovante_email.html'));
+    sub.createFile(Utilities.newBlob(JSON.stringify(metadados),'application/json','Registro_validacao.json'));
+    if(thread){
+      emails.forEach(function(m,i){
+        var origem=m.getRawContent();
+        if(origem.length>18*1024*1024)throw Error('Uma das mensagens e grande demais para arquivamento seguro.');
+        sub.createFile(Utilities.newBlob(origem,'message/rfc822',
+          ('00'+(i+1)).slice(-3)+'_email.eml'));
+      });
+    }
+    var registro={id:id,nome:arquivo.nome,chamado:chamado,atualizadoEm:arquivo.atualizadoEm,
+      validadoEm:agora,tiragemValidada:totais.tiragemValidada,valorChamado:totais.valorChamado,
+      arquivoValidadoId:copia.getId(),pastaId:sub.getId(),pendencias:pendencias,
+      mensagemId:emailId,threadId:metadados.comprovante.threadId};
+    dados.arquivos[id]=registro;
+    _rxCustoSugestoes_(dados)[id]={decisao:'validada',em:agora};
+    _rxCustoSalvarRegistros_(dados);
+    return {sucesso:true,id:id,chamado:chamado,validadoEm:agora,atualizadoEm:arquivo.atualizadoEm,
+      tiragemValidada:totais.tiragemValidada,valorChamado:totais.valorChamado,
+      downloadUrl:_rxCustoUrlDownload_(copia.getId()),pastaUrl:sub.getUrl(),pendencias:pendencias};
+  }catch(e){return {erro:e.message||String(e)};}
+  finally{if(pegou)lock.releaseLock();}
+}
+
+function enviarCustoPorEmailNaConversaReentradas(id,atualizadoEm,threadId,mensagem) {
+  try {
+    if(!_rxCustoGmailDaPessoa_())throw Error('O Gmail deve pertencer ao usuario conectado.');
+    var arquivo=_rxArquivo_(id,atualizadoEm),chamado=_rxCustoChamado_(arquivo.nome);
+    var texto=String(mensagem||'').trim();
+    if(!arquivo.calculadora||!texto||texto.length>12000)throw Error('Preencha o texto da validacao de custos.');
+    if(!/^[A-Za-z0-9_-]{10,100}$/.test(String(threadId||'')))throw Error('Selecione uma conversa valida.');
+    var conversa=GmailApp.getThreadById(threadId),emails=conversa&&conversa.getMessages();
+    if(!emails||!emails.length)throw Error('A conversa nao esta disponivel na sua caixa.');
+    var pertence=emails.some(function(m){return (' '+m.getSubject()+' '+m.getPlainBody()).indexOf(chamado)>=0;});
+    if(!pertence)throw Error('A conversa nao menciona o numero do chamado selecionado.');
+    conversa.replyAll(texto,{attachments:[arquivo.arquivo.getBlob().setName(arquivo.nome)]});
+    return {sucesso:true,mensagem:'Validacao de custos enviada como resposta na conversa selecionada.'};
+  }catch(e){return {erro:e.message||String(e)};}
+}
 
 function _rxCustoChamado_(nome) {
   var match = /\bCHAMADO\s+(\d+)\.xlsx$/i.exec(String(nome || ''));
@@ -83,7 +253,7 @@ function _rxCustoTotaisRevisados_(modelo){
 }
 
 // Nunca e chamado durante a geracao nem ao simplesmente abrir o arquivo.
-function marcarCustoValidadoReentradas(id, atualizadoEm) {
+function _rxCustoAceiteLegadoDesativado_(id, atualizadoEm) {
   var lock = LockService.getScriptLock(), pegou = false;
   try {
     if (!/^\d{10,16}$/.test(String(atualizadoEm || '')) ||
@@ -111,13 +281,18 @@ function marcarCustoValidadoReentradas(id, atualizadoEm) {
   finally { if (pegou) lock.releaseLock(); }
 }
 
+function marcarCustoValidadoReentradas() {
+  return {erro:'O Custo Validado agora exige a selecao manual do comprovante na etapa E-mails e confirmacao.'};
+}
+
 function _rxCustoListaDeArquivos_(arquivos) {
   var registros = _rxCustoRegistros_().arquivos;
   arquivos.forEach(function(arquivo) {
     var r = registros[arquivo.id];
     if (_rxCustoRegistroVigente_(r, arquivo)) {
       arquivo.validadoEm = r.validadoEm;
-      arquivo.downloadUrl = _rxCustoUrlDownload_(arquivo.id);
+      arquivo.downloadUrl = _rxCustoUrlDownload_(r.arquivoValidadoId || arquivo.id);
+      arquivo.pastaId = r.pastaId || '';
     }
   });
 }
@@ -152,7 +327,8 @@ function _rxCustoResumoChamados_() {
       var atual = atuais[id];
       porChamado[r.chamado] = Object.assign({},anterior||{},{ultimaValidacaoEm: r.validadoEm,
         tiragemValidada:r.tiragemValidada,valorChamado:r.valorChamado,
-        downloadUrl: atual && _rxCustoRegistroVigente_(r, atual) ? _rxCustoUrlDownload_(id) : ''});
+        pastaId:r.pastaId||'',
+        downloadUrl: atual && _rxCustoRegistroVigente_(r, atual) ? _rxCustoUrlDownload_(r.arquivoValidadoId || id) : ''});
     }
   });
   return porChamado;

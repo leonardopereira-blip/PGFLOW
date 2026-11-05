@@ -132,6 +132,9 @@ function listarUltimasReentradasSPG(todos) {
           if (registro) {
             item.ultimaValidacaoEm = registro.ultimaValidacaoEm;
             item.downloadUrl = registro.downloadUrl;
+            item.pastaId = registro.pastaId;
+            item.tiragemValidada = registro.tiragemValidada;
+            item.valorChamado = registro.valorChamado;
             item.ultimoGeradoEm = registro.ultimoGeradoEm;
             item.ultimoArquivoId = registro.ultimoArquivoId;
           }

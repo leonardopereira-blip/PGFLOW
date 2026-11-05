@@ -1,0 +1,59 @@
+name: Inspecionar divergencias do HEAD Google
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/inspecionar-head-google.yml
+
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ler versao do Apps Script sem alterar o projeto
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {initAuth} from './node_modules/@google/clasp/build/src/auth/auth.js';
+          import {initClaspInstance} from './node_modules/@google/clasp/build/src/core/clasp.js';
+
+          if (!process.env.CLASPRC_JSON) throw new Error('Credencial de leitura indisponivel.');
+          fs.writeFileSync(path.join(os.homedir(), '.clasprc.json'), process.env.CLASPRC_JSON, {mode:0o600});
+          const {credentials} = await initAuth({});
+          if (!credentials) throw new Error('Autenticacao indisponivel.');
+          const clasp = await initClaspInstance({credentials});
+          const atual = await clasp.files.fetchRemote();
+          const base = JSON.parse(fs.readFileSync('.github/pgflow-base-google.json', 'utf8'));
+          const hash = s => createHash('sha256').update(s.replace(/\r\n/g, '\n')).digest('hex');
+          const divergencias = atual.filter(file => base.files[`${file.type}:${file.remotePath}`] !== hash(file.source));
+          fs.mkdirSync('inspecao-google', {recursive:true});
+          const resumo = divergencias.map(file => ({chave:`${file.type}:${file.remotePath}`, hash:hash(file.source)}));
+          fs.writeFileSync('inspecao-google/resumo.json', JSON.stringify({total:atual.length, divergencias:resumo}, null, 2));
+          for (const [index,file] of divergencias.entries()) {
+            const extensao = file.type === 'HTML' ? '.html' : file.type === 'JSON' ? '.json' : '.js';
+            fs.writeFileSync(`inspecao-google/alterado-${String(index+1).padStart(2,'0')}${extensao}`,file.source);
+          }
+          console.log(`HEAD consultado sem gravacoes. ${atual.length} arquivos; ${divergencias.length} divergencias: ${resumo.map(x=>x.chave).join(', ')}`);
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: inspecao-google-head
+          path: inspecao-google/
+          retention-days: 1
+      - name: Remover autenticacao temporaria
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"

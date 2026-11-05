@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 2
           persist-credentials: false
 
       - uses: actions/setup-node@v4
@@ -75,6 +76,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
           import { createHash } from 'node:crypto';
           import { isDeepStrictEqual } from 'node:util';
           import { initAuth } from './node_modules/@google/clasp/build/src/auth/auth.js';
@@ -96,8 +98,26 @@ jobs:
             if (base.scriptId !== clasp.options.project.scriptId) throw new Error('BASE_TARGET_MISMATCH');
             const antes = await clasp.files.fetchRemote();
             const hashesAntes = hashes(antes);
-            // Aceita repeticao e bloqueia diferencas externas detectadas nesta leitura.
-            if (!isDeepStrictEqual(base.files, hashesAntes) && !isDeepStrictEqual(hashes(locais), hashesAntes)) {
+            // Usa o commit pai como uma terceira base verificavel. Assim, depois
+            // de um envio bem-sucedido, o proximo commit nao fica preso a hashes
+            // manuais desatualizados. Se houve edicao real no Google, bloqueia.
+            const anterior = new Map();
+            const nomesAnteriores = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD^'], {encoding:'utf8'})
+              .trim().split(/\r?\n/).filter(p => !p.includes('/') && (/\.(?:js|gs|html)$/.test(p) || p === 'appsscript.json'));
+            for (const p of nomesAnteriores) {
+              const tipo = p === 'appsscript.json' ? 'JSON' : p.endsWith('.html') ? 'HTML' : 'SERVER_JS';
+              const nome = p.replace(/\.(?:js|gs|html|json)$/, '');
+              anterior.set(`${tipo}:${nome}`, execFileSync('git', ['show', `HEAD^:${p}`],
+                {encoding:'utf8',maxBuffer:10000000}));
+            }
+            const anteriorIgual = anterior.size === antes.length && antes.every(file => {
+              const fonte = anterior.get(chave(file));
+              if (fonte === undefined) return false;
+              if (file.type === 'JSON') return isDeepStrictEqual(JSON.parse(fonte), JSON.parse(file.source));
+              return fonte.replace(/\r\n/g, '\n') === file.source.replace(/\r\n/g, '\n');
+            });
+            if (!isDeepStrictEqual(base.files, hashesAntes) &&
+                !isDeepStrictEqual(hashes(locais), hashesAntes) && !anteriorIgual) {
               throw new Error('REMOTE_CHANGED');
             }
 

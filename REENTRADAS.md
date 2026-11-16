@@ -1,6 +1,8 @@
 # Validacao de custos de reentradas
 
-As calculadoras de Logprint, Casa da Grafica, Forma Certa, Meta e Reproset usam moldes incorporados ao codigo. O De-Para e comum. Cada calculadora preserva as formulas, precos, abas e estilos do arquivo recebido. O portal gera De-Para e calculadora em XLSX, sem VBA; o Excel recalcula as formulas ao abrir.
+As calculadoras de Logprint, Casa da Grafica, Forma Certa, Meta, Reproset e Posigraf (Principal) usam moldes incorporados ao codigo. O De-Para e comum. Cada calculadora preserva as formulas, precos, abas e estilos do arquivo recebido. O portal gera De-Para e calculadora em XLSX, sem VBA; o Excel recalcula as formulas ao abrir.
+
+O DEV usa como base a versao 116 do Apps Script (fontes identicas ao commit 79aaee2), com a unica inclusao da Posigraf (Principal) nas reentradas. Esse nome identifica o molde recebido `CALCULADORA POSIGRAF - LIVROS PRINCIPAIS COL 2027.xlsx`: e a calculadora de principais disponibilizada para reentradas, pois nao foi fornecido um molde Posigraf de reentradas. A integracao respeita a aba Especificacoes, as colunas proprias da CALC Geral, CALC Manuseio e TAB Servico, sem alterar formulas ou tarifas.
 
 ## Origem dos dados
 

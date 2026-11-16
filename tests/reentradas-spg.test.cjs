@@ -282,8 +282,8 @@ test('resumo nao oculta falhas de API como chamado com tiragem zero',()=>{
 
 test('lista de graficas de reentradas nao depende de Sheets nem inclui graficas sem calculadora',()=>{
   const graficas=context.listarPastasGraficasReentradasSPG();
-  assert.deepEqual(Array.from(graficas,g=>g.id),['LOGPRINT','CASADAGRAFICA','FORMACERTA','META','REPROSET']);
-  assert.equal(new Set(graficas.map(g=>g.id)).size,5);
+  assert.deepEqual(Array.from(graficas,g=>g.id),['LOGPRINT','CASADAGRAFICA','FORMACERTA','META','REPROSET','POSIGRAFPRINCIPAL']);
+  assert.equal(new Set(graficas.map(g=>g.id)).size,6);
   const ui=fs.readFileSync(path.join(__dirname,'..','ValidaInterface.html'),'utf8');
   assert.match(ui,/listarPastasGraficasReentradasSPG/);
   assert.doesNotMatch(ui,/\.obterPastasGraficas\(/);

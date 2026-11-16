@@ -15,7 +15,7 @@ function screen(){
       get textContent(){return text},set textContent(v){text=String(v);this.children=[]},
       classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),
         toggle(x,on){if(on===undefined)on=!classes.has(x);on?classes.add(x):classes.delete(x)}},
-      appendChild(x){this.children.push(x);return x},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},insertBefore(x,other){const i=this.children.indexOf(other);this.children.splice(i<0?0:i,0,x);return x},setAttribute(k,v){this[k]=v},
+      appendChild(x){this.children.push(x);return x},setAttribute(k,v){this[k]=v},
       querySelector(selector){return selector==='input'?this.children.find(x=>x.tag==='input')||null:null},
       focus(){},select(){}};
   }
@@ -77,109 +77,6 @@ test('cancelar restauração não grava; confirmação impede duplicação e sa�
   assert.match(s.el('rxListaStatus').textContent,/Falha controlada/);c.rxFechar();assert.equal(s.el('rxOverlay').hidden,true);
 });
 
-test('Custo Validado requer comprovante escolhido, confirmacao e arquiva download',()=>{
-  const s=screen(),c=s.context,calc={...file,calculadora:true,
-    nome:'CALCULADORA FORNECEDOR LOGPRINT - CHAMADO 3127.xlsx'};
-  c.rxAbrirArquivo(calc);
-  s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
-  assert.equal(s.el('rxCustoValidado').disabled,false);
-  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};c.rxRenderPagina();
-  assert.equal(s.el('rxCustoValidado').disabled,true);
-  c.rxFinalizarCusto();assert.equal(s.requests.length,1);
-  c.rxPendente={};c.rxRenderPagina();c.rxAbrirConfirmacao();
-  assert.equal(s.request().method,'obterConfirmacoesEmailCustoReentradas');
-  assert.deepEqual(s.request().args,[calc.id,calc.atualizadoEm,'',0]);
-  s.request().success({emails:[],sucesso:true,sugestaoJaTratada:false});
-  s.el('rxEmailTrecho').value='Trecho selecionado livremente pelo usuário';c.rxAtualizarAceite();
-  assert.equal(s.el('rxEmailValidar').disabled,false);
-  c.rxFinalizarCusto();
-  assert.equal(s.request().method,'confirmarCustoComEmailReentradas');
-  assert.deepEqual(s.request().args.slice(0,2),[calc.id,calc.atualizadoEm]);
-  assert.equal(s.request().args[2].confirmacaoExplicita,true);
-  assert.equal(s.request().args[2].texto,'Trecho selecionado livremente pelo usuário');
-  assert.equal(s.el('rxCustoValidado').disabled,true);
-  const url='https://drive.google.com/uc?export=download&id='+calc.id;
-  s.request().success({sucesso:true,id:calc.id,chamado:'3127',atualizadoEm:calc.atualizadoEm,
-    validadoEm:1730000000000,downloadUrl:url});
-  assert.equal(s.el('rxBaixarValidado').hidden,false);
-  assert.equal(s.el('rxBaixarValidado').href,url);
-  assert.match(s.el('rxValidacaoStatus').textContent,/Validado em/);
-  c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'corrigido'}};c.rxSalvarEdicoes();
-  s.request().success({sucesso:true,id:calc.id,atualizadoEm:1730000001000});
-  assert.equal(s.el('rxBaixarValidado').hidden,true);
-});
-
-test('menu oferece custo validado independente e separa responder de registrar',()=>{
-  const s=screen(),c=s.context,calc={...file,calculadora:true},depara={...file,id:'OUTRO_ARQUIVO_12345',
-    nome:'PLANILHA DE PARA PPG LOGPRINT.xlsx',calculadora:false};
-  assert.match(html,/Registrar custo validado/);
-  c.rxEntrarConfirmacaoIndependente();
-  assert.equal(s.el('rxEntradaReentradas').hidden,true);
-  assert.equal(s.el('rxFluxoGeracao').hidden,true);
-  assert.equal(s.request().method,'listarArquivosReentradasExcel');
-  s.request().success({arquivos:[calc,depara]});
-  assert.equal(s.el('rxListaArquivos').children.length,1,'de-para nao entra na lista de confirmacao');
-  const botao=s.el('rxListaArquivos').children[0].children[1].children[0];
-  assert.equal(botao.textContent,'Analisar resposta');botao.onclick();
-  assert.equal(s.request().method,'obterConfirmacoesEmailCustoReentradas');
-  assert.equal(s.el('rxCostWorkspace').hidden,true);
-  assert.equal(s.el('rxEditorActions').hidden,true);
-  assert.equal(s.el('rxEmailComprovanteCard').hidden,false);
-  assert.equal(s.el('rxEmailEnvioCard').hidden,true);
-  assert.equal(c.rxPagina,null,'registrar custo nao exige carregar a grade de custos');
-  s.request().success({sucesso:true,emails:[]});
-  s.el('rxEmailTrecho').value='Aprovamos os valores do chamado 3106';
-  s.el('rxEmailAssunto').value='Validação de custos 3106';
-  s.el('rxEmailRemetente').value='grafica@fornecedor.com';
-  c.rxAtualizarAceite();c.rxFinalizarCusto();
-  assert.equal(s.request().method,'confirmarCustoComEmailReentradas');
-  assert.equal(s.request().args[2].aceitouAnaliseManual,true);
-  c.rxSelecionarModoEmail('responder');
-  assert.equal(s.el('rxEmailEnvioCard').hidden,false);
-  assert.equal(s.el('rxEmailComprovanteCard').hidden,true);
-});
-
-test('a validação abre expandida e Recalcular consulta o script sem salvar nem navegar',()=>{
-  const s=screen(),c=s.context,calc={...file,calculadora:true};
-  c.rxAbrirLista();assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
-  const resumo={abas:[{nome:'CALC Geral',totalColunas:10,linhas:[
-    {numero:3,valores:{3:'CÓDIGO SKU',5:'AVULSO ACAB',6:'AVULSO GRAF',7:'KIT S/ MALETA',8:'KIT C/ MALETA',9:'TOTAL'}},
-    {numero:4,valores:{9:'Exemplares'}},
-    {numero:6,valores:{3:'SKU-3106',5:'800',6:'0',7:'0',8:'0',9:'30'}}]}]};
-  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:resumo,formulas:{},
-    faixasFormulas:[{aba:0,x1:10,x2:10,y1:6,y2:6}]});
-  assert.equal(s.el('rxOverlay').classList.contains('rx-wide'),true);
-  assert.equal(s.el('rxExpandir').textContent,'Reduzir');
-  const chamadas=s.requests.length;
-  c.rxPendente={'0:6:6':{aba:0,linha:6,coluna:6,valor:'1200'}};
-  c.rxRecalcular();
-  assert.equal(s.requests.length,chamadas+1);
-  assert.equal(s.request().method,'recalcularImpactosReentradas');
-  assert.equal(s.request().args[2][0].valor,'1200');
-  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,duracaoMs:230,
-    resultados:[{aba:0,linha:6,coluna:10,valor:1200}],pendentes:[],avisos:[]});
-  assert.equal(c.rxCalculados['0:6:10'],'1200');
-  assert.equal(s.el('rxPrepararPane').hidden,true);
-  assert.match(s.el('rxMsg').textContent,/1 resultados/);
-  c.rxRecalcular();assert.equal(s.request().method,'recalcularImpactosReentradas','o botao deve recalcular novamente se o usuario desejar');
-  s.request().success({sucesso:true,id:calc.id,atualizadoEm:calc.atualizadoEm,duracaoMs:40,
-    resultados:[{aba:0,linha:6,coluna:10,valor:1200}],pendentes:[],avisos:[]});
-  assert.equal(c.rxCalculados['0:6:10'],'1200');
-});
-
-test('sugestao de e-mail pode ser ignorada uma unica vez por calculadora',()=>{
-  const s=screen(),c=s.context,calc={...file,calculadora:true};
-  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:conjunto,formulas:{}});
-  c.rxAbrirConfirmacao();const msg={id:'MENSAGEM123',assunto:'Custo validado 3127',remetente:'grafica@fornecedor.com',data:1730000000000,trecho:'OK, de acordo'};
-  s.request().success({sucesso:true,emails:[{id:'THREAD123456789',assunto:'3127',mensagens:[msg]}],
-    sugestaoJaTratada:false,sugestao:{mensagem:msg,threadId:'THREAD123456789'}});
-  assert.equal(s.el('rxEmailAviso').hidden,false);
-  c.rxIgnorarSugestao();assert.equal(s.request().method,'ignorarSugestaoEmailCustoReentradas');
-  s.request().success({sucesso:true});assert.equal(s.el('rxEmailAviso').hidden,true);
-  c.rxCarregarConfirmacoes();s.request().success({sucesso:true,emails:[{id:'THREAD123456789',mensagens:[msg]}],sugestaoJaTratada:true});
-  assert.equal(s.el('rxEmailAviso').hidden,true);
-});
-
 test('fórmula com valor cacheado fica protegida pela coordenada sem impedir editar texto',()=>{
   const s=screen(),c=s.context;open(s);
   const row=s.el('rxCorpo').children[0],formula=row.children[1],texto=row.children[2];
@@ -187,36 +84,6 @@ test('fórmula com valor cacheado fica protegida pela coordenada sem impedir edi
   formula.ondblclick();assert.equal(formula.children.length,0);assert.match(s.el('rxMsg').textContent,/Fórmulas/);
   texto.ondblclick();const input=texto.children[0];input.value='alterado';input.onblur();
   assert.deepEqual(plain(c.rxPendente),{'0:5:2':{aba:0,linha:5,coluna:2,valor:'alterado'}});
-});
-test('valores conhecidos permanecem visíveis durante conferência de recálculo pendente',()=>{
-  const s=screen(),c=s.context;open(s);
-  c.rxArquivo.recalculoPendente=true;c.rxRenderPagina();
-  const primeira=s.el('rxCorpo').children[0].children[1];
-  assert.equal(primeira.textContent,'20','uma revisão pendente não pode esconder valores existentes');
-  assert.match(primeira.className,/rx-calc-stale/);
-  assert.doesNotMatch(primeira.className,/rx-calc-pending/);
-});
-
-test('Especificacoes apresenta titulo/subtitulo e permite separar Nao editorial em aba virtual persistida',()=>{
-  const s=screen(),c=s.context,calc={...file,calculadora:true},
-    nomes=['PPG - Especificações'],valores={0:'SKU-3106',1:'Não editorial',2:'205x275'},
-    dados={abas:[{nome:nomes[0],totalColunas:3,linhas:[
-      {numero:3,valores:{0:'CÓDIGO SKU',1:'CLASSIFICAÇÃO DO MATERIAL',2:'FORMATO'}},
-      {numero:4,valores:{2:'mm'}},{numero:5,valores}]}]},
-    quadro={indices:[0,1,2],cabecalhoAte:4,ultimaLinha:5,
-      topo:[{numero:3,valores:{0:'CÓDIGO SKU',1:'CLASSIFICAÇÃO DO MATERIAL',2:'FORMATO'}},{numero:4,valores:{2:'mm'}}]};
-  c.rxAbrirArquivo(calc);s.request().success({arquivo:calc,previaExcel:dados,quadro,naoEditoriais:[],formulas:{}});
-  const headers=s.el('rxCab').children.at(-1).children;
-  assert.equal(headers[1].textContent,'CÓDIGO SKU');
-  assert.equal(headers[3].children[0].textContent,'mm');
-  const sku=s.el('rxCorpo').children[0].children[1];
-  const botao=sku.children[0];assert.equal(botao.textContent,'Separar');botao.onclick({stopPropagation(){}});
-  assert.equal(s.request().method,'separarNaoEditorialReentradas');
-  s.request().success({sucesso:true,naoEditoriais:[{aba:0,linha:5}]});
-  assert.equal(c.rxNomesAbas.at(-1),'Não editorial');
-  assert.equal(c.rxPagina.totalFiltradas,1);
-  assert.equal(c.rxPagina.linhas[0].numero,5);
-  assert.equal(c.rxPagina.aba,1);
 });
 
 test('células dependentes de fórmula matricial ou compartilhada são protegidas por intervalo',()=>{
@@ -266,8 +133,8 @@ test('salvamento preserva pendências em erro ou confirmação incompleta e mant
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:'outro',atualizadoEm:2000});assert.equal(c.rxTemEdicoes(),true);
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:file.id,atualizadoEm:2000});
   assert.equal(c.rxTemEdicoes(),false);assert.equal(c.rxArquivo.atualizadoEm,2000);
-  assert.equal(s.el('rxPrepararPane').hidden,true);
-  assert.equal(s.request().method,'salvarEdicoesReentradasExcel','salvar preserva a revisão sem recarregar tudo');
+  assert.equal(s.request().method,'obterPreviaReentradasExcel');assert.equal(s.request().args[0].id,file.id);
+  assert.equal(s.request().args[0].atualizadoEm,2000);
 });
 
 test('conjunto leve muda página e busca localmente sem nova consulta ou perder edição',()=>{
@@ -360,16 +227,15 @@ test('trocas rápidas reutilizam leitura em andamento e resposta atrasada não t
   assert.equal(c.rxPagina.aba,1);
 });
 
-test('salvamento preserva a aba atual, mas invalida respostas antigas de outras abas',()=>{
+test('novo arquivo e salvamento confirmado descartam cache e respostas da revisão anterior',()=>{
   const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
   c.rxSelecionarAba(1);const oldSheet=s.request();c.rxSelecionarAba(0);
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'novo'}};
   c.rxSalvarEdicoes();s.request().success({sucesso:true,id:file.id,atualizadoEm:2000});
-  assert.equal(c.rxEstado.aba,0);assert.equal(s.el('rxPrepararPane').hidden,true);
-  oldSheet.success(sheetResponse(1));
+  const reloaded=s.request();assert.equal(reloaded.args[0].atualizadoEm,2000);
+  oldSheet.success(sheetResponse(1));reloaded.success(sheetResponse(0,{arquivo:{...file,atualizadoEm:2000}}));
   const count=s.requests.length;c.rxSelecionarAba(1);
-  assert.equal(s.requests.length,count+1,'a aba nao carregada precisa ser lida na versao nova');
-  assert.equal(s.request().args[0].atualizadoEm,2000);
+  assert.equal(s.requests.length,count+1,'a aba da revisão antiga precisa ser lida novamente');
   const previousFileRequest=s.request(),other={...file,id:'OUTRO_ARQUIVO_1234567890',atualizadoEm:3000};
   c.rxAbrirArquivo(other);const otherRequest=s.request();
   previousFileRequest.success(sheetResponse(1));
@@ -417,7 +283,7 @@ test('clique simples e Enter respeitam fórmulas e mesclagens e permitem editar 
   assert.equal(c.rxPendente['0:5:3'].valor,'valor novo');assert.equal(prevented,4);
 });
 
-test('Excel salvo com revisão pendente conserva os dados atuais sem abrir tela vazia',()=>{
+test('Excel salvo com revisão pendente confirma dados e oferece preparação sem nova leitura automática',()=>{
   const s=screen(),c=s.context;c.rxAbrirArquivo(file);s.request().success(sheetResponse(0));
   c.rxPendente={'0:5:2':{aba:0,linha:5,coluna:2,valor:'salvo'}};
   c.rxSalvarEdicoes();const save=s.request(),count=s.requests.length;
@@ -426,9 +292,9 @@ test('Excel salvo com revisão pendente conserva os dados atuais sem abrir tela 
   assert.equal(s.requests.length,count,'revisão pendente deve aguardar preparação explícita');
   assert.equal(c.rxTemEdicoes(),false);assert.equal(c.rxArquivo.atualizadoEm,2000);
   assert.equal(c.rxOcupado,false);assert.equal(s.el('rxSalvar').disabled,true);
-  assert.equal(s.el('rxPrepararPane').hidden,true);
-  assert.match(s.el('rxMsg').textContent,/Alterações salvas/);
-  assert.equal(c.rxPagina.aba,0);
+  assert.equal(s.el('rxPrepararPane').hidden,false);assert.match(s.el('rxMsg').textContent,/salvo e conferido/);
+  c.rxPrepararRevisao();assert.equal(s.request().method,'prepararRevisaoReentradasExcel');
+  assert.deepEqual(s.request().args,[file.id,2000]);
 });
 
 test('busca cancelada ao fechar não reinicia a posição de uma nova sessão do arquivo',()=>{

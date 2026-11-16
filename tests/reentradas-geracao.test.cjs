@@ -8,10 +8,13 @@ const GRAFICAS=[
   {id:'CASADAGRAFICA',nome:'Casa da Gráfica',molde:'CasaDaGrafica'},
   {id:'FORMACERTA',nome:'Forma Certa',molde:'FormaCerta',skus:31},
   {id:'META',nome:'Meta',molde:'Meta'},
-  {id:'REPROSET',nome:'Reproset',molde:'Reproset'}
+  {id:'REPROSET',nome:'Reproset',molde:'Reproset'},
+  {id:'POSIGRAFPRINCIPAL',nome:'Posigraf (Principal)',molde:'PosigrafPrincipal'}
 ];
 const SEM_ENTRADA=['CALC Digital','CALC Plana','CALC Rotativa','CALC Acabamento',
   'TAB Regras','TAB Formatos','TAB Papel','TAB Impressão','TAB Acabamento','TAB Versões'];
+const SEM_ENTRADA_POSIGRAF=['CALC Digital','CALC Plana','CALC Rotativa','CALC Acabamento',
+  'CALC Manuseio','TAB Regras','TAB Formatos','TAB Papel','TAB Serviço','TAB Versões'];
 const sha=texto=>crypto.createHash('sha256').update(texto).digest('hex');
 const semProtecao=xml=>xml.replace(/<sheetProtection\b[^>]*(?:\/>|>[\s\S]*?<\/sheetProtection>)/g,'');
 const linha=(xml,n)=>{
@@ -64,6 +67,8 @@ function prepararMatrizes(app,grafica,skus){
 
 for(const g of GRAFICAS){
   test(g.nome+': geracao completa de De-Para e calculadora usa seu molde, novas entradas e formulas originais',()=>{
+    const posigraf=g.id==='POSIGRAFPRINCIPAL';
+    const abaEspecificacoes=posigraf?'Especificações':'PPG Especificações';
     const criados=[],pastas=[];
     const app=mx.carregarApps(['MoldeXlsx.js','MoldeLogprintDepara.js','Molde'+g.molde+'Calc.js',
       'ValidaReentradasSPG.js','ReentradasFormaCerta.js','MacroProtecao.js','ProtecaoLogprint.js','MoldeCasaDaGraficaCalc.js','ReentradasElegibilidade.js'],{
@@ -110,7 +115,7 @@ for(const g of GRAFICAS){
       assert.doesNotMatch(calc.mapa['[Content_Types].xml'].getDataAsString(),/macroEnabled|vbaProject/);
       const ler=(arquivo,nome)=>arquivo.mapa[caminho(arquivo,nome)].getDataAsString();
       const molde=app._reSpMoldesCache_[g.id+'|calc'];
-      for(const nome of SEM_ENTRADA){
+      for(const nome of posigraf?SEM_ENTRADA_POSIGRAF:SEM_ENTRADA){
         const parte=caminho(calc,nome),saida=calc.mapa[parte].getDataAsString();
         const orig=app._mxGerarAba_(molde.abas[parte]);
         const comparar=g.id==='LOGPRINT'&&nome==='TAB Papel'?s=>semProtecao(s).replace(/<cols\b[^>]*>[\s\S]*?<\/cols>/,'').replace(/\s(?:s|customFormat)="\d+"/g,''):g.id==='LOGPRINT'?semProtecao:s=>s;
@@ -129,19 +134,20 @@ for(const g of GRAFICAS){
       assert.deepEqual(hashFormulas(geral),hashFormulas(linhasUsadas),
         'formulas necessarias foram alteradas ou sobraram formulas apos o ultimo SKU');
       const primeira=celulas(linha(geral,6)),forma=g.id==='FORMACERTA';
-      const valores=forma?{C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'111',H6:'222',X6:'PLANA',AA6:'ARCO'}:
+      const valores=forma?{C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'111',H6:'222',X6:'PLANA',AA6:'ARCO'}:posigraf?
+        {C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'0',H6:'111',I6:'222',Z6:'PLANA',AC6:'ARCO'}:
         {C6:'Chamado 9876',D6:skus[0],F6:'100',G6:'0',H6:'111',I6:'222',Y6:'PLANA',AB6:'ARCO'};
       for(const [ref,v] of Object.entries(valores))assert.equal(valor(app,primeira,ref),v,ref);
       assert.equal(valor(app,celulas(linha(geral,qtd+5)),'D'+(qtd+5)),skus.at(-1));
       assert.doesNotMatch(geral,new RegExp('<row r="'+(qtd+6)+'"'), 'linha excedente do molde permaneceu');
-      assert.ok(ler(calc,'PPG Especificações').includes(skus[0]),'especificacao nao chegou a calculadora');
+      assert.ok(ler(calc,abaEspecificacoes).includes(skus[0]),'especificacao nao chegou a calculadora');
       const t=app._reSpMatriz_(depara,'PPG - Tiragem');
       assert.equal(t.linhas.length,qtd+2);
       assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'1. ID_Código SKU'),Number(skus[0]));
       assert.equal(app._reSpBuscar_(t.linhas[0],t.headers,'16. TIR_SKU'),100);
       assert.doesNotMatch(primeira.get('D6'),/t="inlineStr"/,'CALC Geral SKU numerico virou texto');
-      assert.match(celulas(ler(calc,'PPG Especificações')).get('C5'),/<v>200713648<\/v>/);
-      assert.match(celulas(ler(calc,'PPG Especificações')).get('C6'),/t="inlineStr"/);
+      assert.match(celulas(ler(calc,abaEspecificacoes)).get('C5'),/<v>200713648<\/v>/);
+      assert.match(celulas(ler(calc,abaEspecificacoes)).get('C6'),/t="inlineStr"/);
       for(const [aba,refs] of [['PPG - Especificações',['B2']],['PPG - Arvore de Produto',['A2','D3']],
         ['PPG - Tiragem',['A2','D2']],['NC - PPG Especificações',['C6']],['NC - CALC Geral',['A4','B4','L4']]]){
         const cells=celulas(ler(depara,aba));

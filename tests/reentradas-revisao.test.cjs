@@ -10,7 +10,7 @@ const XML='<worksheet><dimension ref="A1:D6"/><sheetData><row r="1"><c r="A1" t=
 function ambiente(){
   let mtime=1800000000000,sourceReads=0,imports=0,snapshotWrites=0,folder=null;
   const files=new Map(),id='SOURCE_FILE_1234567890',nome='CALCULADORA FORNECEDOR META - CHAMADO 123.xlsx';
-  const app=mx.carregarApps(['MoldeXlsx.js','ValidaReentradasSPG.js','MacroProtecao.js','PreviaExcelEmail.js','ReentradasExcel.js','ReentradasDependencias.js','ReentradasAvaliador.js','ReentradasRevisao.js']);
+  const app=mx.carregarApps(['ValidaReentradasSPG.js','MacroProtecao.js','PreviaExcelEmail.js','ReentradasExcel.js','ReentradasRevisao.js']);
   const u=app.Utilities,blob=(data,type,name)=>{const b=u.newBlob(data,type,name);b.setName=n=>{name=n;return b};b.getName=()=>name;return b};
   const gzip=u.gzip;u.gzip=b=>{const z=gzip(b);return blob(z.getBytes(),'application/gzip','snapshot.gz')};
   const partes=[['xl/workbook.xml',WB],['xl/_rels/workbook.xml.rels',REL],['xl/sharedStrings.xml','<sst><si><t>Titulo</t></si></sst>'],['xl/worksheets/sheet1.xml',XML],['xl/worksheets/sheet2.xml',XML]].map(([n,t])=>blob(t,'application/xml',n));
@@ -33,12 +33,8 @@ test('modelo nasce das partes finais em memoria e compacta protecao sem modifica
   assert.equal(m.abas[0].linhas[0].valores[0],'Titulo');
   assert(m.faixasFormulas.some(f=>f.aba===0&&f.x1===2&&f.x2===3&&f.y1===5&&f.y2===6));
   assert(m.faixasFormulas.some(f=>f.aba===0&&f.x1===3&&f.x2===4&&f.y1===5&&f.y2===6));
-  assert(m.padroesCalculo.length>0,'expressoes precisam ficar disponiveis para a futura cadeia de dependencias');
-  const faixa=m.posicoesCalculo[0][1].find(f=>f[0]<=5&&f[1]>=5);
-  assert.equal(formulaExpandida(m,faixa,5),'A5');
   assert.deepEqual(plain(m.mesclagens[0]),{x1:1,x2:2,y1:1,y2:1,aba:0});
 });
-function formulaExpandida(modelo,faixa,linha){return modelo.padroesCalculo[faixa[2]].replace(/\u0001(-?\d+)\u0002/g,(_,offset)=>String(linha+Number(offset)));}
 test('consulta e troca de aba leem apenas o JSON preparado; ausencia e versao externa nao abrem XLSX',()=>{
   const s=ambiente(),a=s.app;
   assert.equal(a.obterPreviaReentradasExcel({id:s.id,porAba:true}).codigo,'REVISAO_AUSENTE');assert.equal(s.reads(),0);
@@ -50,30 +46,6 @@ test('consulta e troca de aba leem apenas o JSON preparado; ausencia e versao ex
   s.time(1800000001000);assert.equal(a.obterPreviaReentradasExcel({id:s.id}).codigo,'REVISAO_DESATUALIZADA');
   assert.equal(s.reads(),0);assert.equal(s.writes(),1);
 });
-test('endpoint de recálculo usa revisão já preparada, calcula dependente e nunca salva o arquivo',()=>{
-  const s=ambiente(),a=s.app;s.prepare();const antes=s.writes();
-  const r=a.recalcularImpactosReentradas(s.id,1800000000000,
-    [{aba:0,linha:5,coluna:1,valor:'SKU NOVO'}]);
-  assert.equal(r.sucesso,true,r.erro);
-  assert(r.resultados.some(x=>x.aba===0&&x.linha===5&&x.coluna===2&&x.valor==='SKU NOVO'));
-  assert.equal(s.writes(),antes);assert.equal(s.reads(),0);
-});
-test('revisão antiga é preparada uma só vez para recálculo sem perder itens separados',()=>{
-  const s=ambiente(),a=s.app,antigo=s.prepare();
-  antigo.naoEditoriais=[{aba:0,linha:5}];
-  delete antigo.padroesCalculo;delete antigo.posicoesCalculo;
-  a._rxRevisaoSalvar_(s.arq(),antigo);
-  s.allowImport();
-  const r=a.recalcularImpactosReentradas(s.id,1800000000000,
-    [{aba:0,linha:5,coluna:1,valor:'SKU MODIFICADO'}]);
-  assert.equal(r.sucesso,true,r.erro);
-  assert.equal(s.reads(),1,'o arquivo fonte é consultado somente na migração');
-  assert.deepEqual(plain(a._rxRevisaoLer_(s.arq()).naoEditoriais),[{aba:0,linha:5}]);
-  const segundo=a.recalcularImpactosReentradas(s.id,1800000000000,
-    [{aba:0,linha:5,coluna:1,valor:'SKU NOVO'}]);
-  assert.equal(segundo.sucesso,true,segundo.erro);
-  assert.equal(s.reads(),1,'recalcular novamente reutiliza o modelo');
-});
 test('preparo explicito importa uma vez; atualizar snapshot preserva o arquivo e substitui o JSON tecnico',()=>{
   const s=ambiente(),a=s.app;s.allowImport();
   const r=a.prepararRevisaoReentradasExcel(s.id,1800000000000);
@@ -83,7 +55,7 @@ test('preparo explicito importa uma vez; atualizar snapshot preserva o arquivo e
   assert.equal(a.obterPreviaReentradasExcel({id:s.id,porAba:true}).arquivo.atualizadoEm,1800000002000);
   assert.equal(s.reads(),1);
 });
-test('exportacao grava arquivo primeiro e pode adiar a revisao sem calcular tudo no caminho critico',()=>{
+test('geracao prepara modelo antes de criar XLSX e nunca o reabre para criar revisao',()=>{
   const s=ambiente(),a=s.app,events=[];
   const model=a._rxRevisaoMontar_(s.partes);
   a._rxRevisaoMontar_=p=>{events.push('modelo');assert.equal(p[3].getDataAsString(),XML.replace('SKU &amp; 001','SKU NOVO'));return model};
@@ -92,10 +64,7 @@ test('exportacao grava arquivo primeiro e pode adiar a revisao sem calcular tudo
   a.DriveApp.getFolderById=()=>({createFile(){events.push('xlsx');return file}});
   a._rxRevisaoSalvar_=(f,m)=>{events.push('revisao');assert.equal(f,file);assert.equal(m,model)};
   assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{'xl/worksheets/sheet1.xml':XML.replace('SKU &amp; 001','SKU NOVO')},'arquivo.xlsx'),file);
-  assert.deepEqual(events,['xlsx','modelo','revisao']);
-  events.length=0;
-  assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{},'arquivo.xlsx',[],false),file);
-  assert.deepEqual(events,['xlsx'],'na exportacao rapida nao deve varrer formulas nem gravar revisao');
+  assert.deepEqual(events,['modelo','xlsx','revisao']);
   const avisos=[];a._rxRevisaoMontar_=()=>model;a._rxRevisaoSalvar_=()=>{throw Error('falha tecnica simulada')};
   assert.equal(a._reSpSalvarZip_(null,{partes:s.partes},{},'arquivo.xlsx',avisos),file);
   assert.equal(avisos.length,1);assert.match(avisos[0],/arquivo.xlsx criado/);assert.match(avisos[0],/Preparar revisao/);
@@ -103,12 +72,6 @@ test('exportacao grava arquivo primeiro e pode adiar a revisao sem calcular tudo
 test('persistencia serializa criacao tecnica, libera lock em falha e nao readquire lock do salvamento',()=>{
   const s=ambiente(),a=s.app;const modelo=s.prepare();let aquisicoes=0,liberacoes=0;
   a.LockService={getScriptLock:()=>({tryLock(){aquisicoes++;return true},releaseLock(){liberacoes++}})};
-  const atualizacao=a.Drive.Files.update;
-  a.Drive.Files.update=(meta,id,blob,opt)=>{
-    assert.equal(meta.mimeType,undefined,'atualizacao do snapshot nao pode tentar mudar o MIME no Drive');
-    assert.equal(meta.title,blob.getName());
-    return atualizacao(meta,id,blob,opt);
-  };
   a._rxRevisaoSalvar_(s.arq(),modelo);
   assert.equal(aquisicoes,1);assert.equal(liberacoes,1);
   a._rxRevisaoSalvar_(s.arq(),modelo,true);
@@ -143,63 +106,4 @@ test('quadro de validação oculta margens e linhas só de fórmulas preservando
   assert.equal(r.pagina.indices[0],2);
   assert.equal(r.pagina.colunas.at(-1),'FY');
   assert.equal(r.pagina.linhas[0].celulas[0],'SKU-01');
-});
-
-test('Especificacoes usa titulos da linha 3 e subtitulos da 4; colunas de total com formula ficam visiveis',()=>{
-  const a=ambiente().app;
-  const espec={nome:'PPG - Especificações',totalColunas:8,linhas:[
-    {numero:1,valores:{2:'ESPECIFICACOES'}},{numero:2,valores:{2:'DADOS GERAIS'}},
-    {numero:3,valores:{2:'CÓDIGO SKU',3:'CLASSIFICAÇÃO DO MATERIAL',4:'FORMATO'}},
-    {numero:4,valores:{4:'mm'}},{numero:5,valores:{2:'SKU-01',3:'Não editorial',4:'300'}},
-    {numero:200,valores:{4:'=A200'}}]};
-  const geral={nome:'CALC Geral',totalColunas:185,linhas:[
-    {numero:1,valores:{2:'CALCULADORA FORNECEDOR'}},{numero:2,valores:{2:'IDENTIFICACAO',5:'TIRAGEM'}},
-    {numero:3,valores:{2:'CÓDIGO SKU',5:'AVULSO',9:'TOTAL'}},
-    {numero:4,valores:{5:'Exemplares',9:'Exemplares'}},{numero:5,valores:{}},
-    {numero:6,valores:{2:'SKU-01',5:'800',9:'=SUM(F6:I6)',182:'=XFD6'}}]};
-  const modelo={abas:[espec,geral],formulas:{},faixasFormulas:[],mesclagens:[]};
-  const q1=a._rxRevisaoLayout_(espec,modelo,0),q2=a._rxRevisaoLayout_(geral,modelo,1);
-  assert.equal(q1.cabecalhoAte,4);assert.equal(q1.ultimaLinha,5);
-  assert.equal(q1.topo.find(x=>x.numero===3).valores[2],'CÓDIGO SKU');
-  assert.equal(q2.cabecalhoAte,5);assert.equal(q2.ultimaLinha,6);
-  assert(q2.indices.includes(9),'TOTAL precisa permanecer, mesmo sem valor em cache');
-  assert(!q2.indices.includes(182),'coluna de reserva sem titulo nao entra');
-  const digital={nome:'CALC Digital',totalColunas:20,linhas:[
-    {numero:3,valores:{2:'CÓDIGO SKU',3:'VALOR UNITÁRIO'}},
-    {numero:4,valores:{3:'BRL / Unitário'}},{numero:5,valores:{3:'FORN-D-PU'}},
-    {numero:6,valores:{2:'SKU-01',3:'1.25'}}]};
-  assert.equal(a._rxRevisaoLayout_(digital,{abas:[digital],mesclagens:[]},0).cabecalhoAte,5);
-});
-
-test('Total da CALC Geral ignora cache antigo do molde e soma a tiragem atual',()=>{
-  const s=ambiente(),a=s.app,geral={nome:'CALC Geral',totalColunas:11,linhas:[
-    {numero:3,valores:{3:'CÓDIGO SKU',5:'AVULSO ACAB',6:'AVULSO GRAF',7:'KIT S/ MALETA',8:'KIT C/ MALETA',9:'TOTAL'}},
-    {numero:4,valores:{9:'Exemplares'}},
-    {numero:6,valores:{3:'SKU-01',5:'800',6:'0',7:'0',8:'0',9:'30'}},
-    {numero:7,valores:{3:'SKU-02',5:'0',6:'0',7:'230',8:'0',9:'10'}}]};
-  const modelo={schema:1,abas:[geral],formulas:{},faixasFormulas:[{aba:0,x1:10,x2:10,y1:6,y2:7}],mesclagens:[]};
-  a._rxRevisaoSalvar_(s.arq(),modelo);
-  const r=a.obterPreviaReentradasExcel({id:s.id,aba:0,porAba:true});
-  assert.equal(r.abaCompleta.linhas[2].valores[9],'800');
-  assert.equal(r.abaCompleta.linhas[3].valores[9],'230');
-  const total=a.recalcularTotaisReentradasExcel(s.id,1800000000000);
-  assert.equal(total.sucesso,true,total.erro);assert.equal(total.totaisRecalculados,2);
-  assert.equal(s.reads(),0,'o recalculo nao pode abrir XLSX nem modificar formulas');
-  assert.equal(s.writes(),1,'o botao de recalculo nao deve sobrescrever o XLSX');
-});
-
-test('separacao Não editorial fica na revisao preparada, sem tocar o XLSX',()=>{
-  const s=ambiente(),a=s.app;
-  const modelo={schema:1,abas:[{nome:'PPG - Especificações',totalColunas:4,linhas:[
-    {numero:3,valores:{1:'CÓDIGO SKU',2:'CLASSIFICAÇÃO DO MATERIAL'}},
-    {numero:4,valores:{}},{numero:5,valores:{1:'SKU-A',2:'Não editorial'}},
-    {numero:6,valores:{1:'SKU-B',2:'Editorial'}}]}],
-    formulas:{},faixasFormulas:[],mesclagens:[]};
-  a._rxRevisaoSalvar_(s.arq(),modelo);
-  assert.equal(a.separarNaoEditorialReentradas(s.id,1800000000000,0,6).erro.includes('Somente itens'),true);
-  const r=a.separarNaoEditorialReentradas(s.id,1800000000000,0,5);
-  assert.equal(r.sucesso,true,r.erro);
-  assert.deepEqual(plain(r.naoEditoriais),[{aba:0,linha:5}]);
-  assert.deepEqual(plain(a._rxRevisaoLer_(s.arq()).naoEditoriais),[{aba:0,linha:5}]);
-  assert.equal(s.reads(),0);
 });

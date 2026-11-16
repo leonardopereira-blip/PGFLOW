@@ -31,7 +31,6 @@ function ambiente(todosExcluidos) {
         pastas.push(id);
         return { createFile(blob) {
           const arquivo = { blob, getUrl: () => 'arquivo:' + blob.getName(), getId: () => 'id:' + blob.getName(),
-            getLastUpdated: () => new Date(1800000000000),
             setName(nome) { assert.equal(nome, blob.getName()); return arquivo; } };
           criados.push(arquivo); return arquivo;
         } };

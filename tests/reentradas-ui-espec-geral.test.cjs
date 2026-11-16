@@ -64,9 +64,10 @@ function makeScreen(ids = '3100, 2567') {
       if (this.tagName === 'select') this._value = undefined;
       parse(this._html, this);
     }
-    setAttribute(key, value) { this.attrs[key] = String(value); if (key === 'id') this.id = String(value); if (key === 'class') this.className = String(value); }
-    focus() {}
     getAttribute(key) { return this.attrs[key] === undefined ? null : this.attrs[key]; }
+    setAttribute(key, value) { this.attrs[key] = String(value); }
+    removeAttribute(key) { delete this.attrs[key]; }
+    focus() {}
     querySelectorAll(selector) {
       const all = [];
       function walk(el) { el.children.forEach(child => { all.push(child); walk(child); }); }

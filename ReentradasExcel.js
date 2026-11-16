@@ -35,8 +35,6 @@ function listarArquivosReentradasExcel(){
     arquivos.push(item);
   }
   arquivos.sort(function(a,b){return b.atualizadoEm-a.atualizadoEm||a.nome.localeCompare(b.nome);});
-  try { _rxCustoListaDeArquivos_(arquivos); }
-  catch(e) { return {arquivos:arquivos, avisoValidacao:'Historico de custos validados indisponivel: '+e.message}; }
   return {arquivos:arquivos};
 }
 
@@ -286,38 +284,14 @@ function salvarEdicoesReentradasExcel(id,atualizadoEm,edicoes){
       alter[caminho]=_rxEditarAba_(parte.getDataAsString('UTF-8'),porAba[indice]);
     });
     alter['xl/workbook.xml']=_rxMarcarRecalculo_(p.mapa['xl/workbook.xml'].getDataAsString('UTF-8'));
-    var revisao;
-    try{
-      // Nenhuma formula, faixa ou mesclagem e alterada neste salvamento.
-      // Atualiza somente as entradas no modelo existente: evita reconstruir
-      // centenas de milhares de referencias em cada clique de salvar.
-      revisao=_rxRevisaoLer_(arq);
-      edicoes.forEach(function(e){
-        var aba=revisao.abas[e.aba],linha=aba&&aba.linhas.find(function(r){return r.numero===e.linha;});
-        if(!linha)throw Error('Linha ausente no modelo preparado.');
-        if(e.valor==='')delete linha.valores[e.coluna-1];
-        else linha.valores[e.coluna-1]=e.valor;
-      });
-    }catch(e){
-      // Arquivos antigos sem revisao continuam aceitos; esta e a unica via
-      // que precisa reconstruir a estrutura completa.
-      revisao=_rxRevisaoMontar_(p,alter);
-    }
-    // XLSX nao e uma engine de calculo. Excel recalcula ao abrir;
-    // a tela nao deve certificar valores antigos depois de uma edicao.
-    revisao.recalculoPendente=true;
-    // O proximo acesso precisa conhecer quais campos iniciaram o recalculo,
-    // mesmo que o usuario feche a tela depois de salvar.
-    revisao.ultimasEdicoes=edicoes.map(function(e){return {aba:e.aba,linha:e.linha,coluna:e.coluna,valor:e.valor};});
+    var revisao=_rxRevisaoMontar_(p,alter);
     var zipped=Utilities.zip(p.partes.map(function(part){
       return alter[part.getName()]===undefined?part:
         Utilities.newBlob(alter[part.getName()],'application/xml',part.getName());
     }),arq.nome).setContentType(RX_MIME);
     _rxArquivo_(id,atualizadoEm);
     var hash=_bcDigest_(zipped);
-    // O Drive nao permite redefinir o MIME de um arquivo ja existente.
-    // O blob continua XLSX, mas o metadata update nao tenta converter o tipo.
-    Drive.Files.update({title:arq.nome},id,zipped,
+    Drive.Files.update({title:arq.nome,mimeType:RX_MIME},id,zipped,
       {newRevision:true,supportsAllDrives:true});
     gravou=true;
     var final=_rxArquivo_(id);

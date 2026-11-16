@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const mx=require('../tools/molde-node.cjs');
 
-const ctx=mx.carregarApps(['MoldeXlsx.js','MoldeFormaCertaCalc.js',
+const ctx=mx.carregarApps(['MoldeXlsx.js','MoldeFormaCertaCalc.js','MoldePosigrafPrincipalCalc.js',
   'ValidaReentradasSPG.js','ReentradasFormaCerta.js']);
 const forma=ctx._moldeFormaCertaCalc_();
 const partes={mapa:Object.fromEntries(['xl/workbook.xml','xl/_rels/workbook.xml.rels']
@@ -54,6 +54,39 @@ test('Forma Certa preenche contrato real G/H, X/AA e seis fornecimentos, preserv
   for(const ref of ['C7','D7','F7','G7','H7','X7','AA7','CA7','CE7'])assert.equal(valor(depois,ref),undefined,'entrada antiga em '+ref);
   assert.doesNotMatch(resultado,/Chamado 2896/);
 });
+
+const POSIGRAF_FORNECIMENTO={
+  DIGITAL:['CY','DD','DI','DN','DS','DX','EB'],
+  PLANA:['EG','EL','EQ','EV','FA','FF','FJ'],
+  ROTATIVA:['FO','FT','FY','GD','GI','GN','GR']
+};
+for(const tec of Object.keys(POSIGRAF_FORNECIMENTO)){
+  test('Posigraf (Principal): '+tec+' usa contrato proprio e preserva formulas das linhas usadas',()=>{
+    const molde=ctx._moldePosigrafPrincipalCalc_();
+    const workbook={mapa:Object.fromEntries(['xl/workbook.xml','xl/_rels/workbook.xml.rels']
+      .map(nome=>[nome,{getDataAsString:()=>molde.textos[nome]}]))};
+    const geral=ctx._mxGerarAba_(molde.abas[ctx._reSpAbaPorNome_(workbook,'CALC Geral')]);
+    const xml='<worksheet><sheetData>'+row(geral,6)+row(geral,7)+'</sheetData></worksheet>';
+    const resultado=ctx._reSpPreencherCalcGeral_(xml,['SKU-NOVA'],quantidade,'2567',
+      {...fornecimento,tecnologia:tec},'Posigraf (Principal)');
+    const antes=cells(row(xml,6)),depois=cells(resultado);
+    for(const [ref,v] of Object.entries({C6:'Chamado 2567',D6:'SKU-NOVA',F6:'123',G6:'0',
+      H6:'456',I6:'789',Z6:tec,AC6:'ARCO'}))assert.equal(valor(depois,ref),v,ref);
+    for(const [ref,celula] of antes){
+      if(/<f(?:\s|>)/.test(celula))assert.equal(depois.get(ref),celula,'formula alterada em '+ref);
+    }
+    for(const ref of ['W6','X6','Y6'])assert.match(depois.get(ref),/<f(?:\s|>)/,ref+' perdeu formula');
+    for(const [nome,bloco] of Object.entries(POSIGRAF_FORNECIMENTO)){
+      bloco.forEach((col,i)=>assert.equal(valor(depois,col+'6'),
+        nome===tec?Object.values(elementos)[i]:undefined,col));
+    }
+    for(const col of ['AF','CX','DC','DH','DM','DR','DW','EA','EF','EK','EP','EU','EZ','FE',
+      'FI','FN','FS','FX','GC','GH','GM','GQ'])assert.equal(valor(depois,col+'6'),undefined,col+' conservou entrada do modelo');
+    assert.doesNotMatch(resultado,/<row r="7"/,'linha excedente do molde permaneceu');
+    const graficas=Array.from(ctx.listarPastasGraficasReentradasSPG());
+    assert.equal(graficas.find(g=>g.id==='POSIGRAFPRINCIPAL').nome,'Posigraf (Principal)');
+  });
+}
 
 for(const grafica of ['Logprint','Casa da Gráfica','Meta','Reproset']){
   test(grafica+': conserva contrato original F/G/H/I, Y/AB e sete fornecimentos',()=>{

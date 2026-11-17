@@ -44,6 +44,9 @@ for(const m of MOLDES){
       if(nome==='[Content_Types].xml'||nome==='xl/_rels/workbook.xml.rels'){
         const semCalc=dados.toString('utf8').replace(/<Override\b[^>]*calcChain\.xml"[^>]*\/>|<Relationship\b[^>]*calcChain\.xml"[^>]*\/>/,'');
         assert.equal(g.toString('utf8'),semCalc,nome);
+      }else if(m.fn==='_moldeLogprintCalc_'&&nome==='xl/worksheets/sheet7.xml'&&moldes[m.fn].origem.correcaoLogprint){
+        const omitirRegras=xml=>xml.replace(/<c r="(?:C[F-Z]|D[A-Z]|E[A-Z]|F[A-G])4"[^>]*>[\s\S]*?<\/c>/g,'');
+        assert.equal(omitirRegras(g.toString('utf8')),omitirRegras(dados.toString('utf8')),'Logprint alterada fora das 80 regras');
       }else assert.ok(g&&g.equals(dados),nome+' difere do original');
     }
     assert.equal(gerado.size,orig.size-(orig.has('xl/calcChain.xml')?1:0));
@@ -95,4 +98,21 @@ test('geracao completa usa somente moldes e preserva abas sem entrada identicas 
   assert.match(ler(caminhos['CALC Geral']),/<c r="D6"[^>]*t="inlineStr"><is><t>SKU-TESTE-1<\/t>/);
   assert.match(ler('xl/workbook.xml'),/fullCalcOnLoad="1"/);
   assert.equal(ler('xl/calcChain.xml'),undefined);
+});
+
+// Regressao: as quatro formulas compartilhadas alimentam 80 chaves de regra.
+test('Logprint: TAB Regras CF4:FG4 corresponde ao Excel corrigido de 17/11',()=>{
+  const m=moldes._moldeLogprintCalc_;
+  const xml=ctx._mxGerarAba_(m.abas['xl/worksheets/sheet7.xml']);
+  const marcas='COC CQT EI GEE GEN JFLK IS LUT MAR MSAL MES NAV PGS PIA PLE REL SAE SAS ADP SPE'.split(' ');
+  const regras=Array.from(xml.matchAll(/<c r="(?:C[F-Z]|D[A-Z]|E[A-Z]|F[A-G])4"[^>]*>[\s\S]*?<\/c>/g),x=>x[0]);
+  assert.equal(regras.length,80);
+  for(let i=0;i<80;i++){
+    const grupo=Math.floor(i/20),tag=regras[i];
+    assert.match(tag,/\bt="str"/);
+    assert.ok(tag.includes('<v>'+marcas[i%20]+' - '+'DPRA'[grupo]+'</v>'));
+    if(i%20===0)assert.match(tag,/_xlfn\.CONCAT\(/);
+    else assert.match(tag,new RegExp('<f t="shared" si="'+grupo+'"/>'));
+  }
+  assert.doesNotMatch(xml,/_xludf\.CONCAT/);
 });

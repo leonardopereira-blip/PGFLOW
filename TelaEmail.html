@@ -109,8 +109,9 @@
 
 
 <style>
-#pf-gestao-layout{display:grid;grid-template-columns:minmax(0,992px) minmax(340px,1fr);align-items:start;gap:16px;width:100%;max-width:1750px;margin:0 auto}
-#pf-gestao-layout>#pf-email{margin:0;width:100%}
+#view-email.view-panel{padding:12px}
+#pf-gestao-layout{display:grid;grid-template-columns:minmax(460px,42fr) minmax(620px,58fr);align-items:start;gap:18px;width:100%;max-width:none;margin:0 auto}
+#pf-gestao-layout>#pf-email{margin:0;width:100%;max-width:none;min-width:0}
 #pf-gestao{font-family:'Poppins',Arial,sans-serif;min-width:0;margin:12px 0 24px;padding:17px;border:1px solid #e4e9f1;border-radius:14px;background:#fff;color:#18273e;box-shadow:0 5px 25px rgba(35,58,96,.035)}
 #pf-gestao *{box-sizing:border-box}
 #pf-gestao h2{font-size:17px;font-weight:700;margin:0 0 5px;color:#152744}
@@ -120,15 +121,23 @@
 #pf-gestao button{border:1px solid #d6dfec;border-radius:7px;background:#fff;color:#34506f;font:inherit;font-size:11px;font-weight:700;padding:8px;cursor:pointer}
 #pf-gestao button:disabled{opacity:.45;cursor:default}
 #pf-gestao .gf-tablewrap{overflow:auto;max-height:570px;border:1px solid #e5ebf3;border-radius:8px}
-#pf-gestao table{border-collapse:collapse;width:100%;font-size:11px;text-align:left}
+#pf-gestao table{border-collapse:collapse;width:100%;min-width:600px;font-size:12px;line-height:1.45;text-align:left;table-layout:auto}
 #pf-gestao th{position:sticky;top:0;background:#f3f6fb;z-index:1;color:#526881;font-weight:700}
-#pf-gestao td,#pf-gestao th{padding:9px 7px;vertical-align:top;border-bottom:1px solid #edf0f5}
+#pf-gestao td,#pf-gestao th{padding:10px 9px;vertical-align:top;border-bottom:1px solid #edf0f5;overflow-wrap:normal;word-break:normal}
+#pf-gestao td:first-child{font-weight:700;white-space:nowrap}
+#pf-gestao th:nth-child(2),#pf-gestao th:nth-child(3),#pf-gestao th:nth-child(4){min-width:95px}
+#pf-gestao th:nth-child(5){min-width:90px}
+#pf-gestao td:nth-child(5){white-space:pre-line}
+#pf-gestao .gf-cancelado{color:#a43b41;font-weight:700;background:#fff4f4}
+#pf-gestao .gf-alocado{color:#2359b2;font-weight:600}
+#pf-gestao .gf-row-cancelado{background:#fffafa}
 #pf-gestao .gf-ok{color:#23734a;font-weight:600}
 #pf-gestao .gf-pendente{color:#8c6421;font-weight:600}
 #pf-gestao .gf-faint{color:#73849a}
 #pf-gestao .gf-pager{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#63758f}
 #pf-gestao .gf-count{font-size:11px;color:#63758f;margin-bottom:8px}
-@media(max-width:1220px){#pf-gestao-layout{grid-template-columns:minmax(0,1fr)}#pf-gestao-layout>#pf-email{margin:0 auto}#pf-gestao{max-width:980px;width:100%;margin:0 auto 24px}}
+@media(min-width:1181px) and (max-width:1500px){#pf-gestao-layout{gap:14px;grid-template-columns:minmax(440px,40fr) minmax(620px,60fr)}#pf-gestao{padding:13px}}
+@media(max-width:1180px){#pf-gestao-layout{grid-template-columns:minmax(0,1fr)}#pf-gestao-layout>#pf-email{margin:0 auto;max-width:980px}#pf-gestao{max-width:980px;width:100%;margin:0 auto 24px}}
 </style>
 
 <div id="pf-gestao-layout">
@@ -307,7 +316,7 @@
     <button type="button" id="gf-atualizar">Atualizar</button>
   </div>
   <div id="gf-status" class="gf-count" role="status" aria-live="polite">Abra a seção para consultar.</div>
-  <div class="gf-tablewrap"><table><thead><tr><th>Chamado</th><th>Status</th><th>Último envio</th><th>Gráficas enviadas</th></tr></thead><tbody id="gf-linhas"></tbody></table></div>
+  <div class="gf-tablewrap"><table><thead><tr><th>Chamado</th><th>Status do chamado</th><th>Gráfica alocada</th><th>Status da formalização</th><th>Último envio</th><th>Gráficas enviadas</th></tr></thead><tbody id="gf-linhas"></tbody></table></div>
   <div class="gf-pager"><button type="button" id="gf-anterior" disabled>Anterior</button><span id="gf-pagina">—</span><button type="button" id="gf-proxima" disabled>Próxima</button></div>
   <p style="margin-top:12px">Histórico: assunto padrão + anexo do chamado em Enviados. Gráficas identificadas pelos destinatários do cadastro atual. Envios internos não contam. Sem envio localizado não comprova ausência de formalização por outros meios.</p>
 </aside>
@@ -1263,9 +1272,18 @@ pfCarregarRemetentesFormalizacao();
     (res.chamados||[]).forEach(function(item){
       var tr=document.createElement('tr');
       cell(tr,item.chamado);
+      if(item.statusChamado==='Cancelado'){
+        tr.className='gf-row-cancelado';
+        cell(tr,'Cancelado','gf-cancelado');
+        for(var i=0;i<4;i++){var vazio=cell(tr,'');vazio.textContent='';}
+        body.appendChild(tr);return;
+      }
+      cell(tr,item.statusChamado,item.statusChamado==='Alocado'?'gf-alocado':'gf-faint');
+      var alocadas=cell(tr,'');
+      if((item.graficasAlocadas||[]).length){alocadas.textContent='';item.graficasAlocadas.forEach(function(nome){var div=document.createElement('div');div.textContent=nome;alocadas.appendChild(div);});}
       var status={formalizado:'Formalizado',grafica_nao_identificada:'Envio localizado',nao_localizado:'Sem envio localizado',indeterminado:'Não verificado'};
       cell(tr,status[item.status]||'Não verificado',item.status==='formalizado'?'gf-ok':'gf-pendente');
-      cell(tr,item.dataEnvio,'gf-faint');
+      cell(tr,(item.dataEnvio||'').replace(' ','\n'),'gf-faint');
       var graficas=cell(tr,'');
       graficas.textContent='';
       (item.graficas||[]).forEach(function(g){var div=document.createElement('div');div.textContent=g.nome;div.title=g.data;graficas.appendChild(div);});
@@ -1273,7 +1291,7 @@ pfCarregarRemetentesFormalizacao();
       if(!graficas.children.length)graficas.textContent='—';
       body.appendChild(tr);
     });
-    if(!(res.chamados||[]).length){var tr=document.createElement('tr'),td=cell(tr,'Nenhum chamado encontrado.');td.colSpan=4;body.appendChild(tr);}
+    if(!(res.chamados||[]).length){var tr=document.createElement('tr'),td=cell(tr,'Nenhum chamado encontrado.');td.colSpan=6;body.appendChild(tr);}
   }
   function load(){
     started=true;var id=++ticket;el('gf-status').textContent='Consultando SPG e e-mails enviados…';

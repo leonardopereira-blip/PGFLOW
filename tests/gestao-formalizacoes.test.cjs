@@ -21,7 +21,7 @@ test('gestao agrega envios e nao inventa status quando a consulta falha',()=>{
   c.Session={getActiveUser:()=>({getEmail:()=> 'leonardo.pereira@arcoeducacao.com.br'}),getEffectiveUser:()=>({getEmail:()=> 'leonardo.pereira@arcoeducacao.com.br'})};
   c._formalizacaoNormalizarEmail_=x=>String(x||'').toLowerCase();
   c._formalizacaoRemetentes_=()=>[{email:'joao.alberti@arcoeducacao.com.br'}];
-  c._gfNumerosSPG_=()=>['3101','3100'];
+  c._gfNumerosSPG_=()=>[{chamado:'3102',statusChamado:'Cancelado',graficasAlocadas:[]},{chamado:'3101',statusChamado:'Solicitado',graficasAlocadas:[]},{chamado:'3100',statusChamado:'Alocado',graficasAlocadas:['Meta']}];
   c.obterDadosGraficasEmailSPG=()=>catalogo;
   c.Utilities={formatDate:d=>d.toISOString()};
   let queries=[];
@@ -30,12 +30,47 @@ test('gestao agrega envios e nao inventa status quando a consulta falha',()=>{
     msg({getId:()=> '3',getTo:()=> 'test@x.com.br'})
   ]]};
   const res=c.obterGestaoFormalizacoes(1,'');
-  assert.equal(res.chamados[0].status,'nao_localizado');
-  assert.equal(res.chamados[1].status,'formalizado');
-  assert.equal(JSON.stringify(res.chamados[1].graficas.map(g=>g.nome)),JSON.stringify(['Logprint','Rona']));
-  assert.equal(res.chamados[1].dataEnvio,'2026-11-24T15:00:00.000Z');
+  assert.equal(res.chamados[0].statusChamado,'Cancelado');
+  assert.equal(res.chamados[0].status,'');
+  assert.equal(res.chamados[0].dataEnvio,'');
+  assert.equal(res.chamados[1].status,'nao_localizado');
+  assert.equal(res.chamados[2].status,'formalizado');
+  assert.equal(res.chamados[2].statusChamado,'Alocado');
+  assert.equal(res.chamados[2].graficasAlocadas[0],'Meta');
+  assert.equal(JSON.stringify(res.chamados[2].graficas.map(g=>g.nome)),JSON.stringify(['Logprint','Rona']));
+  assert.equal(res.chamados[2].dataEnvio,'2026-11-24T15:00:00.000Z');
   assert.match(queries[0],/in:sent/);
   c.GmailApp.search=()=>{throw Error('indisponivel');};
   const failed=c.obterGestaoFormalizacoes(1,'3100');
   assert.equal(failed.chamados[0].status,'indeterminado');assert.equal(failed.completo,false);
+});
+
+test('status do chamado tem prioridade: cancelado, grafica real, status original',()=>{
+  assert.equal(c._gfStatusChamado_(['SOLICITADO'],['Meta']),'Alocado');
+  assert.equal(c._gfStatusChamado_(['ALOCADO','CANCELADO'],['Meta']),'Cancelado');
+  assert.equal(c._gfStatusChamado_(['LIBERADO'],[]),'Liberado');
+  assert.equal(c._gfStatusChamado_([],[]),'');
+  for(const x of ['','—','-','Não alocado','Sem gráfica',null])assert.equal(c._gfGraficaAlocada_(x),'');
+});
+test('relatorio agrupa graficas por chamado, sem confundir com destinatarios de email',()=>{
+  const g={CacheService:{getScriptCache:()=>({get:()=>null,put:()=>{}})},_spgLogin_:()=> 'token',
+    _emailSpgLerJson_:()=>({page:1,totalPages:1,rows:[
+      {Chamado:3100,Tipo:'REENTRADA',Status:'SOLICITADO',Grafica:'Meta'},
+      {Chamado:3100,Tipo:'REENTRADA',Status:'SOLICITADO','Gráfica':'META'},
+      {Chamado:3100,Tipo:'REENTRADA',Status:'LIBERADO',Grafica:'Rona'},
+      {Chamado:3101,Tipo:'INCLUSIVOS',Status:'CANCELADO',Grafica:'Logprint'},
+      {Chamado:3102,Tipo:'REENTRADA',Status:'SOLICITADO',Grafica:'—'}
+    ]})};
+  vm.createContext(g);
+  for(const nome of ['ReentradasRecentes.js','GestaoFormalizacoes.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',nome),'utf8'),g);
+  assert.deepEqual(JSON.parse(JSON.stringify(g._gfNumerosSPG_())),[
+    {chamado:'3102',statusChamado:'Solicitado',graficasAlocadas:[]},
+    {chamado:'3101',statusChamado:'Cancelado',graficasAlocadas:[]},
+    {chamado:'3100',statusChamado:'Alocado',graficasAlocadas:['Meta','Rona']}
+  ]);
+});
+test('painel mostra seis colunas e preserva a tela original',()=>{
+  const h=fs.readFileSync(path.join(__dirname,'..','TelaEmail.html'),'utf8');
+  assert.match(h,/<th>Chamado<\/th><th>Status do chamado<\/th><th>Gráfica alocada<\/th><th>Status da formalização<\/th><th>Último envio<\/th><th>Gráficas enviadas<\/th>/);
+  assert.match(h,/td.colSpan=6/);
 });

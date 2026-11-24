@@ -20,8 +20,21 @@ function _gfMapaDestinos_(catalogo) {
   });
   return mapa;
 }
+function _gfGraficaAlocada_(valor) {
+  var nome=String(valor||'').trim();
+  return /^(?:[-–—]+|n\/a|n[aã]o alocad[oa]|sem gr[aá]fica|null|undefined)$/i.test(nome)?'':nome;
+}
+function _gfStatusChamado_(status,graficas) {
+  status=(status||[]).filter(Boolean);
+  if(status.some(function(x){return /^cancelad[oa]$/i.test(_gfChave_(x));}))return 'Cancelado';
+  if((graficas||[]).length)return 'Alocado';
+  var unicos=[];
+  status.forEach(function(x){var chave=_gfChave_(x);if(!unicos.some(function(y){return _gfChave_(y)===chave;}))unicos.push(x);});
+  var nomes={solicitado:'Solicitado',liberado:'Liberado',alocado:'Alocado',validado:'Validado',produzido:'Produzido',concluido:'Concluído'};
+  return unicos.map(function(x){return nomes[_gfChave_(x)]||x;}).join(' / ');
+}
 function _gfNumerosSPG_() {
-  var cache=CacheService.getScriptCache(), chave='gf_chamados_v1';
+  var cache=CacheService.getScriptCache(), chave='gf_chamados_v2';
   try {var salvo=cache.get(chave);if(salvo)return JSON.parse(salvo);}catch(e){}
   var token=_spgLogin_();
   if(!token)throw Error('Autenticacao do SPG indisponivel.');
@@ -30,12 +43,22 @@ function _gfNumerosSPG_() {
     var dados=_emailSpgLerJson_('/api/reentradas/sheets/relatorio?page='+pagina+'&limit=100',token);
     paginas=_reRecentesPagina_(dados,pagina,paginas);
     _reRecentesAgrupar_(dados.rows,chamados);
+    dados.rows.forEach(function(linha){
+      var n=_reRecentesNumero_(_reRecentesCampo_(linha,['Chamado']));
+      var c=chamados[n];
+      if(!c.graficasAlocadas)c.graficasAlocadas=[];
+      var grafica=_gfGraficaAlocada_(_reRecentesCampo_(linha,['Grafica']));
+      if(grafica&&!c.graficasAlocadas.some(function(g){return _gfChave_(g)===_gfChave_(grafica);}))c.graficasAlocadas.push(grafica);
+    });
   }
   // A lista inclui SPOT para nao excluir ampliados com justificativa ausente do relatorio.
   // Nao interpreta a existencia no SPG como evidência de formalização.
   var lista=Object.keys(chamados).filter(function(n){
     var c=chamados[n];return !c.tipo || /^(reentrada|inclusivos?|spot)$/.test(c.tipo);
-  }).sort(function(a,b){return Number(b)-Number(a);});
+  }).sort(function(a,b){return Number(b)-Number(a);}).map(function(n){
+    var c=chamados[n],graficas=c.graficasAlocadas||[],status=_gfStatusChamado_(c.status,graficas);
+    return {chamado:n,statusChamado:status,graficasAlocadas:status==='Cancelado'?[]:graficas.sort()};
+  });
   try{cache.put(chave,JSON.stringify(lista),180);}catch(e){}
   return lista;
 }
@@ -102,18 +125,20 @@ function obterGestaoFormalizacoes(pagina,busca) {
     busca=String(busca||'').trim();
     if(busca && !/^\d{1,12}$/.test(busca))throw Error('Informe apenas o numero do chamado.');
     var lista=_gfNumerosSPG_();
-    if(busca)lista=lista.filter(function(n){return n===busca;});
+    if(busca)lista=lista.filter(function(c){return c.chamado===busca;});
     var porPagina=30,total=lista.length,paginas=Math.max(1,Math.ceil(total/porPagina));
     pagina=Math.min(pagina,paginas);
-    var numeros=lista.slice((pagina-1)*porPagina,pagina*porPagina);
+    var itens=lista.slice((pagina-1)*porPagina,pagina*porPagina);
+    var numeros=itens.filter(function(c){return c.statusChamado!=='Cancelado';}).map(function(c){return c.chamado;});
     var leitura;
     try {leitura=_gfConsultarEnviados_(numeros,obterDadosGraficasEmailSPG());}
     catch(e){leitura={historico:{},completo:false,erro:'Nao foi possivel consultar os e-mails enviados.'};}
     function fmt(ts){return ts?Utilities.formatDate(new Date(ts),'America/Sao_Paulo','dd/MM/yyyy HH:mm'):'';}
     return {pagina:pagina,paginas:paginas,total:total,completo:leitura.completo,erroHistorico:leitura.erro||'',
-      chamados:numeros.map(function(n){
-        var h=leitura.historico[n],nomes=h?Object.keys(h.graficas).sort():[];
-        return {chamado:n,status:nomes.length?'formalizado':h?'grafica_nao_identificada':leitura.completo?'nao_localizado':'indeterminado',
+      chamados:itens.map(function(c){
+        if(c.statusChamado==='Cancelado')return {chamado:c.chamado,statusChamado:'Cancelado',graficasAlocadas:[],status:'',dataEnvio:'',graficas:[],parcial:false};
+        var n=c.chamado,h=leitura.historico[n],nomes=h?Object.keys(h.graficas).sort():[];
+        return {chamado:n,statusChamado:c.statusChamado,graficasAlocadas:c.graficasAlocadas,status:nomes.length?'formalizado':h?'grafica_nao_identificada':leitura.completo?'nao_localizado':'indeterminado',
           dataEnvio:h?fmt(h.data):'',graficas:nomes.map(function(nome){return {nome:nome,data:fmt(h.graficas[nome])};}),
           parcial:!!(h&&h.ambiguo)};
       })};

@@ -58,7 +58,8 @@ function createContext(zip) {
     },
     XmlService:{parse:parseXml,getNamespace:()=>({})},
     UrlFetchApp: {}, PropertiesService: {}, LockService: {},
-    CacheService: {}, GmailApp: {}, SpreadsheetApp: {},
+    CacheService: {}, GmailApp: {getAliases:()=>['joao.alberti@arcoeducacao.com.br','amanda.correa@arcoeducacao.com.br']}, SpreadsheetApp: {},
+    Session:{getActiveUser:()=>({getEmail:()=> 'joao.alberti@arcoeducacao.com.br'}),getEffectiveUser:()=>({getEmail:()=> 'leonardo.pereira@arcoeducacao.com.br'})},
     _spgLogin_: ()=>'token',
     obterDadosGraficas: ()=>({}),
     ID_PLANILHA_LOG: 'test'
@@ -290,7 +291,7 @@ test('Cancelar limpa identificacao, selecoes, origem, assunto, corpo e volta ao 
   };
   const context={document,alert:()=>{throw Error('alerta inesperado');}};
   vm.createContext(context);
-  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,'').replace(/\npfCarregarRemetentesFormalizacao\(\);\s*$/,''),context);
   context.pfEnviando=false;
   context.pfRascunhoCadastro={Grafica:['email@example.com']};
   context.dadosGlobais={idChamado:'3100',idArquivo:'antigo'};
@@ -328,7 +329,7 @@ test('Inclusivos usam pacote API sem desvio automatico para legado', () => {
   const runner={withSuccessHandler(){return this;},withFailureHandler(){return this;},consultarPacoteEmailSPG(id,versao,tipo){api++;assert.equal(tipo,'inclusivo');}};
   context.google={script:{run:runner}};
   vm.createContext(context);
-  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,'').replace(/\npfCarregarRemetentesFormalizacao\(\);\s*$/,''),context);
   context.pfVersaoCadastro='versao';
   context.pfCarregarLegado=()=>{legado++;};
   context.avancarParaRevisao();
@@ -756,4 +757,37 @@ test('consulta paralela não aceita IDs divergentes para o mesmo número',()=>{
   }});
   h.c.UrlFetchApp.fetchAll=reqs=>reqs.map(req=>h.c.UrlFetchApp.fetch(req.url,req));
   assert.throws(()=>h.c._emailSpgResolverId_('3100','token'),/identificacoes diferentes/);
+});
+
+
+test('formalizacao: dono escolhe os tres remetentes, sem from para conta executora',()=>{
+  const h=apiHarness();
+  h.c.Session.getActiveUser=()=>({getEmail:()=> 'leonardo.pereira@arcoeducacao.com.br'});
+  const config=h.c.obterRemetentesFormalizacao();
+  assert.equal(config.selecionavel,true);assert.equal(config.remetentes.length,3);
+  for(const item of config.remetentes){
+    const opt=h.c._formalizacaoOpcoesEnvio_(item.email,{});
+    assert.equal(opt.name,item.nome);assert.equal(opt.replyTo,item.email);
+    assert.equal(opt.from,item.email===config.remetentes[0].email?undefined:item.email);
+  }
+});
+test('formalizacao: Amanda e Joao enviam somente pelo proprio remetente',()=>{
+  for(const email of ['amanda.correa@arcoeducacao.com.br','joao.alberti@arcoeducacao.com.br']){
+    const h=apiHarness();h.c.Session.getActiveUser=()=>({getEmail:()=>email});
+    const cfg=h.c.obterRemetentesFormalizacao();assert.equal(cfg.selecionavel,false);assert.equal(cfg.padrao,email);
+    assert.throws(()=>h.c._formalizacaoOpcoesEnvio_('leonardo.pereira@arcoeducacao.com.br',{}),/nao autorizado/);
+    const p=h.prepare();assert.equal(h.send(p).sucesso,true);
+    assert.ok(h.state.emails.every(args=>args[3].from===email && args[3].replyTo===email));
+  }
+});
+test('formalizacao: preserva remetente historico para demais usuarios identificados',()=>{
+  const h=apiHarness();h.c.Session.getActiveUser=()=>({getEmail:()=> 'outro@arcoeducacao.com.br'});
+  assert.equal(h.c.obterRemetentesFormalizacao().padrao,'joao.alberti@arcoeducacao.com.br');
+  assert.throws(()=>h.c._formalizacaoOpcoesEnvio_('amanda.correa@arcoeducacao.com.br',{}),/nao autorizado/);
+});
+test('formalizacao: alias ausente ou identidade vazia falham antes de qualquer envio',()=>{
+  for(const active of ['','amanda.correa@arcoeducacao.com.br']){
+    const h=apiHarness();h.c.Session.getActiveUser=()=>({getEmail:()=>active});h.c.GmailApp.getAliases=()=>[];
+    const p=h.prepare();assert.equal(h.send(p).sucesso,false);assert.equal(h.state.attempts,0);assert.equal(h.state.cache.size,0);
+  }
 });

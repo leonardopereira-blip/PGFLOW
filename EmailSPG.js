@@ -572,6 +572,42 @@ function _emailSpgSobrescrita_(pacote, dados) {
   return {data: data, descricao: descricao, dataColeta: _emailSpgColeta_(data)};
 }
 
+// Remetente exclusivo da formalizacao; nao altera as demais rotinas de Gmail.
+function _formalizacaoRemetentes_() {
+  return [
+    {email:'leonardo.pereira@arcoeducacao.com.br',nome:'Leonardo De Oliveira Pereira'},
+    {email:'amanda.correa@arcoeducacao.com.br',nome:'Amanda Esquivel Torres Correa'},
+    {email:'joao.alberti@arcoeducacao.com.br',nome:'Joao Victor Caporal Alberti'}
+  ];
+}
+function _formalizacaoNormalizarEmail_(email) {
+  return String(email || '').trim().toLowerCase();
+}
+function obterRemetentesFormalizacao() {
+  var lista = _formalizacaoRemetentes_();
+  var ativo = _formalizacaoNormalizarEmail_(Session.getActiveUser().getEmail());
+  if (!ativo) throw new Error('Nao foi possivel identificar sua conta. Entre no PGFlow com seu e-mail corporativo.');
+  var admin = ativo === lista[0].email;
+  // Outros usuarios mantem o remetente historico, sem ganhar acesso aos novos aliases.
+  var permitidos = admin ? lista : [ativo === lista[1].email ? lista[1] : lista[2]];
+  return {selecionavel:admin, remetentes:permitidos, padrao:admin ? lista[2].email : permitidos[0].email};
+}
+function _formalizacaoOpcoesEnvio_(solicitado, anexo) {
+  var config = obterRemetentesFormalizacao();
+  var email = _formalizacaoNormalizarEmail_(solicitado) || config.padrao;
+  var remetente = config.remetentes.filter(function(item){return item.email === email;})[0];
+  if (!remetente) throw new Error('Remetente nao autorizado para sua conta.');
+  var executor = _formalizacaoNormalizarEmail_(Session.getEffectiveUser().getEmail());
+  if (!executor) throw new Error('Nao foi possivel identificar a conta executora.');
+  var opcoes = {attachments:[anexo], name:remetente.nome, replyTo:remetente.email};
+  if (email !== executor) {
+    var aliases = GmailApp.getAliases().map(_formalizacaoNormalizarEmail_);
+    if (aliases.indexOf(email) === -1) throw new Error('Remetente nao autorizado no Gmail da conta executora: ' + email);
+    opcoes.from = email;
+  }
+  return opcoes;
+}
+
 function dispararEmailPacoteSPG(dados) {
   try {
     if (!dados || typeof dados !== 'object') throw new Error('Dados do envio invalidos.');
@@ -590,6 +626,7 @@ function dispararEmailPacoteSPG(dados) {
         throw new Error('A PPG ou os dados do chamado foram alterados no SPG. Retorne para a revisao antes de enviar.');
       }
       _emailSpgSobrescrita_(p, dados);
+      var opcoesRemetente = _formalizacaoOpcoesEnvio_(dados.remetenteFormalizacao, p.blob);
       var cache = CacheService.getUserCache();
       var chaveEnvio = 'emailSpg_' + _emailSpgHex_(Utilities.computeDigest(
         Utilities.DigestAlgorithm.SHA_256,
@@ -600,13 +637,10 @@ function dispararEmailPacoteSPG(dados) {
       cache.put(chaveEnvio, 'INICIADO', 600);
       var enviados = 0;
       try {
-        // Mantem o alias de remetente do envio historico, sem alterar as permissoes.
         emails.forEach(function(destino) {
-          GmailApp.sendEmail(destino, assunto, corpo, {
-            attachments: [p.blob.copyBlob()],
-            from: 'joao.alberti@arcoeducacao.com.br',
-            name: 'Joao Victor Caporal Alberti'
-          });
+          GmailApp.sendEmail(destino, assunto, corpo, Object.assign({}, opcoesRemetente, {
+            attachments: [p.blob.copyBlob()]
+          }));
           enviados++;
         });
         cache.put(chaveEnvio, 'CONCLUIDO', 600);

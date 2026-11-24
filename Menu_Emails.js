@@ -171,16 +171,13 @@ function dispararEmailFinal(dados) {
   
     var nomePadronizado = "Chamado " + dados.idChamado + ".xlsx";
     var anexoBlob = arquivoExcel.getBlob().setName(nomePadronizado);
+    var opcoesRemetente = _formalizacaoOpcoesEnvio_(dados.remetenteFormalizacao, anexoBlob);
   
     // Disparo oficial em Lote: O robô vai rodar este loop e enviar um email NOVO para cada caixinha que estava na tela
     for (var i = 0; i < dados.arrayDestinos.length; i++) {
       var destinatarioAtual = dados.arrayDestinos[i]; // Emails da caixa da vez
       
-      GmailApp.sendEmail(destinatarioAtual, assunto, dados.corpo, {
-        attachments: [anexoBlob],
-        from: "joao.alberti@arcoeducacao.com.br", // Remetente oficial (Alias)
-        name: "Joao Victor Caporal Alberti"       // Nome que aparecerá para os destinatários
-      });
+      GmailApp.sendEmail(destinatarioAtual, assunto, dados.corpo, opcoesRemetente);
     }
   
     return "Enviado com sucesso!";

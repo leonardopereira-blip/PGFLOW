@@ -291,7 +291,7 @@ test('Cancelar limpa identificacao, selecoes, origem, assunto, corpo e volta ao 
   };
   const context={document,alert:()=>{throw Error('alerta inesperado');}};
   vm.createContext(context);
-  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,'').replace(/\npfCarregarRemetentesFormalizacao\(\);\s*$/,''),context);
   context.pfEnviando=false;
   context.pfRascunhoCadastro={Grafica:['email@example.com']};
   context.dadosGlobais={idChamado:'3100',idArquivo:'antigo'};
@@ -329,7 +329,7 @@ test('Inclusivos usam pacote API sem desvio automatico para legado', () => {
   const runner={withSuccessHandler(){return this;},withFailureHandler(){return this;},consultarPacoteEmailSPG(id,versao,tipo){api++;assert.equal(tipo,'inclusivo');}};
   context.google={script:{run:runner}};
   vm.createContext(context);
-  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,''),context);
+  vm.runInContext(source.replace(/if \(pfCadastroInicial\) \{\s*pfCarregarCadastro\(\[\]\);\s*\}/,'').replace(/\npfCarregarRemetentesFormalizacao\(\);\s*$/,''),context);
   context.pfVersaoCadastro='versao';
   context.pfCarregarLegado=()=>{legado++;};
   context.avancarParaRevisao();

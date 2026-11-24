@@ -1,0 +1,42 @@
+name: Verificar molde Rona (somente leitura)
+on:
+  push:
+    branches: [wip/rona-molde-verificacao-20261124]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Conferir e mapear original sem publicar dados
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          set -e
+          umask 077
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {initAuth} from './node_modules/@google/clasp/build/src/auth/auth.js';
+          const authFile=path.join(os.homedir(),'.clasprc.json');
+          try {
+            fs.writeFileSync(authFile,JSON.stringify(JSON.parse(process.env.CLASPRC_JSON)),{mode:0o600});
+            const {credentials}=await initAuth({});
+            if(!credentials)throw Error('AUTH_MISSING');
+            const r=await credentials.request({url:'https://www.googleapis.com/drive/v3/files/1CLStB2EIxRajY1_8FmrmbBbtPnFps2DM?alt=media&supportsAllDrives=true',responseType:'arraybuffer'});
+            const b=Buffer.from(r.data);
+            if(createHash('sha256').update(b).digest('hex')!=='b689dfb5de110218d938f50379fdd2f3d5773cdeae3dbf6d75cdaa4dac7a2dcd')throw Error('SHA_MISMATCH');
+            fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'CALCULADORA FORNECEDOR RONA - LIVROS REENTRADAS 2026.xlsx'),b);
+            console.log('SHA-256 original conferido.');
+          }catch(e){console.error('Falha na leitura: '+(e.message==='SHA_MISMATCH'?'SHA divergente':e.response?.status||e.status||'autenticacao/consulta'));process.exitCode=1;}
+          finally{fs.rmSync(authFile,{force:true});}
+          NODE
+          NODE_OPTIONS=--max-old-space-size=6144 node tools/mapear-molde.cjs "$RUNNER_TEMP/CALCULADORA FORNECEDOR RONA - LIVROS REENTRADAS 2026.xlsx" RonaCalc
+          rm -f MoldeRonaCalc.js "$RUNNER_TEMP/CALCULADORA FORNECEDOR RONA - LIVROS REENTRADAS 2026.xlsx"

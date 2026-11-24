@@ -9,7 +9,8 @@ const GRAFICAS=[
   {id:'FORMACERTA',nome:'Forma Certa',molde:'FormaCerta',skus:31},
   {id:'META',nome:'Meta',molde:'Meta'},
   {id:'REPROSET',nome:'Reproset',molde:'Reproset'},
-  {id:'POSIGRAFPRINCIPAL',nome:'Posigraf (Principal)',molde:'PosigrafPrincipal'}
+  {id:'POSIGRAFPRINCIPAL',nome:'Posigraf (Principal)',molde:'PosigrafPrincipal'},
+  {id:'RONA',nome:'Rona',molde:'Rona'}
 ];
 const SEM_ENTRADA=['CALC Digital','CALC Plana','CALC Rotativa','CALC Acabamento',
   'TAB Regras','TAB Formatos','TAB Papel','TAB Impressão','TAB Acabamento','TAB Versões'];

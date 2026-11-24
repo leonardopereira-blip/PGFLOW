@@ -12,7 +12,7 @@ function _bcGrafica_(nome){
   var texto=String(nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ');
   var opcoes={LOGPRINT:/\bLOGPRINT\b/,CASADAGRAFICA:/\bCASA\s*DA\s*GRAFICA\b/,
     FORMACERTA:/\bFORMA\s*CERTA\b/,META:/\bMETA\b/,REPROSET:/\bREPROSET\b/,
-    POSIGRAFPRINCIPAL:/\bPOSIGRAF\s+PRINCIPAL\b/};
+    POSIGRAFPRINCIPAL:/\bPOSIGRAF\s+PRINCIPAL\b/,RONA:/\bRONA\b/};
   var achadas=Object.keys(opcoes).filter(function(k){return opcoes[k].test(texto);});
   if(achadas.length!==1)throw Error('A grafica do arquivo nao corresponde a um unico modelo suportado.');
   return achadas[0];

@@ -9,7 +9,7 @@ const {Readable}=require('node:stream');
 const {StringDecoder}=require('node:string_decoder');
 const mx=require('../tools/molde-node.cjs');
 
-const MOLDES=['CasaDaGrafica','FormaCerta','Meta','Reproset'].map(n=>({
+const MOLDES=['CasaDaGrafica','FormaCerta','Meta','Reproset','Rona'].map(n=>({
   nome:n,arquivo:'Molde'+n+'Calc.js',fn:'_molde'+n+'Calc_'
 }));
 // Sem DriveApp/SpreadsheetApp: os moldes recriam layout, precos e formulas

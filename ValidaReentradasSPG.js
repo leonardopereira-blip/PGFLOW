@@ -39,6 +39,11 @@ var RE_SP_MOLDES = {
     nome: 'Posigraf (Principal)',
     calc: function(){return _moldePosigrafPrincipalCalc_();},
     depara: function(){return _moldeLogprintDepara_();}
+  },
+  RONA: {
+    nome: 'Rona',
+    calc: function(){return _moldeRonaCalc_();},
+    depara: function(){return _moldeLogprintDepara_();}
   }
 };
 var _reSpMoldesCache_ = {};

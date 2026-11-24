@@ -69,3 +69,7 @@ Os testes de `reentradas-excel-*.test.cjs` verificam o contrato da previa, rejei
 Antes de preencher os custos, o gerador confere as colunas dedicadas Grafico e Editorial da especificacao e da tiragem originais, ainda antes do mapeamento do molde. Negativos explicitos (Nao Grafico, Nao Editorial, Nao ou false na coluna correspondente) excluem o SKU da calculadora e dos totais calculaveis. Classificacao do produto, descricao, campos ausentes e valores desconhecidos nao permitem inferir exclusao.
 
 As matrizes originais e NC - PPG Especificacoes do De-Para conservam esses SKUs. O resultado lista os motivos em avisos e `skusSomenteEspecificacao`. Se todos forem nao calculaveis, somente o De-Para tecnico e criado, com `somenteEspecificacao:true`, sem calculadora vazia. O limite de 300 considera somente as entradas calculaveis.
+
+## Rona (Reentradas)
+
+Incluida exclusivamente na Validacao de Custos Reentradas, com molde interno `MoldeRonaCalc.js`, gerado do arquivo `CALCULADORA FORNECEDOR RONA - LIVROS REENTRADAS 2026.xlsx` (15.104.235 bytes; SHA-256 b689dfb5de110218d938f50379fdd2f3d5773cdeae3dbf6d75cdaa4dac7a2dcd). As 12 abas e 62 partes foram conferidas; apenas calcChain foi removido, como nos outros moldes. Usa o contrato padrao C/D/F/G/H/I/Y/AB e fornecimento exclusivo por tecnologia, De-Para comum e protecao original. Nao le a fonte no Drive durante a geracao.

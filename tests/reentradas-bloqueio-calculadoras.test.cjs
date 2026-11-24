@@ -51,7 +51,7 @@ test('lista somente Calculadora Excel na pasta; reconhece MIME XLSM lowercase e 
   assert.equal(res.arquivos.find(a=>a.id==='file_macro_0002').grafica,'LOGPRINT');
   assert.equal(res.arquivos.find(a=>a.id==='file_camel_0003').grafica,'FORMACERTA');
   assert.equal(res.arquivos.find(a=>a.id==='file_outra_0004').disponivel,false);
-  for(const [nome,grafica] of [['Calculadora Casa da Gráfica.xlsx','CASADAGRAFICA'],['Calculadora Reproset.xlsx','REPROSET'],['CALCULADORA FORNECEDOR POSIGRAF (PRINCIPAL) - CHAMADO 9876.xlsx','POSIGRAFPRINCIPAL']])assert.equal(app._bcGrafica_(nome),grafica);
+  for(const [nome,grafica] of [['Calculadora Casa da Gráfica.xlsx','CASADAGRAFICA'],['Calculadora Reproset.xlsx','REPROSET'],['CALCULADORA FORNECEDOR POSIGRAF (PRINCIPAL) - CHAMADO 9876.xlsx','POSIGRAFPRINCIPAL'],['CALCULADORA FORNECEDOR RONA - CHAMADO 9876.xlsx','RONA']])assert.equal(app._bcGrafica_(nome),grafica);
   assert.throws(()=>app._bcGrafica_('Calculadora META LOGPRINT.xlsx'),/unico modelo/);
 });
 

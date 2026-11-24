@@ -166,6 +166,11 @@
 
   <section id="passo2" class="passo pf-panel" aria-label="Revisar envio">
     <h3>Revisar e enviar</h3>
+    <div class="pf-field" id="pf-remetente-campo">
+      <label class="pf-label" for="pf-remetente">Remetente</label>
+      <select id="pf-remetente" disabled style="max-width:100%;padding:10px;border:1px solid #cfd8e6;border-radius:8px;font:inherit"></select>
+      <div id="pf-remetente-status" class="pf-help" role="status">Identificando usuário…</div>
+    </div>
     <div class="pf-anexo">
       <div><strong id="nomeAnexo">Chamado.xlsx</strong><small id="pf-origem-anexo"></small></div>
       <div class="pf-actions">
@@ -1003,6 +1008,32 @@ function avancarParaRevisao() {
     pfErro('Falha na consulta ao SPG: '+(erro.message||erro));
   }).consultarPacoteEmailSPG(consulta.id,consulta.versao,consulta.tipo);
 }
+var pfRemetentePronto = false;
+function pfCarregarRemetentesFormalizacao() {
+  var select = pfEl('pf-remetente'), status = pfEl('pf-remetente-status');
+  if (!select || !status) return;
+  pfRemetentePronto = false;
+  select.disabled = true;
+  google.script.run.withSuccessHandler(function(config) {
+    select.textContent = '';
+    if (!config || !config.remetentes || !config.remetentes.length) {
+      status.textContent = 'Não foi possível identificar o remetente.';
+      return;
+    }
+    config.remetentes.forEach(function(item) {
+      var opcao = document.createElement('option');
+      opcao.value = item.email;
+      opcao.textContent = item.nome + ' — ' + item.email;
+      select.appendChild(opcao);
+    });
+    select.value = config.padrao;
+    select.disabled = !config.selecionavel;
+    status.textContent = config.selecionavel ? 'Selecione o remetente autorizado para este envio.' : 'Remetente definido pela conta conectada.';
+    pfRemetentePronto = true;
+  }).withFailureHandler(function(e) {
+    status.textContent = 'Não foi possível identificar o remetente: ' + (e.message || e);
+  }).obterRemetentesFormalizacao();
+}
 function enviarEmail() {
   if (pfEnviando) return;
   if (pfChamadoCancelado) {alert('Cancelamento identificado no SPG. Não é possível enviar a formalização.');return;}
@@ -1011,8 +1042,9 @@ function enviarEmail() {
   var assunto=pfEl('assuntoEmail').value.trim();
   var corpo=pfEl('corpoEmail').value.trim();
   if (!assunto||!corpo) {alert('Informe assunto e mensagem.');return;}
+  if (!pfRemetentePronto) {alert('Não foi possível identificar o remetente. Atualize a página e tente novamente.');return;}
   var pacote=Object.assign({},dadosGlobais,{
-    assunto:assunto,corpo:corpo,arrayDestinos:grupos
+    assunto:assunto,corpo:corpo,arrayDestinos:grupos,remetenteFormalizacao:pfEl('pf-remetente').value
   });
   pfEnviando=true;pfEl('pf-enviar').disabled=true;
   pfEl('loader2').style.display='block';
@@ -1172,4 +1204,5 @@ function pfSalvarCadastro() {
 if (pfCadastroInicial) {
   pfCarregarCadastro([]);
 }
+pfCarregarRemetentesFormalizacao();
 </script>

@@ -10,7 +10,6 @@ function _gfGraficaTeste_(s) {return /^teste(?:[\s_-]*\d+)?$/.test(_gfChave_(s))
 function _gfMapaDestinos_(catalogo) {
   var mapa=Object.create(null);
   Object.keys(catalogo||{}).forEach(function(nome) {
-    if (_gfGraficaTeste_(nome)) return;
     (catalogo[nome]||[]).forEach(function(raw) {
       _gfEmailEndereco_(raw).forEach(function(email) {
         if (/@arcoeducacao\.com\.br$/.test(email)) return;
@@ -55,12 +54,15 @@ function _gfLerMensagem_(msg, ids, remetentes, mapa) {
   var destinatarios=_gfEmailEndereco_(msg.getTo()).filter(function(e){return !/@arcoeducacao\.com\.br$/.test(e);});
   // Envio interno/teste nao conta como formalizacao para grafica.
   if(!destinatarios.length)return null;
-  var nomes=[], ambiguo=false;
+  var nomes=[], ambiguo=false, externoReal=false;
   destinatarios.forEach(function(email){
     var correspondencias=mapa[email]||[];
-    if(correspondencias.length===1 && nomes.indexOf(correspondencias[0])===-1)nomes.push(correspondencias[0]);
+    if(correspondencias.length && correspondencias.every(_gfGraficaTeste_))return;
+    externoReal=true;
+    if(correspondencias.length===1 && !_gfGraficaTeste_(correspondencias[0]) && nomes.indexOf(correspondencias[0])===-1)nomes.push(correspondencias[0]);
     if(correspondencias.length!==1)ambiguo=true;
   });
+  if(!externoReal)return null;
   return {id:id,data:msg.getDate().getTime(),graficas:nomes,ambiguo:ambiguo};
 }
 function _gfConsultarEnviados_(numeros,catalogo) {
@@ -72,7 +74,7 @@ function _gfConsultarEnviados_(numeros,catalogo) {
   var vistos=Object.create(null),completo=true;
   for(var i=0;i<numeros.length;i+=10){
     var lote=numeros.slice(i,i+10);
-    var query='in:sent {'+lote.map(function(n){return 'filename:"Chamado '+n+'.xlsx"';}).join(' ')+'}';
+    var query='in:sent {'+lote.map(function(n){return 'filename:"Chamado '+n+'.xlsx" subject:"Chamado '+n+'"';}).join(' ')+'}';
     // Paginacao limitada para manter o painel leve; nao declara ausencia em leitura truncada.
     for(var start=0;start<500;start+=100){
       var threads=GmailApp.search(query,start,100);

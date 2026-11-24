@@ -107,6 +107,31 @@
 @media(max-width:640px){#pf-email .pf-preview-pager{align-items:stretch}#pf-email .pf-preview-pager .pf-actions{justify-content:space-between}#pf-email .pf-preview-head{padding:11px}#pf-email .pf-preview-fullscreen{inset:5px}}
 </style>
 
+
+<style>
+#pf-gestao-layout{display:grid;grid-template-columns:minmax(0,992px) minmax(340px,1fr);align-items:start;gap:16px;width:100%;max-width:1750px;margin:0 auto}
+#pf-gestao-layout>#pf-email{margin:0;width:100%}
+#pf-gestao{font-family:'Poppins',Arial,sans-serif;min-width:0;margin:12px 0 24px;padding:17px;border:1px solid #e4e9f1;border-radius:14px;background:#fff;color:#18273e;box-shadow:0 5px 25px rgba(35,58,96,.035)}
+#pf-gestao *{box-sizing:border-box}
+#pf-gestao h2{font-size:17px;font-weight:700;margin:0 0 5px;color:#152744}
+#pf-gestao p{font-size:11px;line-height:1.5;color:#63758f;margin:0}
+#pf-gestao .gf-tools{display:flex;gap:7px;margin:13px 0;align-items:center}
+#pf-gestao input{min-width:0;flex:1;font:inherit;font-size:12px;padding:8px;border:1px solid #cfd8e6;border-radius:8px}
+#pf-gestao button{border:1px solid #d6dfec;border-radius:7px;background:#fff;color:#34506f;font:inherit;font-size:11px;font-weight:700;padding:8px;cursor:pointer}
+#pf-gestao button:disabled{opacity:.45;cursor:default}
+#pf-gestao .gf-tablewrap{overflow:auto;max-height:570px;border:1px solid #e5ebf3;border-radius:8px}
+#pf-gestao table{border-collapse:collapse;width:100%;font-size:11px;text-align:left}
+#pf-gestao th{position:sticky;top:0;background:#f3f6fb;z-index:1;color:#526881;font-weight:700}
+#pf-gestao td,#pf-gestao th{padding:9px 7px;vertical-align:top;border-bottom:1px solid #edf0f5}
+#pf-gestao .gf-ok{color:#23734a;font-weight:600}
+#pf-gestao .gf-pendente{color:#8c6421;font-weight:600}
+#pf-gestao .gf-faint{color:#73849a}
+#pf-gestao .gf-pager{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#63758f}
+#pf-gestao .gf-count{font-size:11px;color:#63758f;margin-bottom:8px}
+@media(max-width:1220px){#pf-gestao-layout{grid-template-columns:minmax(0,1fr)}#pf-gestao-layout>#pf-email{margin:0 auto}#pf-gestao{max-width:980px;width:100%;margin:0 auto 24px}}
+</style>
+
+<div id="pf-gestao-layout">
 <div id="pf-email" class="pf-email">
   <header class="pf-hero">
     <div class="pf-hero-top">
@@ -271,6 +296,21 @@
       </div>
     </div>
   </div>
+</div>
+
+<aside id="pf-gestao" aria-label="Gestão de formalizações">
+  <h2>Gestão de formalizações</h2>
+  <p>Chamados do SPG e histórico de e-mails enviados.</p>
+  <div class="gf-tools">
+    <input id="gf-busca" type="text" inputmode="numeric" maxlength="12" placeholder="Número do chamado" aria-label="Número do chamado">
+    <button type="button" id="gf-buscar">Buscar</button>
+    <button type="button" id="gf-atualizar">Atualizar</button>
+  </div>
+  <div id="gf-status" class="gf-count" role="status" aria-live="polite">Abra a seção para consultar.</div>
+  <div class="gf-tablewrap"><table><thead><tr><th>Chamado</th><th>Status</th><th>Último envio</th><th>Gráficas enviadas</th></tr></thead><tbody id="gf-linhas"></tbody></table></div>
+  <div class="gf-pager"><button type="button" id="gf-anterior" disabled>Anterior</button><span id="gf-pagina">—</span><button type="button" id="gf-proxima" disabled>Próxima</button></div>
+  <p style="margin-top:12px">Histórico: assunto padrão + anexo do chamado em Enviados. Gráficas identificadas pelos destinatários do cadastro atual. Envios internos não contam. Sem envio localizado não comprova ausência de formalização por outros meios.</p>
+</aside>
 </div>
 
 <script>
@@ -1205,4 +1245,49 @@ if (pfCadastroInicial) {
   pfCarregarCadastro([]);
 }
 pfCarregarRemetentesFormalizacao();
+</script>
+
+<script>
+(function(){
+  var root=document.getElementById('pf-gestao');if(!root)return;
+  var page=1,pages=1,query='',ticket=0,started=false;
+  function el(id){return document.getElementById(id);}
+  function cell(tr,value,cls){var td=document.createElement('td');td.textContent=value||'—';if(cls)td.className=cls;tr.appendChild(td);return td;}
+  function render(res){
+    var body=el('gf-linhas');body.textContent='';
+    if(!res||res.erro){el('gf-status').textContent=(res&&res.erro)||'Falha na consulta.';return;}
+    page=res.pagina;pages=res.paginas;
+    el('gf-status').textContent=res.total+' chamado(s)'+(res.completo?'':' · histórico incompleto')+(res.erroHistorico?' · '+res.erroHistorico:'');
+    el('gf-pagina').textContent=page+' / '+pages;
+    el('gf-anterior').disabled=page<=1;el('gf-proxima').disabled=page>=pages;
+    (res.chamados||[]).forEach(function(item){
+      var tr=document.createElement('tr');
+      cell(tr,item.chamado);
+      var status={formalizado:'Formalizado',grafica_nao_identificada:'Envio localizado',nao_localizado:'Sem envio localizado',indeterminado:'Não verificado'};
+      cell(tr,status[item.status]||'Não verificado',item.status==='formalizado'?'gf-ok':'gf-pendente');
+      cell(tr,item.dataEnvio,'gf-faint');
+      var graficas=cell(tr,'');
+      graficas.textContent='';
+      (item.graficas||[]).forEach(function(g){var div=document.createElement('div');div.textContent=g.nome;div.title=g.data;graficas.appendChild(div);});
+      if(item.parcial||item.status==='grafica_nao_identificada'){var note=document.createElement('div');note.className='gf-faint';note.textContent='Destinatário não identificado';graficas.appendChild(note);}
+      if(!graficas.children.length)graficas.textContent='—';
+      body.appendChild(tr);
+    });
+    if(!(res.chamados||[]).length){var tr=document.createElement('tr'),td=cell(tr,'Nenhum chamado encontrado.');td.colSpan=4;body.appendChild(tr);}
+  }
+  function load(){
+    started=true;var id=++ticket;el('gf-status').textContent='Consultando SPG e e-mails enviados…';
+    el('gf-anterior').disabled=true;el('gf-proxima').disabled=true;
+    google.script.run.withSuccessHandler(function(res){if(id===ticket)render(res);}).withFailureHandler(function(e){if(id===ticket)el('gf-status').textContent='Falha na consulta: '+(e.message||e);}).obterGestaoFormalizacoes(page,query);
+  }
+  function buscar(){query=el('gf-busca').value.trim();if(query&&!/^\d{1,12}$/.test(query)){el('gf-status').textContent='Informe apenas o número do chamado.';return;}page=1;load();}
+  el('gf-buscar').onclick=buscar;el('gf-busca').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();buscar();}};
+  el('gf-atualizar').onclick=load;
+  el('gf-anterior').onclick=function(){if(page>1){page--;load();}};
+  el('gf-proxima').onclick=function(){if(page<pages){page++;load();}};
+  if(typeof IntersectionObserver!=='undefined'){var obs=new IntersectionObserver(function(entries){if(entries.some(function(e){return e.isIntersecting;})){obs.disconnect();if(!started)load();}});obs.observe(root);}
+  // A tela de envio permanece intacta; observa apenas a chegada ao passo concluido.
+  var done=document.getElementById('passo3');
+  if(done&&typeof MutationObserver!=='undefined'){var was=done.classList.contains('ativo');new MutationObserver(function(){var now=done.classList.contains('ativo');if(now&&!was&&started)load();was=now;}).observe(done,{attributes:true,attributeFilter:['class']});}
+})();
 </script>

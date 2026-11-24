@@ -103,6 +103,7 @@ function makeScreen(bootstrap) {
       'baixarPreviaExcelEmail', 'dispararEmailPacoteSPG', 'dispararEmailFinal'].forEach(method => {
       chain[method] = (...args) => requests.push({ method, args, success: chain.success, failure: chain.failure });
     });
+    chain.obterRemetentesFormalizacao=()=>chain.success({selecionavel:false,padrao:'joao.alberti@arcoeducacao.com.br',remetentes:[{email:'joao.alberti@arcoeducacao.com.br',nome:'Joao Victor Caporal Alberti'}]});
     return chain;
   }});
   const graficas = { Teste: ['test@example.com', 'shared@example.com'], Outra: ['other@example.com', 'shared@example.com'] };
@@ -610,4 +611,14 @@ test('falha no download libera uma nova tentativa sem alterar envio',()=>{
   assert.match(s.el('pf-download-status').textContent,/O Excel mudou/);
   s.context.pfBaixarPreviaExcel();assert.equal(s.requests.filter(r=>r.method==='baixarPreviaExcelEmail').length,2);
   assert.equal(s.context.dadosGlobais.anexoHash,complete.anexoHash);
+});
+
+
+test('formalizacao: remetente autorizado aparece e segue no payload',()=>{
+  const s=makeScreen();
+  assert.equal(s.el('pf-remetente').value,'joao.alberti@arcoeducacao.com.br');
+  assert.equal(s.el('pf-remetente').disabled,true);
+  s.context.avancarParaRevisao();s.reply('consultarPacoteEmailSPG',complete);
+  s.context.enviarEmail();
+  assert.equal(s.pending('dispararEmailPacoteSPG').args[0].remetenteFormalizacao,'joao.alberti@arcoeducacao.com.br');
 });
